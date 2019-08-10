@@ -1,2 +1,2 @@
 # lisp-in-small-pieces
-Working throug the Book Lisp In Smapp Pieces
+Working through the Book Lisp In Small Pieces
