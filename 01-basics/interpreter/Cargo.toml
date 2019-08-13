@@ -1,0 +1,14 @@
+[package]
+name = "interpreter"
+version = "0.1.0"
+authors = ["mbilling <flkazemakase@gmail.com>"]
+edition = "2018"
+
+build = "build.rs"
+
+[dependencies]
+lexpr = "0.2"
+lisp-core = {path="../../crates/lisp-core"}
+
+[build-dependencies]
+chrono = "0.4"
