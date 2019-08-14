@@ -9,5 +9,3 @@ edition = "2018"
 [dependencies]
 lexpr = "0.2"
 rustyline = "5.0"
-gc = "0.3"
-gc_derive = "0.3"
