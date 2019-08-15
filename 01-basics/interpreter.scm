@@ -102,6 +102,7 @@
 (definitial 'bar)
 (definitial 'fib)
 (definitial 'fact)
+(definitial 'list)
 
 (defprimitive 'cons cons 2)
 (defprimitive 'car car 1)
