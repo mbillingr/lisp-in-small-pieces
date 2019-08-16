@@ -3,6 +3,14 @@ use lisp_core::common::{BasicLispValue, CombinedLispOps, NumericLispValue};
 use lisp_core::simple::Value as lcValue;
 use std::rc::Rc;
 
+// In contrast to the original implementation this interpreter cannot
+// make use of the host language's lambdas/closures to implement lambda
+// functions. Thus, it was necessary to create a special `Callable`
+// that stores all the values required for invoking a lambda function.
+// These are the parameter names, the function body and the lexical
+// environment. The original Scheme implementation simply captured those
+// in a lambda's closure...
+
 fn main() {
     let env = init_global_environment();
 
