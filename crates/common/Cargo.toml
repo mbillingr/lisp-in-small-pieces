@@ -1,13 +1,11 @@
 [package]
-name = "simple_interpreter"
+name = "common"
 version = "0.1.0"
-authors = ["mbilling <flkazemakase@gmail.com>"]
+authors = ["Martin Billinger <flkazemakase@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lexpr = "0.2"
 rustyline = "5.0"
-common = {path = "../../crates/common"}
-lisp-core = {path = "../../crates/lisp-core"}
+lisp-core = {path = "../lisp-core"}

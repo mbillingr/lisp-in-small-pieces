@@ -1,5 +1,5 @@
-use crate::storage::ManagedStorage;
-use crate::{LispData, LispResult, Managable};
+use super::storage::ManagedStorage;
+use super::{LispData, LispResult, Managable};
 use rustyline::Editor;
 use std::str::FromStr;
 

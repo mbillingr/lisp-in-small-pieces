@@ -1,4 +1,4 @@
-use crate::Managable;
+use super::Managable;
 
 pub struct ManagedStorage<T>
 where

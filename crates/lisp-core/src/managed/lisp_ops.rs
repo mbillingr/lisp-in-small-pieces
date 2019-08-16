@@ -1,4 +1,4 @@
-use crate::{LispData, LispResult};
+use super::{LispData, LispResult};
 
 pub trait LispOps: Sized {
     fn caar(&self) -> LispResult<Self>;
