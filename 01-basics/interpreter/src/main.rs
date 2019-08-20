@@ -1,4 +1,4 @@
-use lisp_core::{Context, ErrorKind, LispData, LispError, LispOps, LispValue};
+use lisp_core::managed::{Context, ErrorKind, LispData, LispError, LispOps, LispValue};
 
 //static QUOTE: LispValue = LispValue::Symbol(&"quote");
 static BEGIN: &&str = &"begin";

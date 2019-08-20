@@ -18,7 +18,7 @@ where
 {
     pub fn new() -> Self {
         Context {
-            storage: ManagedStorage::new(10000),
+            storage: ManagedStorage::new(10000000),
             roots: vec![],
             symbols: vec![],
         }

@@ -5,7 +5,7 @@ where
     T: Managable,
 {
     heap: Vec<T>,
-    last_root_size: usize,
+    inactive_heap: Vec<T>,
 }
 
 impl<T> ManagedStorage<T>
@@ -15,7 +15,7 @@ where
     pub fn new(size: usize) -> Self {
         ManagedStorage {
             heap: Vec::with_capacity(size),
-            last_root_size: 0,
+            inactive_heap: vec![],
         }
     }
 
@@ -69,72 +69,78 @@ where
         Some(&mut self.heap[i])
     }
 
-    /// Collect garbage.
-    /// This function is unsafe because it will invalidate all pointers to the heap.
-    /// Objects reachable by the roots are preserved and their pointers updated. It
-    /// is the responsibility of the caller to pass the roots required to reach all
-    /// live objects. Otherwise there will be dangling pointers!
-    pub unsafe fn collect_garbage(&mut self, roots: &[T], mut extend: usize) -> &[T] {
-        let mem_used_before = self.heap.len();
-        let capacity_before = self.heap.capacity();
-        let mem_free_before = capacity_before - mem_used_before;
+    pub unsafe fn collect_garbage(&mut self, roots: &[T], extend: usize) -> &[T] {
+        collect_garbage(&mut self.heap, &mut self.inactive_heap, roots, extend)
+    }
 
-        if mem_free_before + self.last_root_size + extend < roots.len() {
-            extend += roots.len();
+}
+
+/// Collect garbage.
+/// This function is unsafe because it will invalidate all pointers to the heap.
+/// Objects reachable by the roots are preserved and their pointers updated. It
+/// is the responsibility of the caller to pass the roots required to reach all
+/// live objects. Otherwise there will be dangling pointers!
+pub unsafe fn collect_garbage<'a, T>(from_space: &'a mut Vec<T>, to_space: &'a mut Vec<T>, roots: &[T], extend: usize) -> &'a [T]
+where T: Managable
+{
+    let mem_used_before = from_space.len();
+
+    to_space.resize(from_space.capacity() + extend, T::default());
+
+    let mut scan_ptr = &mut to_space[0] as *mut T;
+    let mut insert_ptr = &mut to_space[0] as *mut T;
+
+    let limit = insert_ptr.offset(to_space.capacity() as isize);
+
+    for root in roots {
+        *insert_ptr = *root;
+        insert_ptr = insert_ptr.offset(1);
+    }
+
+    while scan_ptr < insert_ptr {
+        if insert_ptr >= limit {
+            // todo: this is not safe - the scan_ptr may cross the limit in the record loop...
+            panic!("Out of Memory")
         }
-        self.last_root_size = roots.len();
-
-        let mut to_space = vec![T::default(); self.heap.capacity() + extend];
-
-        let mut scan_ptr = &mut to_space[0] as *mut _;
-        let mut insert_ptr = &mut to_space[0] as *mut _;
-
-        for root in roots {
-            *insert_ptr = *root;
-            insert_ptr = insert_ptr.offset(1);
-        }
-
-        while scan_ptr < insert_ptr {
-            match *scan_ptr {
-                slot if slot.is_record() => {
-                    let r = slot.as_record().unwrap();
-                    if !r.is_empty() {
-                        if let Some(dst) = r[0].as_relocated() {
-                            *scan_ptr = T::record(dst as *mut _, r.len());
-                        } else {
-                            *insert_ptr = r[0];
-                            *scan_ptr = T::record(insert_ptr, r.len());
-                            r[0] = T::relocated(insert_ptr);
+        match *scan_ptr {
+            slot if slot.is_record() => {
+                let r = slot.as_record().unwrap();
+                if !r.is_empty() {
+                    if let Some(dst) = r[0].as_relocated() {
+                        *scan_ptr = T::record(dst as *mut _, r.len());
+                    } else {
+                        *insert_ptr = r[0];
+                        *scan_ptr = T::record(insert_ptr, r.len());
+                        r[0] = T::relocated(insert_ptr);
+                        insert_ptr = insert_ptr.offset(1);
+                        for item in &r[1..] {
+                            *insert_ptr = *item;
                             insert_ptr = insert_ptr.offset(1);
-                            for item in &r[1..] {
-                                *insert_ptr = *item;
-                                insert_ptr = insert_ptr.offset(1);
-                            }
                         }
                     }
                 }
-
-                _ => {}
             }
-            scan_ptr = scan_ptr.offset(1);
+
+            _ => {}
         }
-
-        let start = &to_space[0] as *const _ as usize;
-        let len = (scan_ptr as usize - start) / std::mem::size_of::<T>();
-        to_space.truncate(len);
-
-        std::mem::replace(&mut self.heap, to_space);
-
-        let mem_used_after = self.heap.len();
-
-        eprintln!(
-            "{} collected, {} live, {} free, {} total",
-            mem_used_before.saturating_sub(mem_used_after),
-            mem_used_after,
-            self.heap.capacity() - mem_used_after,
-            self.heap.capacity()
-        );
-
-        &self.heap[..roots.len()]
+        scan_ptr = scan_ptr.offset(1);
     }
+
+    let start = &to_space[0] as *const _ as usize;
+    let len = (scan_ptr as usize - start) / std::mem::size_of::<T>();
+    to_space.truncate(len);
+
+    std::mem::swap(from_space, to_space);
+
+    let mem_used_after = from_space.len();
+
+    eprintln!(
+        "{} collected, {} live, {} free, {} total",
+        mem_used_before.saturating_sub(mem_used_after),
+        mem_used_after,
+        from_space.capacity() - mem_used_after,
+        from_space.capacity()
+    );
+
+    &from_space[..roots.len()]
 }
