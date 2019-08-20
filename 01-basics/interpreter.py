@@ -15,8 +15,11 @@ from utils import read, is_null, is_symbol, is_pair, cons, length, Pair, Symbol,
 def main():
     definitial('x')
     defprimitive('+', lambda args: args.car + args.cadr, 2)
+    defprimitive('-', lambda args: args.car - args.cadr, 2)
+    defprimitive('<', lambda args: args.car < args.cadr, 2)
     defprimitive('cons', lambda args: cons(args.car, args.cadr), 2)
     definitial('list', lambda args: args)
+    definitial('fib', lambda args: args)
     while True:
         exprs = read()  # our version of read returns a list of expressions
         for expr in exprs:
@@ -72,7 +75,7 @@ def extend(env, variables, values):
     if is_pair(variables):
         if is_pair(values):
             return cons(cons(variables.car, values.car),
-                        extend(env, variables.cdr, variables.car))
+                        extend(env, variables.cdr, values.cdr))
         else:
             raise ValueError("Too few values")
     elif is_null(variables):
@@ -82,6 +85,8 @@ def extend(env, variables, values):
             raise ValueError("Too many values")
     elif is_symbol(variables):
         return cons(cons(variables, values), env)
+    else:
+        raise RuntimeError("Branch should be unreachable")
 
 def eprogn(exps, env):
     if is_pair(exps):

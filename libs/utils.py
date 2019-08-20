@@ -103,7 +103,7 @@ def length(x):
         return 0
 
 def is_null(x):
-    return isinstance(x, Nil)
+    return x is Nil or isinstance(x, Nil)
 
 def is_symbol(x):
     return isinstance(x, Symbol)
