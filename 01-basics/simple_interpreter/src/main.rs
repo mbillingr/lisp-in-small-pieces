@@ -3,13 +3,7 @@ use lisp_core::common::{BasicLispValue, CombinedLispOps, NumericLispValue};
 use lisp_core::simple::Value as lcValue;
 use std::rc::Rc;
 
-// In contrast to the original implementation this interpreter cannot
-// make use of the host language's lambdas/closures to implement lambda
-// functions. Thus, it was necessary to create a special `Callable`
-// that stores all the values required for invoking a lambda function.
-// These are the parameter names, the function body and the lexical
-// environment. The original Scheme implementation simply captured those
-// in a lambda's closure...
+// Unfortunately, this interpreter is not properly tail-recursive.
 
 fn main() {
     let env = init_global_environment();
@@ -24,7 +18,7 @@ fn main() {
 
 macro_rules! def_primitive {
     ($env:expr, $name:expr, $func:expr) => {
-        define!($env, $name, lcValue::Function(Callable::Function($func)))
+        define!($env, $name, lcValue::Function(Callable(Rc::new($func))))
     };
 }
 
@@ -118,21 +112,17 @@ fn evlis(exps: &Value, env: &Value) -> Result<Value> {
 }
 
 fn make_function(params: &Value, body: &Value, env: &Value) -> Result<Value> {
-    Ok(lcValue::Function(Callable::Closure(
-        |args, closure| {
-            let params = &closure[0];
-            let body = &closure[1];
-            let env = &closure[2];
-            eprogn(body, &extend(env, params, args)?)
-        },
-        vec![params.clone(), body.clone(), env.clone()].into(),
-    )))
+    let params = params.clone();
+    let body = body.clone();
+    let env = env.clone();
+    Ok(lcValue::Function(Callable(Rc::new(move |args| {
+        eprogn(&body, &extend(&env, &params, args)?)
+    }))))
 }
 
 fn invoke(func: &Value, args: &Value) -> Result<Value> {
     match func {
-        lcValue::Function(Callable::Closure(func, vars)) => func(args, &vars),
-        lcValue::Function(Callable::Function(func)) => func(args),
+        lcValue::Function(Callable(func)) => func(args),
         _ => panic!("Not a function: {:?}", func),
     }
 }
@@ -140,22 +130,10 @@ fn invoke(func: &Value, args: &Value) -> Result<Value> {
 type Value = lcValue<Callable>;
 
 #[derive(Clone)]
-enum Callable {
-    Function(fn(&Value) -> Result<Value>),
-    Closure(fn(&Value, &[Value]) -> Result<Value>, Rc<[Value]>),
-}
+struct Callable(Rc<dyn Fn(&Value) -> Result<Value>>);
 
 impl std::fmt::Debug for Callable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Callable::Function(fun) => write!(f, "function<{:p}", fun),
-            Callable::Closure(_, vars) => write!(f, "closure<{:p}", vars.as_ptr()),
-        }
-    }
-}
-
-impl From<fn(&Value) -> Result<Value>> for Callable {
-    fn from(func: fn(&Value) -> Result<Value>) -> Self {
-        Callable::Function(func)
+        write!(f, "<callable {:p}>", &*self.0)
     }
 }
