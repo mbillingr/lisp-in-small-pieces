@@ -129,6 +129,12 @@
 (defprimitive 'eq? eq? 2)
 (defprimitive '< < 2)
 
+(definitial-function 'funcall
+  (lambda (args)
+    (if (> (length args) 1)
+        (invoke (car args) (cdr args))
+        (wrong "Incorrect arity" 'funcall))))
+
 (define (lisp2-repl)
   (define (toplevel)
     (display (f.evaluate (read) env.global fenv.global))

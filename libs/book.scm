@@ -5,6 +5,7 @@
           atom?
           empty-begin
           extend
+          invoke
           lookup
           the-false-value
           update!
@@ -46,4 +47,9 @@
              (if (null? values)
                  env
                  (wrong "Too many values")))
-            ((symbol? variables) (cons (cons variables values) env))))))
+            ((symbol? variables) (cons (cons variables values) env))))
+
+    (define (invoke fn args)
+      (if (procedure? fn)
+          (fn args)
+          (wrong "Not a function" fn)))))
