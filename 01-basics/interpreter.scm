@@ -109,17 +109,16 @@
 (defprimitive 'cdr cdr 1)
 (defprimitive 'set-car! set-car! 2)
 (defprimitive 'set-cdr! set-cdr! 2)
+(defprimitive 'eq? (lambda (a b)) (map-bool (eq? a b)) 2)
 (defprimitive '+ + 2)
 (defprimitive '- - 2)
 (defprimitive '* * 2)
 (defprimitive '/ / 2)
-(defprimitive 'eq? eq? 2)
-(defprimitive '<
-              (lambda (a b)
-                (if (< a b)
-                    a-true-value
-                    the-false-value))
-              2)
+(defprimitive '= (lambda (a b)) (map-bool (= a b)) 2)
+(defprimitive '< (lambda (a b)) (map-bool (< a b)) 2)
+
+(define (map-bool b)
+  (if b a-true-value the-false-value))
 
 (define (chapter1-scheme)
   (define (toplevel)
