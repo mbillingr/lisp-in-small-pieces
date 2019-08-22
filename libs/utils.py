@@ -1,8 +1,8 @@
 import shlex
 
 
-def read():
-    string = input("lisp1>>")
+def read(prompt="lisp1>>"):
+    string = input(prompt)
     tokens = tokenize(string)
     return parse(tokens)
 
@@ -102,6 +102,9 @@ def length(x):
     else:
         return 0
 
+def is_atom(expr):
+    return not is_pair(expr)
+
 def is_null(x):
     return x is Nil or isinstance(x, Nil)
 
@@ -119,3 +122,8 @@ def car(x):
 
 def cdr(x):
     return x.cdr
+
+def is_eqv(a, b):
+    if isinstance(a, Pair) and isinstance(b, Pair):
+        return a is b
+    return a == b
