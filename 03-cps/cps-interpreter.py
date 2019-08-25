@@ -1,8 +1,8 @@
 import sys
 
 sys.path.append("../libs")
-from utils import read, is_atom, is_eqv, is_null, is_symbol, is_pair, car, \
-    cons, length, Pair, Symbol, Nil
+from utils import read, is_atom, is_eq, is_eqv, is_null, is_symbol, is_pair, \
+    car, cons, length, Pair, Symbol, Nil
 
 
 # I'm writing this interpreter in Python instead of Scheme because I do not
@@ -60,6 +60,12 @@ class Continuation:
     def catch_lookup(self, tag, kk):
         return catch_lookup(self.k, tag, kk)
 
+    def unwind(self, v, ktarget):
+        if is_eq(self, ktarget):
+            resume(ktarget, v)
+        else:
+            unwind(self.k, v, ktarget)
+
 
 def evaluate(e, r, k):
     if is_atom(e):
@@ -83,6 +89,10 @@ def evaluate(e, r, k):
             return evaluate_catch(e.cadr, e.cddr, r, k)
         elif first == 'throw':
             return evaluate_throw(e.cadr, e.caddr, r, k)
+        elif first == 'block':
+            return evaluate_block(e.cadr, e.cddr, r, k)
+        elif first == 'return-from':
+            return evaluate_return_from(e.cadr, e.caddr, r, k)
         else:
             return evaluate_application(e.car, e.cdr, r, k)
 
@@ -136,6 +146,9 @@ class NullEnv(Environment):
     def update(self, n, k, v):
         raise NameError("Unknown variable {} {} {}".format(n, self, k))
 
+    def block_lookup(self, n, k, v):
+        raise NameError("Unknown block label {} {} {} {}".format(n, self, k, v))
+
 
 class FullEnv(Environment):
     def __init__(self, others, name):
@@ -148,6 +161,9 @@ class FullEnv(Environment):
 
     def update(self, n, k, v):
         return update(self.others, n, k, v)
+
+    def block_lookup(self, n, k, v):
+        return block_lookup(self.others, n, k, v)
 
 
 class VariableEnv(FullEnv):
@@ -267,6 +283,9 @@ def evaluate_arguments(es, r, k, no_more_arguments=Nil):
         return resume(k, no_more_arguments)
 
 
+# ------ Implementation of catch / throw ------
+
+
 class CatchCont(Continuation):
     def __init__(self, k, body, r):
         super().__init__(k)
@@ -325,6 +344,63 @@ def evaluate_throw(tag, form, r, k):
     return evaluate(tag, r, ThrowCont(k, form, r))
 
 
+# ------ Implementation of block / return-from ------
+
+
+class BlockCont(Continuation):
+    def __init__(self, k, label):
+        super().__init__(k)
+        self.label = label
+
+    def resume(self, v):
+        return resume(self.k, v)
+
+
+class BlockEnv(FullEnv):
+    def __init__(self, others, name, cont):
+        super().__init__(others, name)
+        self.cont = cont
+
+    def block_lookup(self, n, k, v):
+        if is_eq(n, self.name):
+            return unwind(k, v, self.cont)
+        else:
+            return block_lookup(self.others, n, k, v)
+
+
+def evaluate_block(label, body, r, k):
+    k = BlockCont(k, label)
+    return evaluate_begin(body, BlockEnv(r, label, k), k)
+
+
+class ReturnFromCont(Continuation):
+    def __init__(self, k, r, label):
+        super().__init__(k)
+        self.r = r
+        self.label = label
+
+    def resume(self, v):
+        return block_lookup(self.r, self.label, self.k, v)
+
+
+@generic_function
+def block_lookup(r, n, k, v):
+    raise TypeError("Not an environment {} {} {} {} ".format(r, n, k, v))
+
+
+@generic_function
+def unwind(k, v, ktarget):
+    raise NotImplementedError("unwind {} {} {}".format(k, v, ktarget))
+
+
+
+def evaluate_return_from(label, form, r, k):
+    return evaluate(form, r, ReturnFromCont(k, r, label))
+
+
+# ------ Primitives and REPL ------
+
+
 def definitial(name, value=None):
     global GLOBAL_ENV
     GLOBAL_ENV = VariableEnv(GLOBAL_ENV, Symbol(name), value)
@@ -355,7 +431,7 @@ def primitive(name, value, vs, arity, k):
         raise TypeError("incorrect arity {} {}".format(name, vs))
 
 
-GLOBAL_ENV = Nil
+GLOBAL_ENV = NullEnv()
 definitial('f')
 defprimitive('cons', lambda args: cons(args.car, args.cadr), 2)
 defprimitive('car', lambda args: args.caar, 1)
@@ -388,6 +464,9 @@ class BottomCont(Continuation):
 
     def catch_lookup(self, tag, kk):
         raise ValueError("No associated catch {} {} {}".format(self, tag, kk))
+
+    def unwind(self, v, ktarget):
+        raise ValueError("Obsolete continuation {}".format(v))
 
 
 def chapter3_interpreter():

@@ -127,3 +127,6 @@ def is_eqv(a, b):
     if isinstance(a, Pair) and isinstance(b, Pair):
         return a is b
     return a == b
+
+def is_eq(a, b):
+    return a is b
