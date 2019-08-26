@@ -2,48 +2,19 @@ import sys
 
 sys.path.append("../libs")
 from utils import read, is_atom, is_eq, is_eqv, is_null, is_symbol, is_pair, \
-    car, cons, length, Pair, Symbol, Nil
+    cons, length, Symbol, Nil
 
 
 # I'm writing this interpreter in Python instead of Scheme because I do not
 # have an object system implementation readily available.
 
 
-def generic_function(default):
-    def inner(obj, *args, **kwargs):
-        try:
-            method = getattr(obj, default.__name__)
-        except AttributeError:
-            return default(obj, *args, **kwargs)
-        return method(*args, **kwargs)
-
-    return inner
+class Value:
+    pass
 
 
-@generic_function
-def invoke(f, vs, r, k):
-    raise TypeError("Not a function {} {} {}".format(f, r, k))
-
-
-@generic_function
-def resume(k, v):
-    raise TypeError("Unknown continuation {}".format(k))
-
-
-@generic_function
-def lookup(r, n, k):
-    raise TypeError("Not an environment {} {} {}".format(r, n, k))
-
-
-@generic_function
-def update(r, n, k, v):
-    raise TypeError("Not an environment {} {} {}".format(r, n, k))
-
-
-class Value: pass
-
-
-class Environment: pass
+class Environment:
+    pass
 
 
 class Continuation:
@@ -52,19 +23,19 @@ class Continuation:
 
     def invoke(self, vs, r, k):
         if length(vs) == 1:
-            return resume(self, vs.car)
+            return self.resume(vs.car)
         else:
             raise TypeError(
                 "Continuations expect one argument {} {} {}".format(vs, r, k))
 
     def catch_lookup(self, tag, kk):
-        return catch_lookup(self.k, tag, kk)
+        return self.k.catch_lookup(tag, kk)
 
     def unwind(self, v, ktarget):
         if is_eq(self, ktarget):
-            resume(ktarget, v)
+            ktarget.resume(v)
         else:
-            unwind(self.k, v, ktarget)
+            self.k.unwind(v, ktarget)
 
 
 def evaluate(e, r, k):
@@ -97,8 +68,8 @@ def evaluate(e, r, k):
             return evaluate_application(e.car, e.cdr, r, k)
 
 
-def evaluate_quote(v, r, k):
-    return resume(k, v)
+def evaluate_quote(v, _r, k):
+    return k.resume(v)
 
 
 class IfCont(Continuation):
@@ -122,7 +93,7 @@ class BeginCont(Continuation):
         self.es = es
         self.r = r
 
-    def resume(self, v):
+    def resume(self, _v):
         return evaluate_begin(self.es.cdr, self.r, self.k)
 
 
@@ -133,7 +104,7 @@ def evaluate_begin(es, r, k):
         else:
             return evaluate(es.car, r, k)
     else:
-        return resume(k, None)
+        return k.resume(None)
 
 
 class NullEnv(Environment):
@@ -147,7 +118,8 @@ class NullEnv(Environment):
         raise NameError("Unknown variable {} {} {}".format(n, self, k))
 
     def block_lookup(self, n, k, v):
-        raise NameError("Unknown block label {} {} {} {}".format(n, self, k, v))
+        raise NameError(
+            "Unknown block label {} {} {} {}".format(n, self, k, v))
 
 
 class FullEnv(Environment):
@@ -157,13 +129,13 @@ class FullEnv(Environment):
         self.name = name
 
     def lookup(self, n, k):
-        return lookup(self.others, n, k)
+        return self.others.lookup(n, k)
 
     def update(self, n, k, v):
-        return update(self.others, n, k, v)
+        return self.others.update(n, k, v)
 
     def block_lookup(self, n, k, v):
-        return block_lookup(self.others, n, k, v)
+        return self.others.block_lookup(n, k, v)
 
 
 class VariableEnv(FullEnv):
@@ -173,20 +145,20 @@ class VariableEnv(FullEnv):
 
     def lookup(self, n, k):
         if is_eqv(n, self.name):
-            return resume(k, self.value)
+            return k.resume(self.value)
         else:
-            return lookup(self.others, n, k)
+            return self.others.lookup(n, k)
 
     def update(self, n, k, v):
         if is_eqv(n, self.name):
             self.value = v
-            return resume(k, v)
+            return k.resume(v)
         else:
-            return update(self.others, n, k, v)
+            return self.others.update(n, k, v)
 
 
 def evaluate_variable(n, r, k):
-    return lookup(r, n, k)
+    return r.lookup(n, k)
 
 
 class SetCont(Continuation):
@@ -196,7 +168,7 @@ class SetCont(Continuation):
         self.r = r
 
     def resume(self, v):
-        update(self.r, self.n, self.k, v)
+        self.r.update(self.n, self.k, v)
 
 
 def evaluate_set(n, e, r, k):
@@ -210,13 +182,13 @@ class Function(Value):
         self.body = body
         self.env = env
 
-    def invoke(self, vs, r, k):
+    def invoke(self, vs, _r, k):
         env = extend_env(self.env, self.variables, vs)
         return evaluate_begin(self.body, env, k)
 
 
 def evaluate_lambda(ns, es, r, k):
-    return resume(k, Function(ns, es, r))
+    return k.resume(Function(ns, es, r))
 
 
 def extend_env(env, names, values):
@@ -250,7 +222,7 @@ class ApplyCont(Continuation):
         self.r = r
 
     def resume(self, v):
-        return invoke(self.f, v, self.r, self.k)
+        return self.f.invoke(v, self.r, self.k)
 
 
 class ArgumentCont(Continuation):
@@ -269,7 +241,7 @@ class GatherCont(Continuation):
         self.v = v
 
     def resume(self, vs):
-        return resume(self.k, cons(self.v, vs))
+        return self.k.resume(cons(self.v, vs))
 
 
 def evaluate_application(e, es, r, k):
@@ -280,7 +252,7 @@ def evaluate_arguments(es, r, k, no_more_arguments=Nil):
     if is_pair(es):
         return evaluate(es.car, r, ArgumentCont(k, es, r))
     else:
-        return resume(k, no_more_arguments)
+        return k.resume(no_more_arguments)
 
 
 # ------ Implementation of catch / throw ------
@@ -302,13 +274,13 @@ class LabeledCont(Continuation):
         self.tag = tag
 
     def resume(self, v):
-        return resume(self.k, v)
+        return self.k.resume(v)
 
     def catch_lookup(self, tag, kk):
         if is_eqv(tag, self.tag):
             return evaluate(kk.form, kk.r, ThrowingCont(kk, tag, self))
         else:
-            return catch_lookup(self.k, tag, kk)
+            return self.k.catch_lookup(tag, kk)
 
 
 def evaluate_catch(tag, body, r, k):
@@ -322,12 +294,7 @@ class ThrowCont(Continuation):
         self.r = r
 
     def resume(self, tag):
-        return catch_lookup(self, tag, self)
-
-
-@generic_function
-def catch_lookup(k, tag, kk):
-    raise TypeError("Not a continuation {} {} {}".format(k, tag, kk))
+        return self.catch_lookup(tag, self)
 
 
 class ThrowingCont(Continuation):
@@ -337,7 +304,7 @@ class ThrowingCont(Continuation):
         self.cont = cont
 
     def resume(self, v):
-        return resume(self.cont, v)
+        return self.cont.resume(v)
 
 
 def evaluate_throw(tag, form, r, k):
@@ -353,7 +320,7 @@ class BlockCont(Continuation):
         self.label = label
 
     def resume(self, v):
-        return resume(self.k, v)
+        return self.k.resume(v)
 
 
 class BlockEnv(FullEnv):
@@ -363,9 +330,9 @@ class BlockEnv(FullEnv):
 
     def block_lookup(self, n, k, v):
         if is_eq(n, self.name):
-            return unwind(k, v, self.cont)
+            return k.unwind(v, self.cont)
         else:
-            return block_lookup(self.others, n, k, v)
+            return self.others.block_lookup(n, k, v)
 
 
 def evaluate_block(label, body, r, k):
@@ -380,18 +347,7 @@ class ReturnFromCont(Continuation):
         self.label = label
 
     def resume(self, v):
-        return block_lookup(self.r, self.label, self.k, v)
-
-
-@generic_function
-def block_lookup(r, n, k, v):
-    raise TypeError("Not an environment {} {} {} {} ".format(r, n, k, v))
-
-
-@generic_function
-def unwind(k, v, ktarget):
-    raise NotImplementedError("unwind {} {} {}".format(k, v, ktarget))
-
+        return self.r.block_lookup(self.label, self.k, v)
 
 
 def evaluate_return_from(label, form, r, k):
@@ -426,13 +382,18 @@ def defprimitive(name, value, arity):
 
 def primitive(name, value, vs, arity, k):
     if arity == length(vs):
-        return resume(k, value(vs))
+        return k.resume(value(vs))
     else:
         raise TypeError("incorrect arity {} {}".format(name, vs))
 
 
 GLOBAL_ENV = NullEnv()
 definitial('f')
+definitial('foo')
+definitial('bar')
+definitial('x')
+definitial('y')
+definitial('z')
 defprimitive('cons', lambda args: cons(args.car, args.cadr), 2)
 defprimitive('car', lambda args: args.caar, 1)
 defprimitive('cdr', lambda args: args.cdar, 1)
@@ -445,7 +406,7 @@ definitial(
     'call/cc',
     Primitive(
         'call/cc',
-        lambda vs, r, k: invoke(vs.car, cons(k, Nil), r, k) if length(
+        lambda vs, r, k: vs.car.invoke(cons(k, Nil), r, k) if length(
             vs) == 1 else wrong(
             TypeError("incorrect arity {} {}".format('call/cc', vs)))))
 
