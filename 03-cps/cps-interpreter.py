@@ -64,6 +64,8 @@ def evaluate(e, r, k):
             return evaluate_block(e.cadr, e.cddr, r, k)
         elif first == 'return-from':
             return evaluate_return_from(e.cadr, e.caddr, r, k)
+        elif first == 'unwind-protect':
+            return evaluate_unwind_protect(e.cadr, e.cddr, r, k)
         else:
             return evaluate_application(e.car, e.cdr, r, k)
 
@@ -304,7 +306,7 @@ class ThrowingCont(Continuation):
         self.cont = cont
 
     def resume(self, v):
-        return self.cont.resume(v)
+        return self.k.unwind(v, self.cont)
 
 
 def evaluate_throw(tag, form, r, k):
@@ -354,6 +356,43 @@ def evaluate_return_from(label, form, r, k):
     return evaluate(form, r, ReturnFromCont(k, r, label))
 
 
+# ------ Implementation of unwind-protect ------
+
+
+class UnwindCont(Continuation):
+    def __init__(self, k, value, target):
+        super().__init__(k)
+        self.value = value
+        self.target = target
+
+    def resume(self, _v):
+        self.k.unwind(self.value, self.target)
+
+
+class UnwindProtectCont(Continuation):
+    def __init__(self, k, cleanup, r):
+        super().__init__(k)
+        self.r = r
+        self.cleanup = cleanup
+
+    def unwind(self, v, target):
+        return evaluate_begin(self.cleanup, self.r,
+                              UnwindCont(self.k, v, target))
+
+
+class ProtectReturnCont(Continuation):
+    def __init__(self, k, value):
+        super().__init__(k)
+        self.value = value
+
+    def resume(self, _v):
+        self.k.resume(self.value)
+
+
+def evaluate_unwind_protect(form, cleanup, r, k):
+    return evaluate(form, r, UnwindProtectCont(k, cleanup, r))
+
+
 # ------ Primitives and REPL ------
 
 
@@ -401,6 +440,8 @@ defprimitive('+', lambda args: args.car + args.cadr, 2)
 defprimitive('-', lambda args: args.car - args.cadr, 2)
 defprimitive('*', lambda args: args.car * args.cadr, 2)
 defprimitive('/', lambda args: args.car / args.cadr, 2)
+definitial('println', Primitive('println', lambda args, r, k: k.resume(
+    print() if is_null(args) else print(str(args)[1:-1]))))
 
 definitial(
     'call/cc',
