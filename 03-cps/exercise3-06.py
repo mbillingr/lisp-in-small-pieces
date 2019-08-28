@@ -4,11 +4,22 @@ sys.path.append("../libs")
 from utils import read, is_atom, is_eq, is_eqv, is_null, is_symbol, is_pair, \
     cons, length, Symbol, Nil
 
-sys.setrecursionlimit(100000)
 
-
-# I'm writing this interpreter in Python instead of Scheme because I do not
-# have an object system implementation readily available.
+#
+#   > Extend the functions recognized by the interpreter in this chapter
+#   > so that the interpreter accepts functions with variable arity.
+#
+# I'm not sure I understand this exercise correctly. With (apply) from
+# exercise 3.5 it is possible to write a function that adds its arguments:
+#
+#     (set! foo (lambda args
+#                 (if (null? args)
+#                     0
+#                     (+ (car args)
+#                        (apply foo (cdr args))))))
+#
+# As far I understand this is a function with variable arity, so what
+# exactly should be extended?
 
 
 class Value:
@@ -427,6 +438,7 @@ def primitive(name, value, vs, arity, k):
     else:
         raise TypeError("incorrect arity {} {}".format(name, vs))
 
+
 GLOBAL_ENV = NullEnv()
 definitial('f')
 definitial('foo')
@@ -452,6 +464,15 @@ definitial(
         lambda vs, r, k: vs.car.invoke(cons(k, Nil), r, k) if length(
             vs) == 1 else wrong(
             TypeError("incorrect arity {} {}".format('call/cc', vs)))))
+
+
+definitial(
+    'apply',
+    Primitive(
+        'apply',
+        lambda vs, r, k: vs.car.invoke(vs.cadr, r, k)
+    )
+)
 
 
 def wrong(e):
