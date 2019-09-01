@@ -2,6 +2,7 @@
         (libs utils)
         (libs book))
 
+; original implementation with side effects
 (define (min-max-reference-impl tree)
   (define (first-number tree)
     (if (pair? tree)
@@ -20,6 +21,7 @@
     (scan! tree)
     (list min max)))
 
+; functional implementation without side effects
 (define (min-max tree)
   (if (pair? tree)
       (let ((l-min-max (min-max (car tree)))
