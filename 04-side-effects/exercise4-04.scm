@@ -13,7 +13,14 @@
         ((begin)  (evaluate-begin (cdr e) r s k))
         ((set!)   (evaluate-set! (cadr e) (caddr e) r s k))
         ((lambda) (evaluate-lambda (cadr e) (cddr e) r s k))
+        ((or)    (evaluate-or (cadr e) (caddr e) r s k))
         (else     (evaluate-application (car e) (cdr e) r s k)))))
+
+(define (evaluate-or ea eb r s k)
+  (evaluate ea r s
+    (lambda (va ss)
+      (((va 'boolify) (lambda () (k va ss))
+                      (lambda () (evaluate eb r s k)))))))
 
 (define (evaluate-if ec et ef r s k)
   (evaluate ec r s
