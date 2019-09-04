@@ -83,9 +83,8 @@
   '(set! fact (lambda (n) (if (= n 1) 1 (* n (fact (- n 1)))))))
 (define fact-cps ((cps fact-program) (lambda (x) x)))
 
-(define foo '())
-(define test-cc '(set! foo (lambda (exit) (begin (exit 42) 666))))
-(define test-cps ((cps test-cc) (lambda (x) x)))
+(define source-foo '(lambda (exit) (begin (exit 42) 666)))
+(define target-foo ((cps source-foo) (lambda (x) x)))
 
 ; The function foo is transformed to something like this:
 '(set! foo
@@ -94,9 +93,30 @@
              (cont2 ((lambda (void3) 666)
                      sym4)))
            42)))
-; The goal is to call it with (call/cc foo) to return 42.
-; (call/cc foo) becomes (call/cc (lambda (sym5) sym5) foo).
-;
-; There is a problem: continuations expect one argument but
-; (exit) is called with two arguments in foo.
-; TODO: how can this be fixed?
+
+
+(define source-bar `(lambda () (call/cc ,source-foo)))
+(define target-bar ((cps source-bar) (lambda (x) x)))
+
+; bar becomes
+'(lambda (cont5)
+  (call/cc (lambda (sym9) (cont5 sym9))
+           (lambda (cont6 exit)
+             (exit (lambda (sym8) (cont6 ((lambda (void7) sym8) 666)))
+                   42))))
+
+; which is equivalent to
+'(lambda (cont5)
+  ((lambda (cont6 exit)
+    (exit (lambda (sym8) (cont6 ((lambda (void7) sym8) 666)))
+          42))
+   (lambda (sym9) (cont5 sym9))
+   (lambda (sym9) (cont5 sym9))))
+
+; and the same as this:
+'(lambda (cont5)
+    ((lambda (sym9) (cont5 sym9))
+     (lambda (sym8) ((lambda (sym9) (cont5 sym9)) ((lambda (void7) sym8) 666)))
+     42))
+
+; here is a problem: (lambda (sym9) ... ) is invoked with two arguments.
