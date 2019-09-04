@@ -73,3 +73,40 @@
 ; There is a problem: continuations expect one argument but
 ; (exit) is called with two arguments in foo.
 ; TODO: how can this be fixed?
+
+
+(define foo
+  '(lambda (exit)
+     ((lambda (x) 666) (exit 42))))
+
+(define (M e)
+  (if (pair? e)
+      (case (car e)
+        ((lambda) (let ((k (gensym "k")))
+                    `(lambda (,k . ,(cadr e)) ,(T (caddr e) k))))
+        (else e))
+      e))
+
+(define (T expr cont)
+  (if (pair? expr)
+      (case (car expr)
+        ((lambda) `(,cont ,(M expr)))
+        (else (let ((f (gensym "f"))
+                    (e (gensym "e")))
+                (T (car expr) `(lambda (,f)
+                                      ,(T (cadr expr) `(lambda (,e)
+                                                         (,f ,e ,cont))))))))
+      `(,cont ,(M expr))))
+
+
+(lambda (k992 exit)
+  ((lambda (f993)
+     ((lambda (f995)
+        ((lambda (e996)
+           (f995 e996 (lambda (e994) (f993 e994 k992))))
+         42))
+      exit))
+   (lambda (k997 x) (k997 666))))
+
+(lambda (k992 exit)
+  (exit 42 (lambda (e994) ((lambda (k997 x) (k997 666)) e994 k992))))
