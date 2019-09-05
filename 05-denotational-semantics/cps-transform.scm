@@ -120,3 +120,12 @@
      42))
 
 ; here is a problem: (lambda (sym9) ... ) is invoked with two arguments.
+
+
+; Apparent solution (inspired by http://matt.might.net/articles/cps-conversion/):
+(define (call/cc k f) (f k (lambda (_ x) (k x))))
+
+; This definition of call/cc wraps the continuation passed to f in a lambda
+; form that takes two arguments but ignores the continuation passed as first
+; argument.
+; I wonder if this is an oversight in the book, or if I misunderstood something...
