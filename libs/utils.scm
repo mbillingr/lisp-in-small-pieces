@@ -2,7 +2,7 @@
 (define-library (libs utils)
 
   (export <= >=
-          abs accumulate append assoc average
+          abs accumulate append assoc assq assv average
           caar cadr cdar cddr caaar caadr caddr cadar cdadr cddar cdddr caaddr
           cadddr cddddr
           cons-stream cube
@@ -171,6 +171,16 @@
       (cond ((null? records) false)
             ((equal? key (caar records)) (car records))
             (else (assoc key (cdr records)))))
+
+    (define (assv key records)
+      (cond ((null? records) false)
+            ((eqv? key (caar records)) (car records))
+            (else (assv key (cdr records)))))
+
+    (define (assq key records)
+      (cond ((null? records) false)
+            ((eq? key (caar records)) (car records))
+            (else (assq key (cdr records)))))
 
     (define (accumulate op initial sequence)
       (if (null? sequence)
