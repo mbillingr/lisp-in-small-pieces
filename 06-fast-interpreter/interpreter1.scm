@@ -225,6 +225,9 @@
     (set! g.init (cons (cons n `(predefined . ,level)) g.init))
     level))
 
+(define (definitial name value)
+  (g.init-initialize! name value))
+
 (define sg.current (make-vector 100))
 (define sg.init (make-vector 100))
 (define (global-fetch i)
@@ -302,6 +305,51 @@
           ((predefined)
            (static-wrong "Immutable predefined variable" n)))
         (static-wrong "No such variable" n))))
+
+(define (defprimitive name value arity)
+  (case arity
+    ((0) (defprimitive0 name value))
+    ((1) (defprimitive1 name value))
+    ((2) (defprimitive2 name value))
+    ((3) (defprimitive3 name value))
+    (else static-wrong "Unsupported primitive arity" name arity)))
+
+(define (defprimitive0 name value)
+  (definitial name
+    (let* ((arity+1 (+ 0 1))
+           (behavior
+             (lambda (v* k)
+               (if (= (activation-frame-argument-length v*) arity+1)
+                   (k (value))
+                   (wrong "Incorrect arity" name)))))
+      (description-extend!
+        name `(function ,value))
+      behavior)))
+
+(define (defprimitive1 name value)
+  (definitial name
+    (let* ((arity+1 (+ 1 1))
+           (behavior
+             (lambda (v* k)
+               (if (= (activation-frame-argument-length v*) arity+1)
+                   (k (value (activation-frame-argument v* 0)))
+                   (wrong "Incorrect arity" name)))))
+      (description-extend!
+        name `(function ,value a))
+      behavior)))
+
+(define (defprimitive2 name value)
+  (definitial name
+    (let* ((arity+1 (+ 2 1))
+           (behavior
+             (lambda (v* k)
+               (if (= (activation-frame-argument-length v*) arity+1)
+                   (k (value (activation-frame-argument v* 0)
+                             (activation-frame-argument v* 1)))
+                   (wrong "Incorrect arity" name)))))
+      (description-extend!
+        name `(function ,value a b))
+      behavior)))
 
 (define (defprimitive3 name value)
   (definitial name
@@ -381,17 +429,60 @@
     (toplevel))
   (toplevel))
 
+(define undefined-value '*undefined*)
 
-; The following stuff is not defined in the book, so I'm making it up...
+(g.current-initialize! 'x)
+(g.current-initialize! 'y)
+(g.current-initialize! 'z)
+(g.current-initialize! 'foo)
+(g.current-initialize! 'bar)
+
+(definitial 't #t)
+(definitial 'f #f)
+(definitial 'nil '())
+(defprimitive 'cons cons 2)
+(defprimitive 'car car 1)
+(defprimitive 'cdr cdr 1)
+(defprimitive 'eq? eq? 2)
+(defprimitive '= = 2)
+(defprimitive '+ + 2)
+(defprimitive '- - 2)
+(defprimitive '* * 2)
+(defprimitive '/ / 2)
+(definitial 'call/cc
+  (let* ((arity 1)
+         (arity+1 (+ arity 1)))
+    (lambda (v* k)
+      (if (= arity+1 (activation-frame-argument-length v*))
+          ((activation-frame-argument v* 0)
+           (let ((frame (allocate-activation-frame (+ 1 1))))
+             (set-activation-frame-argument!
+               frame 0
+               (lambda (values kk)
+                 (if (= (activation-frame-argument-length values) arity+1)
+                     (k (activation-frame-argument values 0))
+                     (wrong "Incorrect arity" 'continuation))))
+             frame)
+           k)
+          (wrong "Incorrect arity" 'call/cc)))))
+
+
+; The following implementations are not defined in the book, so I'm making them up...
+
+(define (environment-next frame)
+  (car frame))
 
 (define (set-environment-next! frame sr)
   (set-car! frame sr))
 
 (define (allocate-activation-frame size)
-  (cons '() (make-vector size)))
+  (list '() (make-vector size) size))
 
 (define (activation-frame-argument frame index)
-  (vector-ref (cdr frame) index))
+  (vector-ref (cadr frame) index))
 
 (define (set-activation-frame-argument! frame index value)
-  (vector-set! (cdr frame) index value))
+  (vector-set! (cadr frame) index value))
+
+(define (activation-frame-argument-length frame)
+  (caddr frame))
