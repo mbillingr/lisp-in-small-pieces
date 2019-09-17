@@ -1,6 +1,7 @@
 (import (builtin core)
         (libs utils)
-        (libs book))
+        (libs book)
+        (06-fast-interpreter common))
 
 (define (meaning e r)
   (if (atom? e)
@@ -13,36 +14,6 @@
         ((begin)   (meaning-sequence (cdr e) r))
         ((set!)    (meaning-assignment (cadr e) (caddr e) r))
         (else      (meaning-application (car e) (cdr e) r)))))
-
-(define (static-wrong message . culprits)
-  (println `(*static-error* ,message . ,culprits))
-  (lambda (sr k)
-    (apply wrong message culprits)))
-
-(define (deep-fetch sr i j)
-  (if (= i 0)
-      (activation-frame-argument sr j)
-      (deep-fetch (environment-next sr) (- i 1) j)))
-
-(define (deep-update! sr i j v)
-  (if (= i 0)
-      (set-activation-frame-argument! sr j v)
-      (deep-update! (environment-next sr) (- i 1) j v)))
-
-(define (r-extend* r n*)
-  (cons n* r))
-
-(define (local-variable? r i n)
-  (define (scan names j)
-    (cond ((pair? names) (if (eq? n (car names))
-                             `(local ,i . ,j)
-                             (scan (cdr names) (+ 1 j))))
-          ((null? names) (local-variable? (cdr r) (+ i 1) n))
-          ((eq? n names) `(local ,i . ,j))))
-
-  (and (pair? r)
-       (scan (car r) 0)))
-
 
 (define (meaning-quotation v r)
   (lambda (sr k) (k v)))
@@ -187,77 +158,12 @@
                       (m+ (sr-extend* sr v*) k1))
                (wrong "Incorrect arity")))))))
 
-(define (listify! v* arity)
-  (define (loop index result)
-    (if (= arity index)
-        (set-activation-frame-argument! v* arity result)
-        (loop (- index 1)
-              (cons (activation-frame-argument v* (- index 1))
-                    result))))
-  (loop (- (activation-frame-argument-length v*) 1) '()))
-
 (define (meaning-abstraction nn* e+ r)
   (define (parse n* regular)
     (cond ((pair? n*) (parse (cdr n*) (cons (car n*) regular)))
           ((null? n*) (meaning-fix-abstraction nn* e+ r))
           (else (meaning-dotted-abstraction (reverse regular) n* e+ r))))
   (parse nn* '()))
-
-(define g.current '())
-(define g.init '())
-
-(define (compute-kind r n)
-  (or (local-variable? r 0 n)
-      (global-variable? g.current n)
-      (global-variable? g.init n)))
-
-(define (global-variable? g n)
-  (let ((var (assq n g)))
-    (and (pair? var) (cdr var))))
-
-(define (g.current-extend! n)
-  (let ((level (length g.current)))
-    (set! g.current (cons (cons n `(global . ,level)) g.current))
-    level))
-
-(define (g.init-extend! n)
-  (let ((level (length g.init)))
-    (set! g.init (cons (cons n `(predefined . ,level)) g.init))
-    level))
-
-(define (definitial name value)
-  (g.init-initialize! name value))
-
-(define sg.current (make-vector 100))
-(define sg.init (make-vector 100))
-(define (global-fetch i)
-  (vector-ref sg.current i))
-(define (global-update! i v)
-  (vector-set! sg.current i v))
-(define (predefined-fetch i)
-  (vector-ref sg.init i))
-
-(define (g.current-initialize! name)
-  (let ((kind (compute-kind r.init name)))
-    (if kind
-        (case (car kind)
-          ((global)
-           (vector-set! sg.current (cdr kind) undefined-value))
-          (else (static-wrong "Wrong redefinition" name)))
-        (let ((index (g.current-extend! name)))
-          (vector-set! sg.current index undefined-value))))
-  name)
-
-(define (g.init-initialize! name value)
-  (let ((kind (compute-kind r.init name)))
-    (if kind
-        (case (car kind)
-          ((predefined)
-           (vector-set! sg.init (cdr kind) value))
-          (else (static-wrong "Wrong redefinition" name)))
-        (let ((index (g.init-extend! name)))
-          (vector-set! sg.init index value))))
-  name)
 
 (define (meaning-reference n r)
   (let ((kind (compute-kind r n)))
@@ -305,6 +211,46 @@
           ((predefined)
            (static-wrong "Immutable predefined variable" n)))
         (static-wrong "No such variable" n))))
+
+(define (meaning-application e e* r)
+  (cond
+    ((and (symbol? e)
+          (let ((kind (compute-kind r e)))
+            (and (pair? kind)
+                 (eq? 'predefined (car kind))
+                 (let ((desc (get-description e)))
+                   (and desc
+                        (eq? 'function (car desc))
+                        (if (= (length (cddr desc)) (length e*))
+                            (meaning-primitive-application e e* r)
+                            (static-wrong "Incorrect arity for" e))))))))
+    ((and (pair? e)
+          (eq? 'lambda (car e)))
+     (meaning-closed-application e e* r))
+    (else (meaning-regular-application e e* r))))
+
+(define (meaning-primitive-application e e* r)
+  (let* ((desc (get-description e)) ;desc = (function address . var-list)
+         (address (cadr desc))
+         (size (length e*)))
+    (case size
+      ((0) (lambda (sr k) (k (address))))
+      ((1) (let ((m1 (meaning (car e*) r)))
+             (lambda (sr k)
+               (m1 sr (lambda (v) (k (address v)))))))
+      ((2) (let ((m1 (meaning (car e*) r))
+                 (m2 (meaning (cadr e*) r)))
+             (lambda (sr k)
+               (m1 sr (lambda (v1)
+                        (m2 sr (lambda (v2) (k (address v1 v2)))))))))
+      ((3) (let ((m1 (meaning (car e*) r))
+                 (m2 (meaning (cadr e*) r))
+                 (m3 (meaning (caddr e*) r)))
+             (lambda (sr k)
+               (m1 sr (lambda (v1)
+                        (m2 sr (lambda (v2)
+                                 (m3 sr (lambda (v3) (k (address v1 v2 v3)))))))))))
+      (else (meaning-regular-application e e* r)))))
 
 (define (defprimitive name value arity)
   (case arity
@@ -365,61 +311,6 @@
         name `(function ,value a b c))
       behavior)))
 
-(define desc.init '())
-(define (description-extend! name description)
-  (set! desc.init (cons (cons name description) desc.init))
-  name)
-(define (get-description name)
-  (let ((p (assq name desc.init)))
-    (and (pair? p) (cdr p))))
-
-(define (meaning-application e e* r)
-  (cond
-    ((and (symbol? e)
-          (let ((kind (compute-kind r e)))
-            (and (pair? kind)
-                 (eq? 'predefined (car kind))
-                 (let ((desc (get-description e)))
-                   (and desc
-                        (eq? 'function (car desc))
-                        (if (= (length (cddr desc)) (length e*))
-                            (meaning-primitive-application e e* r)
-                            (static-wrong "Incorrect arity for" e))))))))
-    ((and (pair? e)
-          (eq? 'lambda (car e)))
-     (meaning-closed-application e e* r))
-    (else (meaning-regular-application e e* r))))
-
-(define (meaning-primitive-application e e* r)
-  (let* ((desc (get-description e)) ;desc = (function address . var-list)
-         (address (cadr desc))
-         (size (length e*)))
-    (case size
-      ((0) (lambda (sr k) (k (address))))
-      ((1) (let ((m1 (meaning (car e*) r)))
-             (lambda (sr k)
-               (m1 sr (lambda (v) (k (address v)))))))
-      ((2) (let ((m1 (meaning (car e*) r))
-                 (m2 (meaning (cadr e*) r)))
-             (lambda (sr k)
-               (m1 sr (lambda (v1)
-                        (m2 sr (lambda (v2) (k (address v1 v2)))))))))
-      ((3) (let ((m1 (meaning (car e*) r))
-                 (m2 (meaning (cadr e*) r))
-                 (m3 (meaning (caddr e*) r)))
-             (lambda (sr k)
-               (m1 sr (lambda (v1)
-                        (m2 sr (lambda (v2)
-                                 (m3 sr (lambda (v3) (k (address v1 v2 v3)))))))))))
-      (else (meaning-regular-application e e* r)))))
-
-
-(define (sr-extend* sr v*)
-  (set-environment-next! v* sr)
-  v*)
-
-(define r.init '())
-(define sr.init '())
 
 (define (chapter61-interpreter)
   (define (compile e) (meaning e r.init))
@@ -429,13 +320,6 @@
     (toplevel))
   (toplevel))
 
-(define undefined-value '*undefined*)
-
-(g.current-initialize! 'x)
-(g.current-initialize! 'y)
-(g.current-initialize! 'z)
-(g.current-initialize! 'foo)
-(g.current-initialize! 'bar)
 
 (definitial 't #t)
 (definitial 'f #f)
@@ -445,6 +329,8 @@
 (defprimitive 'cdr cdr 1)
 (defprimitive 'eq? eq? 2)
 (defprimitive '= = 2)
+(defprimitive '< < 2)
+(defprimitive '<= <= 2)
 (defprimitive '+ + 2)
 (defprimitive '- - 2)
 (defprimitive '* * 2)
@@ -467,22 +353,4 @@
           (wrong "Incorrect arity" 'call/cc)))))
 
 
-; The following implementations are not defined in the book, so I'm making them up...
-
-(define (environment-next frame)
-  (car frame))
-
-(define (set-environment-next! frame sr)
-  (set-car! frame sr))
-
-(define (allocate-activation-frame size)
-  (list '() (make-vector size) size))
-
-(define (activation-frame-argument frame index)
-  (vector-ref (cadr frame) index))
-
-(define (set-activation-frame-argument! frame index value)
-  (vector-set! (cadr frame) index value))
-
-(define (activation-frame-argument-length frame)
-  (caddr frame))
+(chapter61-interpreter)
