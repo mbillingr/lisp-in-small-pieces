@@ -424,6 +424,8 @@
 (defprimitive '- - 2)
 (defprimitive '* * 2)
 (defprimitive '/ / 2)
+; omitted definition of apply (section 6.3.14) because my interpreter lacks
+; the form (do) and because of lazyness.          
 
 
 (chapter63-interpreter)
