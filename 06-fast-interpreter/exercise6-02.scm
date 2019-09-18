@@ -331,7 +331,7 @@
 (define (CALL0 address)
   (lambda () (address)))
 
-(define (CALL3 address m1)
+(define (CALL1 address m1)
   (lambda () (address (m1))))
 
 (define (CALL2 address m1 m2)

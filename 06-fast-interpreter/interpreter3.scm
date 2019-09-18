@@ -331,7 +331,7 @@
 (define (CALL0 address)
   (lambda () (address)))
 
-(define (CALL3 address m1)
+(define (CALL1 address m1)
   (lambda () (address (m1))))
 
 (define (CALL2 address m1 m2)
@@ -425,7 +425,7 @@
 (defprimitive '* * 2)
 (defprimitive '/ / 2)
 ; omitted definition of apply (section 6.3.14) because my interpreter lacks
-; the form (do) and because of lazyness.          
+; the form (do) and because of lazyness.
 
 
 (chapter63-interpreter)
