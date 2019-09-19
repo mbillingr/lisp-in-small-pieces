@@ -7,6 +7,7 @@
           compute-kind
           definitial
           description-extend!
+          environment-next
           g.current
           g.current-extend!
           g.init
