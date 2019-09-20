@@ -21,32 +21,33 @@
   (caddr obj))
 
 (define (invoke f)
-  (if (closure? f)
-      ((closure-code f) (closure-closed-environment f))
-      (wrong "Not a function" f)))
+  (cond ((closure? f) (stack-push *pc*)
+                      (set! *env* (closure-closed-environment f))
+                      (set! *pc* (closure-code f)))
+        (else (wrong "Not a function" f))))
 
+(define (RETURN)
+  (list (lambda () (set! *pc* (stack-pop)))))
 
 (define (CONSTANT value)
   (list (lambda () (set! *val* value))))
 
-;(define (SHALLOW-ARGUMENT-REF j)
-;  (lambda () (set! *val* (activation-frame-argument *env* j))))
+(define (SHALLOW-ARGUMENT-REF j)
+  (list (lambda () (set! *val* (activation-frame-argument *env* j)))))
 
-;(define (PREDEFINED i)
-;  (lambda () (set! *val* (predefined-fetch i))))
+(define (PREDEFINED i)
+  (list (lambda () (set! *val* (predefined-fetch i)))))
 
-;(define (DEEP-ARGUMENT-REF i j)
-;  (lambda () (set! *val* (deep-fetch *env* i j))))
+(define (DEEP-ARGUMENT-REF i j)
+  (list (lambda () (set! *val* (deep-fetch *env* i j)))))
 
-;(define (GLOBAL-REF i)
-;  (lambda () (set! *val* (global-fetch i))))
+(define (GLOBAL-REF i)
+  (list (lambda () (set! *val* (global-fetch i)))))
 
-;(define (CHECKED-GLOBAL-REF i)
-;  (lambda ()
-;    (let ((v (global-fetch i)))
-;      (if (eq? v undefined-value)
-;          (wrong "Uninitialized variable")
-;          (set! *val* v))))
+(define (CHECKED-GLOBAL-REF i)
+  (list (lambda () (set! *val* (global-fetch i))
+                   (if (eq? *val* undefined-value)
+                       (wrong "Uninitialized variable")))))
 
 
 (define (ALTERNATIVE m1 m2 m3)
@@ -67,40 +68,45 @@
 (define (SET-SHALLOW-ARGUMENT! j)
   (list (lambda () (set-activation-frame-argument *env* j *val*))))
 
-;(define (DEEP-ARGUMENT-SET! i j m)
-;  (lambda () (m)
-;             (deep-update! *env* i j *env*))))
+(define (DEEP-ARGUMENT-SET! i j m)
+  (append m (SET-DEEP-ARGUMENT! i j)))
 
-;(define (GLOBAL-SET! i m)
-;  (lambda () (m)
-;             (global-update! i *val*))))
-
-
-;(define (SEQUENCE m m+)
-;  (lambda () (m) (m+)))
+(define (GLOBAL-SET! i m)
+  (append m (SET-GLOBAL! i)))
+(define (SET-GLOBAL! i)
+  (list (lambda () (global-update! i *val*))))
 
 
-;(define (FIX-CLOSURE m+ arity)
-;  (let ((arity+1 (+ arity 1)))
-;    (lambda ()
-;      (define (the-function sr)
-;        (if (= (activation-frame-argument-length *val*) arity+1)
-;            (begin (set! *env* (sr-extend* sr *val*))
-;                   (m+)
-;            (wrong "Incorrect arity"))
-;      (set! *val* (make-closure the-function *env*))))
+(define (SEQUENCE m m+)
+  (append m m+))
 
-;(define (NARY-CLOSURE m+ arity)
-;  (let ((arity+1 (+ arity 1)))
-;    (lambda ()
-;      (define (the-function sr)
-;        (if (>= (activation-frame-argument-length *val*) arity+1)
-;            (begin
-;              (listify! *val* arity)
-;              (set! *env* (sr-extend* sr *val*))
-;              (m+)
-;            (wrong "Incorrect arity"))
-;      (set! *val* (make-closure the-function *env*))))
+
+(define (FIX-CLOSURE m+ arity)
+  (define the-function
+    (append (ARITY=? (+ arity 1))
+            (EXTEND-ENV)
+            m+
+            (RETURN)))
+  (append (CREATE-CLOSURE 1)
+          (GOTO (length the-function))
+          the-function))
+
+(define (NARY-CLOSURE m+ arity)
+  (define the-function
+    (append (ARITY>=? (+ arity 1))
+            (PACK-FRAME! arity)
+            (EXTEND-ENV)
+            m+
+            (RETURN)))
+  (append (CREATE-CLOSURE 1)
+          (GOTO (length the-function))
+          the-function))
+
+(define (CREATE-CLOSURE offset)
+  (list (lambda () (set! *val* (make-closure (list-tail *pc* offset) *env*)))))
+
+(define (PACK-FRAME! arity)
+  (list (lambda () (listify! *val* arity))))
 
 
 (define (TR-REGULAR-CALL m m*)
@@ -130,68 +136,86 @@
 (define (FUNCTION-INVOKE)
   (list (lambda () (invoke *fun*))))
 
-;(define (STORE-ARGUMENT m m* rank)
-;  (lambda () (m)
-;             (stack-push *val*)
-;             (m*)
-;             (let ((v (stack-pop)))
-;               (set-activation-frame-argument! *val* rank v))))
+(define (STORE-ARGUMENT m m* rank)
+  (append m (PUSH-VALUE)
+          m* (POP-FRAME! rank)))
 
 ;(define (ALLOCATE-FRAME size)
 ;  (let ((size+1 (+ size 1)))
 ;    (lambda () (set! *val* (allocate-activation-frame size+1)))))
+(define (ALLOCATE-FRAME size)
+  (let ((size+1 (+ size 1)))
+    (list (lambda () (set! *val* (allocate-activation-frame size+1))))))
 
 
-;(define (FIX-LET m* m+)
-;  (lambda () (m*)
-;             (set! *env* (sr-extend* *env* *val*))
-;             (m+)
-;             ;(set! *env* (activation-frame-next *env*))))
-;             (set! *env* (environment-next *env*)))))  ; I think this is correct
+(define (FIX-LET m* m+)
+  (append m* (EXTEND-ENV) m+ (UNLINK-ENV)))
 
-;(define (TR-FIX-LET m* m+)
-;  (lambda () (m*)
-;             (set! *env* (sr-extend* *env* *val*))
-;             (m+))))
+(define (TR-FIX-LET m* m+)
+  (append m* (EXTEND-ENV) m+))
 
-;(define (CONS-ARGUMENT m m* arity)
-;  (lambda () (m)
-;             (stack-push *val*)
-;             (m*)
-;             (let ((v (stack-pop)))
-;               (set-activation-frame-argument!
-;                 *val* arity (cons v (activation-frame-argument *val* arity)))))
+(define (CONS-ARGUMENT m m* arity)
+  (append m (PUSH-VALUE)
+          m* (POP-CONS-FRAME! arity)))
 
 ;(define (ALLOCATE-DOTTED-FRAME arity)
 ;  (let ((arity+1 (+ arity 1)))
 ;    (lambda () (set! *val* (allocate-activation-frame arity+1))
 ;               (set-activation-frame-argument! *val* arity '()))))
+(define (ALLOCATE-DOTTED-FRAME arity)
+  (let ((arity+1 (+ arity 1)))
+    (list (lambda () (set! *val* (allocate-activation-frame arity+1))
+                     (set-activation-frame-argument! *val* arity '())))))
 
 
 ;(define (CALL0 address)
 ;  (lambda () (set! *val* (address))))
 
-;(define (CALL1 address m1)
-;  (lambda () (m1)
-;             (set! *val* (address *val*)))))
+(define (CALL1 address m1)
+  (append m1 (INVOKE1 address)))
 
-;(define (CALL2 address m1 m2)
-;  (lambda () (m1)
-;             (stack-push *val*)
-;             (m2)
-;             (set! *arg1* (stack-pop))
-;             (set! *val* (address *arg1* *val*)))))
+(define (CALL2 address m1 m2)
+  (append m1 (PUSH-VALUE) m2 (POP-ARG1) (INVOKE2 address)))
 
-;(define (CALL3 address m1 m2 m3)
-;  (lambda () (m1)
-;             (stack-push *val*)
-;             (m2)
-;             (stack-push *val*)
-;             (m3)
-;             (set! *arg2* (stack-pop))
-;             (set! *arg1* (stack-pop))
-;             (set! *val* (address *arg1* *arg2* *val*)))))
+(define (CALL3 address m1 m2 m3)
+  (append m1 (PUSH-VALUE)
+          m2 (PUSH-VALUE)
+          m3 (POP-ARG2) (POP-ARG1)
+          (INVOKE3 address)))
 
+(define (ARITY=? arity+1)
+  (list (lambda () (if (not (= (activation-frame-argument-length *val*) arity+1))
+                       (wrong "Incorrect arity")))))
+
+(define (ARITY>=? arity+1)
+  (list (lambda () (if (not (>= (activation-frame-argument-length *val*) arity+1))
+                       (wrong "Incorrect arity")))))
+
+(define (EXTEND-ENV)
+  (list (lambda() (set! *env* (sr-extend* *env* *val*)))))
+
+(define (POP-FRAME! rank)
+  (list (lambda () (set-activation-frame-argument! *val* rank (stack-pop)))))
+
+(define (POP-CONS-FRAME! arity)
+  (list (lambda () (set-activation-frame-argument!
+                     *val* arity (cons (stack-pop)
+                                       (activation-frame-argument *val* arity))))))
+
+(define (POP-ARG1)
+  (list (lambda () (set! *arg1* (stack-pop)))))
+
+(define (POP-ARG2)
+  (list (lambda () (set! *arg2* (stack-pop)))))
+
+(define (INVOKE1 address)
+  (list (lambda () (set! *val* (address *val*)))))
+
+(define (INVOKE2 address)
+  (list (lambda () (set! *val* (address *arg1* *val*)))))
+
+(define (INVOKE3 address)
+  (list (lambda () (set! *val* (address *arg1* *arg2 *val*)))))
 
 (define (run)
   (if (not (null? *pc*))
