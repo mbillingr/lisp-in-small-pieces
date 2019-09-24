@@ -20,6 +20,7 @@
           r.init
           r-extend*
           sg.current
+          sg.current.names
           sg.init
           sr.init
           sr-extend*
@@ -104,6 +105,7 @@
 
     (define sg.current (make-vector 100))
     (define sg.init (make-vector 100))
+    (define sg.current.names '())
     (define (global-fetch i)
       (vector-ref sg.current i))
     (define (global-update! i v)

@@ -19,6 +19,7 @@
           stream-car stream-cdr stream-null? sqr sqrt symbol<?
           tagged-list? the-empty-stream timeit trace true
           untrace
+          vector
           xor)
 
   (import (builtin core)
@@ -268,6 +269,15 @@
     (define (stream-null? stream) (null? stream))
     (define (stream-car stream) (car stream))
     (define (stream-cdr stream) (force (cdr stream)))
+
+    (define (vector . args)
+      (let ((vec (make-vector (length args))))
+        (define (init idx rest-args)
+          (if (pair? rest-args)
+              (begin (vector-set! vec idx (car rest-args))
+                     (init (+ idx 1) (cdr rest-args)))
+              vec))
+        (init 0 args)))
 
     ;; ==========================================
     ;;   put and get into a global table
