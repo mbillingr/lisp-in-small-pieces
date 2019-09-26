@@ -532,68 +532,60 @@
 
 ; ===========================================================================
 
-(define-syntax defprimitive0
-  (syntax-rules ()
-    ((defprimitive1 name value)
-     (definitial name
-       (let* ((arity+1 (+ 0 1))
-              (behavior
-               (lambda ()
-                 (if (= arity+1 (activation-frame-argument-length *val*))
-                     (begin
-                       (set! *val* (value arg1))
-                       (set! *pc* (stack-pop)))
-                     (signal-exception #t (list "Incorrect arity" 'name))))))
-         (description-extend! 'name `(function value))
-         (make-primitive behavior))))))
+(define (defprimitive0 name value)
+  (definitial name
+    (let* ((arity+1 (+ 0 1))
+           (behavior
+            (lambda ()
+              (if (= arity+1 (activation-frame-argument-length *val*))
+                  (begin
+                    (set! *val* (value arg1))
+                    (set! *pc* (stack-pop)))
+                  (signal-exception #t (list "Incorrect arity" name))))))
+      (description-extend! name `(function ,name))
+      (make-primitive behavior))))
 
-(define-syntax defprimitive1
-  (syntax-rules ()
-    ((defprimitive1 name value)
-     (definitial name
-       (let* ((arity+1 (+ 1 1))
-              (behavior
-               (lambda ()
-                 (if (= arity+1 (activation-frame-argument-length *val*))
-                     (let ((arg1 (activation-frame-argument *val* 0)))
-                       (set! *val* (value arg1))
-                       (set! *pc* (stack-pop)))
-                     (signal-exception #t (list "Incorrect arity" 'name))))))
-         (description-extend! 'name `(function value a))
-         (make-primitive behavior))))))
+(define (defprimitive1 name value)
+  (definitial name
+    (let* ((arity+1 (+ 1 1))
+           (behavior
+            (lambda ()
+              (if (= arity+1 (activation-frame-argument-length *val*))
+                  (let ((arg1 (activation-frame-argument *val* 0)))
+                    (set! *val* (value arg1))
+                    (set! *pc* (stack-pop)))
+                  (signal-exception #t (list "Incorrect arity" name))))))
+      (description-extend! name `(function ,name a))
+      (make-primitive behavior))))
 
-(define-syntax defprimitive2
-  (syntax-rules ()
-    ((defprimitive1 name value)
-     (definitial name
-       (let* ((arity+1 (+ 2 1))
-              (behavior
-               (lambda ()
-                 (if (= arity+1 (activation-frame-argument-length *val*))
-                     (let ((arg1 (activation-frame-argument *val* 0))
-                           (arg2 (activation-frame-argument *val* 1)))
-                       (set! *val* (value arg1 arg2))
-                       (set! *pc* (stack-pop)))
-                     (signal-exception #t (list "Incorrect arity" 'name))))))
-         (description-extend! 'name `(function value a b))
-         (make-primitive behavior))))))
+(define (defprimitive2 name value)
+  (definitial name
+    (let* ((arity+1 (+ 2 1))
+           (behavior
+            (lambda ()
+              (if (= arity+1 (activation-frame-argument-length *val*))
+                  (let ((arg1 (activation-frame-argument *val* 0))
+                        (arg2 (activation-frame-argument *val* 1)))
+                    (set! *val* (value arg1 arg2))
+                    (set! *pc* (stack-pop)))
+                  (signal-exception #t (list "Incorrect arity" name))))))
+      (description-extend! name `(function ,name a b))
+      (make-primitive behavior))))
 
-(define-syntax defprimitive3
-  (syntax-rules ()
-    ((defprimitive1 name value)
-     (definitial name
-       (let* ((arity+1 (+ 3 1))
-              (behavior
-               (lambda ()
-                 (if (= arity+1 (activation-frame-argument-length *val*))
-                     (let ((arg1 (activation-frame-argument *val* 0))
-                           (arg2 (activation-frame-argument *val* 1))
-                           (arg3 (activation-frame-argument *val* 2)))
-                       (set! *val* (value arg1 arg2 arg3))
-                       (set! *pc* (stack-pop)))
-                     (signal-exception #t (list "Incorrect arity" 'name))))))
-         (description-extend! 'name `(function value a b c))
-         (make-primitive behavior))))))
+(define (defprimitive3 name value)
+  (definitial name
+    (let* ((arity+1 (+ 3 1))
+           (behavior
+            (lambda ()
+              (if (= arity+1 (activation-frame-argument-length *val*))
+                  (let ((arg1 (activation-frame-argument *val* 0))
+                        (arg2 (activation-frame-argument *val* 1))
+                        (arg3 (activation-frame-argument *val* 2)))
+                    (set! *val* (value arg1 arg2))
+                    (set! *pc* (stack-pop)))
+                  (signal-exception #t (list "Incorrect arity" name))))))
+      (description-extend! name `(function ,name a b c))
+      (make-primitive behavior))))
 
 (define (defprimitive name value arity)
   (case arity
