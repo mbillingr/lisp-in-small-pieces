@@ -21,6 +21,23 @@
 
 ; ============================================================================
 
+(define (deep-fetch sr i j)
+  (if (= i 0)
+      (activation-frame-argument sr j)
+      (deep-fetch (environment-next sr) (- i 1) j)))
+
+(define (deep-update! sr i j v)
+  (if (= i 0)
+      (set-activation-frame-argument! sr j v)
+      (deep-update! (environment-next sr) (- i 1) j v)))
+
+(define (r-extend* r n*)
+  (cons n* r))
+
+(define (sr-extend* sr v*)
+  (set-environment-next! v* sr)
+  v*)
+
 (define (compute-kind r n)
   (or (local-variable? r 0 n)
       (global-variable? g.current n)

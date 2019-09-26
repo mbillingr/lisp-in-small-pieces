@@ -27,7 +27,6 @@
 
 ; ===========================================================================
 (define (invoke f tail?)
-  (println 'invoke f tail?)
   (cond ((closure? f) (if (not tail?)
                           (stack-push *pc*))
                       (set! *env* (closure-closed-environment f))
@@ -42,12 +41,22 @@
 (define (GLOBAL-SET! i m)
   (append m (SET-GLOBAL! i)))
 
+(define (ALTERNATIVE m1 m2 m3)
+  (append m1
+          (JUMP-FALSE (+ 2 (length m2)))
+          m2
+          (GOTO (length m3))
+          m3))
+
+(define (SEQUENCE m m+)
+  (append m m+))
+
 (define (TR-REGULAR-CALL m m*)
   (append m
           (PUSH-VALUE)
           m*
           (POP-FUNCTION)
-          (FUNCTION-INVOKE)))
+          (FUNCTION-GOTO)))
 
 (define (REGULAR-CALL m m*)
   (append m
@@ -77,9 +86,40 @@
           m3 (POP-ARG2) (POP-ARG1)
           (INVOKE3 address)))
 
+(define (FIX-CLOSURE m+ arity)
+  (define the-function
+    (append (ARITY=? (+ arity 1))
+            (EXTEND-ENV)
+            m+
+            (RETURN)))
+  (append (CREATE-CLOSURE 2)
+          (GOTO (length the-function))
+          the-function))
+
+(define (NARY-CLOSURE m+ arity)
+  (define the-function
+    (append (ARITY>=? (+ arity 1))
+            (PACK-FRAME! arity)
+            (EXTEND-ENV)
+            m+
+            (RETURN)))
+  (append (CREATE-CLOSURE 2)
+          (GOTO (length the-function))
+          the-function))
+
+(define (FIX-LET m* m+)
+  (append m* (EXTEND-ENV) m+ (UNLINK-ENV)))
+
+(define (TR-FIX-LET m* m+)
+  (append m* (EXTEND-ENV) m+))
+
+(define (CONS-ARGUMENT m m* arity)
+  (append m (PUSH-VALUE)
+          m* (POP-CONS-FRAME! arity)))
+
 ; ===========================================================================
 (define (run)
-  (println "OP:" (instruction-decode *code* *pc*))
+  ;(println "->" *pc* "  OP:" (instruction-decode *code* *pc*))
   (let ((instruction (fetch-byte)))
     ((vector-ref instruction-body-table instruction)))
   (if (not *exit*)  ; workaround for interpreter without call/cc
@@ -203,8 +243,7 @@
       (signal-exception #t (list "Uninitialized global variable" i))))
 
 (define-instruction (SET-GLOBAL! i) 27
-  (global-update! i *val*)
-  (println sg.current))
+  (global-update! i *val*))
 
 (define (PREDEFINED i)
   (check-byte i)
@@ -303,6 +342,12 @@
 
 (define-instruction (ALLOCATE-FRAME size+1) 55
   (set! *val* (allocate-activation-frame size+1)))
+
+(define (ALLOCATE-DOTTED-FRAME arity) (list 56 (+ arity 1)))
+(define-instruction (ALLOCATE-DOTTED-FRAME arity+1) 56
+  (let ((v* (allocate-activation-frame arity+1)))
+    (set-activation-frame-argument! v* (- arity+1 1) '())
+    (set! *val* v*)))
 
 (define (POP-FRAME! rank)
   (case rank
@@ -437,6 +482,12 @@
   (if (not (= (activation-frame-argument-length *val*) arity+1))
       (signal-exception #f (list "Incorrect arity"))))
 
+(define (ARITY>=? arity+1) (list 78 arity+1))
+
+(define-instruction (ARITY>=? arity+1) 78
+  (if (not (>= (activation-frame-argument-length *val*) arity+1))
+      (signal-exception #f (list "Too few function arguments"))))
+
 (define (EXTEND-ENV) (list 32))
 (define-instruction (EXTEND-ENV) 32
   (set! *env* (sr-extend* *env* *val*)))
@@ -469,13 +520,18 @@
 (define-instruction (POP-FUNCTION) 39
   (set! *fun* (stack-pop)))
 
-(define (CREATE-CLOSURE offset) (list 40 offset))
+(define (CREATE-CLOSURE offset)
+  (list 40 offset))
 (define-instruction (CREATE-CLOSURE offset) 40
   (set! *val* (make-closure (+ *pc* offset) *env*)))
 
 (define (RETURN) (list 43))
 (define-instruction (RETURN) 43
   (set! *pc* (stack-pop)))
+
+(define (PACK-FRAME! arity) (list 44 arity))
+(define-instruction (PACK-FRAME! arity) 44
+  (listify! *val* arity) )
 
 (define (FUNCTION-INVOKE) (list 45))
 (define-instruction (FUNCTION-INVOKE) 45
@@ -484,6 +540,12 @@
 (define (FUNCTION-GOTO) (list 46))
 (define-instruction (FUNCTION-GOTO) 46
   (invoke *fun* #t))
+
+(define (POP-CONS-FRAME! arity) (list 47 arity))
+(define-instruction (POP-CONS-FRAME! arity) 47
+  (set-activation-frame-argument!
+    *val* arity (cons (stack-pop)
+                      (activation-frame-argument *val* arity))))
 
 (define (FINISH) (list 20))
 (define-instruction (FINISH) 20
@@ -668,4 +730,4 @@
   ;           (run)))
   (run))
 
-;(chapter7d-interpreter)
+(chapter7d-interpreter)
