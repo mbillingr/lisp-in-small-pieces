@@ -1,10 +1,10 @@
 (import (builtin core)
         (libs utils)
-        (libs book)
-        (06-fast-interpreter common))
+        (libs book))
 
 ; instructions are encoded as bytecode
 
+(include "common-stuff.scm")
 (include "pretreatment.scm")
 
 (define backup.g.current g.current)
@@ -27,6 +27,7 @@
 
 ; ===========================================================================
 (define (invoke f tail?)
+  (println 'invoke f tail?)
   (cond ((closure? f) (if (not tail?)
                           (stack-push *pc*))
                       (set! *env* (closure-closed-environment f))
@@ -38,11 +39,33 @@
 
 ; ===========================================================================
 
-;(define (CALL0 address)
-;  (append m1 (INVOKE1 address)))
+(define (GLOBAL-SET! i m)
+  (append m (SET-GLOBAL! i)))
+
+(define (TR-REGULAR-CALL m m*)
+  (append m
+          (PUSH-VALUE)
+          m*
+          (POP-FUNCTION)
+          (FUNCTION-INVOKE)))
+
+(define (REGULAR-CALL m m*)
+  (append m
+          (PUSH-VALUE)
+          m*
+          (POP-FUNCTION)
+          (PRESERVE-ENV)
+          (FUNCTION-INVOKE)
+          (RESTORE-ENV)))
+
+(define (STORE-ARGUMENT m m* rank)
+  (append m (PUSH-VALUE)
+          m* (POP-FRAME! rank)))
+
+(define (CALL0 address)
+  (INVOKE0 address))
 
 (define (CALL1 address m1)
-  (println 'CALL1 address m1)
   (append m1 (INVOKE1 address)))
 
 (define (CALL2 address m1 m2)
@@ -180,7 +203,8 @@
       (signal-exception #t (list "Uninitialized global variable" i))))
 
 (define-instruction (SET-GLOBAL! i) 27
-  (global-update! i *val*))
+  (global-update! i *val*)
+  (println sg.current))
 
 (define (PREDEFINED i)
   (check-byte i)
@@ -191,12 +215,12 @@
 (define-instruction (PREDEFINED0) 10 (set! *val* #t))
 (define-instruction (PREDEFINED1) 11 (set! *val* #f))
 (define-instruction (PREDEFINED2) 12 (set! *val* '()))
-(define-instruction (PREDEFINED3) 13 (set! *val* cons))
-(define-instruction (PREDEFINED4) 14 (set! *val* car))
-(define-instruction (PREDEFINED5) 15 (set! *val* cdr))
-(define-instruction (PREDEFINED6) 16 (set! *val* pair?))
-(define-instruction (PREDEFINED7) 17 (set! *val* symbol?))
-(define-instruction (PREDEFINED8) 18 (set! *val* eq?))
+(define-instruction (PREDEFINED3) 13 (set! *val* (predefined-fetch 3)))
+(define-instruction (PREDEFINED4) 14 (set! *val* (predefined-fetch 4)))
+(define-instruction (PREDEFINED5) 15 (set! *val* (predefined-fetch 5)))
+(define-instruction (PREDEFINED6) 16 (set! *val* (predefined-fetch 6)))
+(define-instruction (PREDEFINED7) 17 (set! *val* (predefined-fetch 7)))
+(define-instruction (PREDEFINED8) 18 (set! *val* (predefined-fetch 8)))
 (define-instruction (PREDEFINED i) 19
   (set! *val* (predefined-fetch i)))
 
@@ -300,6 +324,10 @@
 (define-instruction (POP-FRAME! rank) 64
   (set-activation-frame-argument! *val* rank (stack-pop)))
 
+(define (INVOKE0 address)
+  (case address
+    (else (static-wrong "Cannot integrate" address))))
+
 (define (INVOKE1 address)
   (case address
     ((car)      (list 90))
@@ -307,6 +335,7 @@
     ((pair?)    (list 92))
     ((symbol?)  (list 93))
     ((display)  (list 94))
+    ((null?)    (list 95))
     (else (static-wrong "Cannot integrate" address))))
 
 (define-instruction (CALL1-car) 90
@@ -323,6 +352,65 @@
 
 (define-instruction (CALL1-display) 94
   (set! *val* (display *val*)))
+
+(define-instruction (CALL1-null?) 95
+  (set! *val* (null? *val*)))
+
+(define (INVOKE2 address)
+  (case address
+    ((cons)     (list 100))
+    ((eq?)      (list 101))
+    ((set-car!) (list 102))
+    ((set-cdr!) (list 103))
+    ((=)        (list 104))
+    ((<)        (list 105))
+    ((<=)       (list 106))
+    ((>)        (list 107))
+    ((>=)       (list 108))
+    ((+)        (list 109))
+    ((-)        (list 110))
+    ((*)        (list 111))
+    ((/)        (list 112))
+    (else (static-wrong "Cannot integrate" address))))
+
+(define-instruction (CALL2-cons) 100
+  (set! *val* (cons *arg1* *val*)))
+
+(define-instruction (CALL2-eq?) 101
+  (set! *val* (eq? *arg1* *val*)))
+
+(define-instruction (CALL2-set-car!) 102
+  (set! *val* (set-car! *arg1* *val*)))
+
+(define-instruction (CALL2-set-cdr!) 103
+  (set! *val* (set-cdr! *arg1* *val*)))
+
+(define-instruction (CALL2-=) 104
+  (set! *val* (= *arg1* *val*)))
+
+(define-instruction (CALL2-<) 105
+  (set! *val* (< *arg1* *val*)))
+
+(define-instruction (CALL2-<=) 106
+  (set! *val* (<= *arg1* *val*)))
+
+(define-instruction (CALL2->) 107
+  (set! *val* (> *arg1* *val*)))
+
+(define-instruction (CALL2->=) 108
+  (set! *val* (>= *arg1* *val*)))
+
+(define-instruction (CALL2-+) 109
+  (set! *val* (+ *arg1* *val*)))
+
+(define-instruction (CALL2--) 110
+  (set! *val* (- *arg1* *val*)))
+
+(define-instruction (CALL2-*) 111
+  (set! *val* (* *arg1* *val*)))
+
+(define-instruction (CALL2-/) 112
+  (set! *val* (/ *arg1* *val*)))
 
 (define (ARITY=? arity+1)
   (case arity+1
@@ -427,7 +515,8 @@
   (list 'closure code closed-environment))
 
 (define (closure? obj)
-  (eq? (car obj) 'closure))
+  (and (pair? obj)
+       (eq? (car obj) 'closure)))
 
 (define (closure-code obj)
   (cadr obj))
@@ -435,8 +524,76 @@
 (define (closure-closed-environment obj)
   (caddr obj))
 
+(define (make-primitive obj) obj)
+
+(define primitive? procedure?)
+
+(define (primitive-address obj) obj)
+
 ; ===========================================================================
 
+(define-syntax defprimitive0
+  (syntax-rules ()
+    ((defprimitive1 name value)
+     (definitial name
+       (let* ((arity+1 (+ 0 1))
+              (behavior
+               (lambda ()
+                 (if (= arity+1 (activation-frame-argument-length *val*))
+                     (begin
+                       (set! *val* (value arg1))
+                       (set! *pc* (stack-pop)))
+                     (signal-exception #t (list "Incorrect arity" 'name))))))
+         (description-extend! 'name `(function value))
+         (make-primitive behavior))))))
+
+(define-syntax defprimitive1
+  (syntax-rules ()
+    ((defprimitive1 name value)
+     (definitial name
+       (let* ((arity+1 (+ 1 1))
+              (behavior
+               (lambda ()
+                 (if (= arity+1 (activation-frame-argument-length *val*))
+                     (let ((arg1 (activation-frame-argument *val* 0)))
+                       (set! *val* (value arg1))
+                       (set! *pc* (stack-pop)))
+                     (signal-exception #t (list "Incorrect arity" 'name))))))
+         (description-extend! 'name `(function value a))
+         (make-primitive behavior))))))
+
+(define-syntax defprimitive2
+  (syntax-rules ()
+    ((defprimitive1 name value)
+     (definitial name
+       (let* ((arity+1 (+ 2 1))
+              (behavior
+               (lambda ()
+                 (if (= arity+1 (activation-frame-argument-length *val*))
+                     (let ((arg1 (activation-frame-argument *val* 0))
+                           (arg2 (activation-frame-argument *val* 1)))
+                       (set! *val* (value arg1 arg2))
+                       (set! *pc* (stack-pop)))
+                     (signal-exception #t (list "Incorrect arity" 'name))))))
+         (description-extend! 'name `(function value a b))
+         (make-primitive behavior))))))
+
+(define-syntax defprimitive3
+  (syntax-rules ()
+    ((defprimitive1 name value)
+     (definitial name
+       (let* ((arity+1 (+ 3 1))
+              (behavior
+               (lambda ()
+                 (if (= arity+1 (activation-frame-argument-length *val*))
+                     (let ((arg1 (activation-frame-argument *val* 0))
+                           (arg2 (activation-frame-argument *val* 1))
+                           (arg3 (activation-frame-argument *val* 2)))
+                       (set! *val* (value arg1 arg2 arg3))
+                       (set! *pc* (stack-pop)))
+                     (signal-exception #t (list "Incorrect arity" 'name))))))
+         (description-extend! 'name `(function value a b c))
+         (make-primitive behavior))))))
 
 (define (defprimitive name value arity)
   (case arity
@@ -446,63 +603,18 @@
     ((3) (defprimitive3 name value))
     (else static-wrong "Unsupported primitive arity" name arity)))
 
-(define (defprimitive0 name value)
-  (definitial name
-    (let* ((arity+1 (+ 0 1))
-           (behavior
-             (lambda (v* sr)
-               (if (= arity+1 (activation-frame-argument-length v*))
-                   (value)
-                   (wrong "Incorrect arity" name)))))
-      (description-extend! name `(function ,value))
-      (make-closure behavior sr.init))))
-
-(define (defprimitive1 name value)
-  (definitial name
-    (let* ((arity+1 (+ 1 1))
-           (behavior
-             (lambda (v* sr)
-               (if (= arity+1 (activation-frame-argument-length v*))
-                   (value (activation-frame-argument v* 0))
-                   (wrong "Incorrect arity" name)))))
-      (description-extend! name `(function ,value a))
-      (make-closure behavior sr.init))))
-
-(define (defprimitive2 name value)
-  (definitial name
-    (let* ((arity+1 (+ 2 1))
-           (behavior
-             (lambda (v* sr)
-               (if (= arity+1 (activation-frame-argument-length v*))
-                   (value (activation-frame-argument v* 0)
-                          (activation-frame-argument v* 1))
-                   (wrong "Incorrect arity" name)))))
-      (description-extend! name `(function ,value a b))
-      (make-closure behavior sr.init))))
-
-(define (defprimitive3 name value)
-  (definitial name
-    (let* ((arity+1 (+ 3 1))
-           (behavior
-             (lambda (v* sr)
-               (if (= arity+1 (activation-frame-argument-length v*))
-                   (value (activation-frame-argument v* 0)
-                          (activation-frame-argument v* 1)
-                          (activation-frame-argument v* 2))
-                   (wrong "Incorrect arity" name)))))
-      (description-extend! name `(function ,value a b c))
-      (make-closure behavior sr.init))))
-
 (definitial 't #t)
 (definitial 'f #f)
 (definitial 'nil '())
-(defprimitive 'cons 'cons 2)
-(defprimitive 'car 'car 1)
-(defprimitive 'cdr 'cdr 1)
-(defprimitive 'pair? 'pair? 1)
-(defprimitive 'symbol? 'symbol? 1)
-(defprimitive 'eq? 'eq? 2)
-(defprimitive 'null? 'null? 1)
+(defprimitive 'cons cons 2)
+(defprimitive 'car car 1)
+(defprimitive 'cdr cdr 1)
+(defprimitive 'pair? pair? 1)
+(defprimitive 'symbol? symbol? 1)
+(defprimitive 'eq? eq? 2)
+(defprimitive 'null? null? 1)
+(defprimitive 'set-car! set-car! 2)
+(defprimitive 'set-cdr! set-cdr! 2)
 (defprimitive '= = 2)
 (defprimitive '< < 2)
 (defprimitive '<= <= 2)
@@ -539,9 +651,14 @@
   (set! finish-pc 0)
   (FINISH))
 
-(define (run-machine stack-size pc code constants global-names)
+; I want to preserve modified globals in the REPL
+(let ((global-names (map car (reverse g.current))))
   (set! sg.current (make-vector (length global-names) undefined-value))
-  (set! sg.current.names global-names)
+  (set! sg.current.names global-names))
+
+(define (run-machine stack-size pc code constants global-names)
+  ;(set! sg.current (make-vector (length global-names) undefined-value))
+  ;(set! sg.current.names global-names)
   (set! *constants* constants)
   (set! *code* code)
   (set! *env* sr.init)
