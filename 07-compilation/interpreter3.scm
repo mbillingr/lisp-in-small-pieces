@@ -531,7 +531,7 @@
 
 (define (PACK-FRAME! arity) (list 44 arity))
 (define-instruction (PACK-FRAME! arity) 44
-  (listify! *val* arity) )
+  (listify! *val* arity))
 
 (define (FUNCTION-INVOKE) (list 45))
 (define-instruction (FUNCTION-INVOKE) 45
