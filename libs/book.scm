@@ -3,12 +3,17 @@
 
   (export a-true-value
           atom?
+          call-with-input-file
+          call-with-output-file
+          display
           empty-begin
           extend
           invoke
           lookup
+          newline
           the-false-value
           update!
+          write
           wrong)
 
   (import (builtin core)
@@ -52,4 +57,32 @@
     (define (invoke fn args)
       (if (procedure? fn)
           (fn args)
-          (wrong "Not a function" fn)))))
+          (wrong "Not a function" fn)))
+
+    (define builtin-display display)
+    (define builtin-newline newline)
+
+    (define (display obj . target)
+      (if (null? target)
+          (builtin-display obj)
+          (fdisplay (car target) obj)))
+
+    (define (newline . target)
+      (if (null? target)
+          (builtin-newline)
+          (fdisplay (car target) "\n")))
+
+    (define (write obj f)
+      (fwrite f obj))
+
+    (define (call-with-input-file filename func)
+      (let* ((file (file-open filename 'r))
+             (result (func file)))
+        (file-close! file)
+        result))
+
+    (define (call-with-output-file filename func)
+      (let* ((file (file-open filename 'w))
+             (result (func file)))
+        (file-close! file)
+        result))))

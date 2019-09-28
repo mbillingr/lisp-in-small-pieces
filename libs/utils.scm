@@ -7,7 +7,7 @@
           cadddr cddddr
           cons-stream cube
           debug-eval debug-print dec delay
-          even?
+          enumerate even?
           false fixed-point force for-each
           gcd get get-coercion
           inc iterative-improve
@@ -223,6 +223,14 @@
           nil
           (cons (apply op (map1 car seqs))
                 (apply map op (map1 cdr seqs)))))
+
+    (define (enumerate seq)
+      (define (scan s n)
+        (if (null? s)
+            '()
+            (cons (list n (car s))
+                  (scan (cdr s) (+ n 1)))))
+      (scan seq 0))
 
     (define (memq item x)
       (cond ((null? x) false)
