@@ -18,7 +18,6 @@
                                  + - * /))))
 
 (define *quotations* '())
-(define *dynamic-variables* '())
 
 (define (compile-file filename)
   (set! g.current '())
@@ -35,23 +34,6 @@
                        (list ";;; Bytecode object file for " complete-filename)
                        dynamics global-names constants code
                        (length (code-prologue)))))
-
-(define (write-result-file ofilename comments dynamics
-                           global-names constants code entry)
-  (call-with-output-file ofilename
-    (lambda (out)
-      (for-each (lambda (comment) (display comment out))
-                comments) (newline out)
-      (display ";;; Dynamic variables" out) (newline out)
-      (write dynamics out) (newline out) (newline out)
-      (display ";;; Global modifiable variables" out) (newline out)
-      (write global-names out) (newline out) (newline out)
-      (display ";;; Quotations" out) (newline out)
-      (write constants out) (newline out) (newline out)
-      (display ";;; Bytecode" out) (newline out)
-      (write code out) (newline out) (newline out)
-      (display ";;; Entry point" out) (newline out)
-      (write entry out) (newline out))))
 
 ; ===========================================================================
 

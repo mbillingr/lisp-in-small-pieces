@@ -11,7 +11,7 @@
           false fixed-point force for-each
           gcd get get-coercion
           inc iterative-improve
-          length list-tail
+          length list-ref list-tail
           map map1 memo-proc memq modulo
           nil
           power println printn put put-coercion
@@ -167,6 +167,11 @@
             (iter (cdr in)
                   (cons (car in) out))))
       (iter seq '()))
+
+    (define (list-ref seq n)
+      (if (= n 0)
+          (car seq)
+          (list-ref (cdr seq) (- n 1))))
 
     (define (list-tail seq n)
       (if (= n 0)

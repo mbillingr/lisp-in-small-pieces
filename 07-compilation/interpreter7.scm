@@ -420,8 +420,7 @@
 (define-instruction (PREDEFINED6) 16 (set! *val* (predefined-fetch 6)))
 (define-instruction (PREDEFINED7) 17 (set! *val* (predefined-fetch 7)))
 (define-instruction (PREDEFINED8) 18 (set! *val* (predefined-fetch 8)))
-(define-instruction (PREDEFINED i) 19
-  (set! *val* (predefined-fetch i)))
+(define-instruction (PREDEFINED i) 19 (set! *val* (predefined-fetch i)))
 
 (define (CONSTANT value)
   (cond ((eq? value #t)     (list 10))

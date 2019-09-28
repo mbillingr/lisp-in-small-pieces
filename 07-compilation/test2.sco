@@ -1,6 +1,6 @@
 ;;; Bytecode object file for 07-compilation/test2.scm
 ;;; Dynamic variables
-'()
+()
 
 ;;; Global modifiable variables
 (fib)

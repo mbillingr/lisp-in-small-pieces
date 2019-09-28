@@ -4,6 +4,7 @@
 (define desc.init '())
 (define r.init '())
 (define sr.init '())
+(define *dynamic-variables* '())
 
 (define sg.current (make-vector 100))
 (define sg.init (make-vector 100))
@@ -113,6 +114,33 @@
   (vector-set! sg.current i v))
 (define (predefined-fetch i)
   (vector-ref sg.init i))
+
+(define (get-dynamic-variable-index n)
+  (let ((where (memq n *dynamic-variables*)))
+    (if where
+        (length where)
+        (begin
+          (set! *dynamic-variables* (cons n *dynamic-variables*))
+          (length *dynamic-variables*)))))
+
+; ============================================================================
+
+(define (write-result-file ofilename comments dynamics
+                           global-names constants code entry)
+  (call-with-output-file ofilename
+    (lambda (out)
+      (for-each (lambda (comment) (display comment out))
+                comments) (newline out)
+      (display ";;; Dynamic variables" out) (newline out)
+      (write dynamics out) (newline out) (newline out)
+      (display ";;; Global modifiable variables" out) (newline out)
+      (write global-names out) (newline out) (newline out)
+      (display ";;; Quotations" out) (newline out)
+      (write constants out) (newline out) (newline out)
+      (display ";;; Bytecode" out) (newline out)
+      (write code out) (newline out) (newline out)
+      (display ";;; Entry point" out) (newline out)
+      (write entry out) (newline out))))
 
 ; ============================================================================
 ; These implementations are not defined in the book, so I'm making them up...
