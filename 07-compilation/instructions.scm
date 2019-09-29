@@ -1,7 +1,28 @@
 
+(define (run)
+  (println "->" *pc* "  OP:" (instruction-decode *code* *pc*))
+  (let ((instruction (fetch-byte)))
+    ((vector-ref instruction-body-table instruction)))
+  (if (not *exit*)  ; workaround for interpreter without call/cc
+      (run)
+      *val*))
+
 (define (instruction-size code pc)
   (let ((instruction (vector-ref code pc)))
     (vector-ref instruction-size-table instruction)))
+
+(define (instruction-decode code pc)
+  (define (decode-fetch-byte)
+    (let ((byte (vector-ref code pc)))
+      (set! pc (+ pc 1))
+      byte))
+  (let ((instruction (decode-fetch-byte)))
+    ((vector-ref instruction-decode-table instruction) decode-fetch-byte)))
+
+(define (fetch-byte)
+  (let ((byte (vector-ref *code* *pc*)))
+    (set! *pc* (+ *pc* 1))
+    byte))
 
 (define GLOBAL-REF-code 7)
 (define CHECKED-GLOBAL-REF-code 8)
@@ -257,3 +278,85 @@
     (stack-push escape)
     (stack-push escape-tag)
     (stack-push (+ *pc* offset))))
+
+; ============================================================================
+
+; ---- environment manipulation
+
+(define (quotation-fetch i)
+  (vector-ref *constants* i))
+
+; ---- stack manipulation
+
+(define (stack-push v)
+  (vector-set! *stack* *stack-index* v)
+  (set! *stack-index* (+ *stack-index* 1)))
+
+(define (stack-pop)
+  (set! *stack-index* (- *stack-index* 1))
+  (vector-ref *stack* *stack-index*))
+
+(define (preserve-environment)
+  (stack-push *env*))
+
+(define (restore-environment)
+  (set! *env* (stack-pop)))
+
+; ---- dynamic variables
+
+(define dynenv-tag (list '*dynenv*))
+
+(define (search-dynenv-index)
+  (define (search i)
+    (if (< i 0)
+        i
+        (if (eq? (vector-ref *stack* i) dynenv-tag)
+            (- i 1)
+            (search (- i 1)))))
+  (search (- *stack-index* 1)))
+
+(define (pop-dynamic-binding)
+  (stack-pop) (stack-pop) (stack-pop) (stack-pop))
+
+(define (push-dynamic-binding index value)
+  (stack-push (search-dynenv-index))
+  (stack-push value)
+  (stack-push index)
+  (stack-push dynenv-tag))
+
+(define (find-dynamic-value index)
+  (define (scan i)
+    (if (< i 0)
+        '*uninit*
+        (if (eq? vector-ref *stack* i) index
+            (vector-ref *stack* (- i 1))
+            (scan (vector-ref *stack* (- i 2))))))
+  (scan (search-dynenv-index)))
+
+; ---- exceptions
+
+(define (search-exception-handlers)
+  (find-dynamic-value 0))
+
+(define (push-exception-handler)
+  (let ((handlers (search-exception-handlers)))
+    (push-dynamic-binding 0 (cons *val* handlers))))
+
+(define (pop-exception-handler)
+  (pop-dynamic-binding))
+
+(define (signal-exception continuable? exception)
+  (let ((handlers (search-exception-handlers))
+        (v* (allocate-activation-frame (+ 2 1))))
+    (set-activation-frame-argument! v* 0 continuable?)
+    (set-activation-frame-argument! v* 1 exception)
+    (set! *val* v*)
+    (stack-push *pc*)
+    (preserve-environment)
+    (push-dynamic-binding 0 (if (null? (cdr handlers))
+                                handlers
+                                (cdr handlers)))
+    (if continuable?
+        (stack-push 2)    ; pc for (POP-HANDLER) (RESTORE-ENV) (RETURN)
+        (stack-push 0))   ; pc for (NON-CONT-ERR)
+    (invoke (car handlers) #t)))

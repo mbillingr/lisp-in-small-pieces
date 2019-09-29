@@ -41,11 +41,6 @@
     (relocate-dynamics! code dynamics)
     (+ entry (install-code! code))))
 
-(define (install-code! code)
-  (let ((start (vector-length *code*)))
-    (set! *code* (vector-append *code* code))
-    start))
-
 (define (relocate-constants! code constants)
   (define n (vector-length *constants*))
   (let ((code-size (vector-length code)))
@@ -98,16 +93,6 @@
                                (get-dynamic-variable-index name))))
             (scan (+ pc (instruction-size code pc))))))
     (scan 0)))
-
-; ===========================================================================
-
-(define (vector-append v1 v2)
-  (let* ((n1 (vector-length v1))
-         (n2 (vector-length v2))
-         (new-vec (make-vector (+ n1 n2))))
-    (vector-copy! new-vec 0 v1 0 n1)
-    (vector-copy! new-vec n1 v2 0 n2)
-    new-vec))
 
 ; ===========================================================================
 

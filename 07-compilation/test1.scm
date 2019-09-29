@@ -7,3 +7,5 @@
          (if (= n 0)
              (k 1)
              (f (- n 1) f (lambda (r) (k (* n r))))))))
+
+(fact 5)

@@ -10,9 +10,11 @@
           extend
           invoke
           lookup
+          make-vector
           newline
           the-false-value
           update!
+          vector-append
           write
           wrong)
 
@@ -85,4 +87,27 @@
       (let* ((file (file-open filename 'w))
              (result (func file)))
         (file-close! file)
-        result))))
+        result))
+
+    (define builtin-make-vector make-vector)
+
+    (define (make-vector size . fill)
+      (let ((vec (builtin-make-vector size)))
+        (if (pair? fill)
+            (fill-vector! vec (car fill)))
+        vec))
+
+    (define (fill-vector! vec fill)
+      (define (scan n m)
+        (if (< n m)
+            (begin (vector-set! vec n fill)
+                   (scan (+ n 1) m))))
+      (scan 0 (vector-length vec)))
+
+    (define (vector-append v1 v2)
+      (let* ((n1 (vector-length v1))
+             (n2 (vector-length v2))
+             (new-vec (make-vector (+ n1 n2))))
+        (vector-copy! new-vec 0 v1 0 n1)
+        (vector-copy! new-vec n1 v2 0 n2)
+        new-vec))))

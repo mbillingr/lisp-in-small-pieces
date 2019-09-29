@@ -4,18 +4,11 @@
 
 (include "common-stuff.scm")
 (include "pretreatment2.scm")
+(include "primitives.scm")
 
 (define (read-file filename)
   (file-read filename))
-
-; initialize list of immutable globals (order is important!)
-(define g.init (map (lambda (idx-name) `(,(cadr idx-name) predefined . ,(car idx-name)))
-                    (enumerate '(t f nil
-                                 cons car cdr
-                                 pair? symbol? eq?
-                                 null? set-car! set-cdr!
-                                 = < <= > >=
-                                 + - * /))))
+  
 
 (define *quotations* '())
 

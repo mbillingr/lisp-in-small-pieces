@@ -20,6 +20,11 @@
   (lambda _args
     (apply wrong (cons message culprits))))
 
+(define (install-code! code)
+  (let ((start (vector-length *code*)))
+    (set! *code* (vector-append *code* code))
+    start))
+
 ; ============================================================================
 
 (define (deep-fetch sr i j)
@@ -162,6 +167,9 @@
 
 (define (activation-frame-argument-length frame)
   (caddr frame))
+
+(define (activation-frame-next frame)
+  (car frame))
 
 ; ============================================================================
 
