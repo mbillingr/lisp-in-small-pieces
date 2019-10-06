@@ -134,7 +134,7 @@
   (define (scan i)
     (if (< i 0)
         '*uninit*
-        (if (eq? vector-ref *stack* i) index
+        (if (eq? (vector-ref *stack* i) index)
             (vector-ref *stack* (- i 1))
             (scan (vector-ref *stack* (- i 2))))))
   (scan (search-dynenv-index)))

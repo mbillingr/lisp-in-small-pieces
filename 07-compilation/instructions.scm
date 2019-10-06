@@ -100,7 +100,7 @@
 (define-instruction (FINISH) 20
   ;(*exit* *val*))
   (set! *exit* #t))
-(define-instruction (SET-SHALLOW-ARGUMENT!2) 21
+(define-instruction (SET-SHALLOW-ARGUMENT!0) 21
   (set-activation-frame-argument! *env* 0 *val*))
 (define-instruction (SET-SHALLOW-ARGUMENT!1) 22
   (set-activation-frame-argument! *env* 1 *val*))
