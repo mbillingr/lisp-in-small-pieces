@@ -1,9 +1,7 @@
+use crate::{ActivationFrame, Closure};
 use lisp_core::lexpr;
-use crate::{Closure, ActivationFrame};
-
 
 pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
-
 
 #[derive(Debug, Copy, Clone)]
 pub enum Value {
@@ -20,13 +18,21 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn null() -> Self {Value::Null}
+    pub fn null() -> Self {
+        Value::Null
+    }
 
-    pub fn uninitialized() -> Self { Value::Uninitialized }
+    pub fn uninitialized() -> Self {
+        Value::Uninitialized
+    }
 
-    pub fn int(i: i64) -> Self { Value::Int(i) }
+    pub fn int(i: i64) -> Self {
+        Value::Int(i)
+    }
 
-    pub fn cons(car: Value, cdr: Value) -> Self {Value::Pair(Box::leak(Box::new([car, cdr])))}
+    pub fn cons(car: Value, cdr: Value) -> Self {
+        Value::Pair(Box::leak(Box::new([car, cdr])))
+    }
 
     pub fn symbol(s: &str) -> Self {
         Value::Symbol(Box::leak(Box::new(s.to_owned())))
@@ -54,6 +60,7 @@ impl Value {
             (Uninitialized, _) => false,
             (_, Uninitialized) => false,
             (Int(a), Int(b)) => a == b,
+            (Symbol(a), Symbol(b)) => a == b,
             _ => self.eq(other),
         }
     }
@@ -65,10 +72,24 @@ impl Value {
         }
     }
 
+    pub fn as_pointer(&self) -> Option<*const u8> {
+        match self {
+            Value::Pointer(p) => Some(*p),
+            _ => None,
+        }
+    }
+
     pub fn as_frame(&self) -> Option<&'static ActivationFrame> {
         match self {
             Value::Frame(frame) => Some(frame),
             _ => None,
+        }
+    }
+
+    pub fn mul(&self, rhs: &Self) -> Self {
+        match (self, rhs) {
+            (Value::Int(a), Value::Int(b)) => Value::Int(a * b),
+            _ => panic!("Type Error"),
         }
     }
 }
