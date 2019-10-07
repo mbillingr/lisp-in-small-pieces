@@ -9,7 +9,7 @@ pub struct SchemeObjectFile {
     pub dynamic_vars: Vec<String>,
     pub global_vars: Vec<String>,
     pub constants: Vec<Value>,
-    pub bytecode: Vec<u8>,
+    pub bytecode: &'static [u8],
     pub entry_points: Vec<usize>,
 }
 
@@ -31,7 +31,7 @@ impl SchemeObjectFile {
             dynamic_vars,
             global_vars,
             constants,
-            bytecode,
+            bytecode: Box::leak(bytecode.into_boxed_slice()),
             entry_points,
         })
     }

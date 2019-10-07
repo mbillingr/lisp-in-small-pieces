@@ -110,7 +110,7 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn from_u8(b: u8) -> Self {
+    pub fn from_u8(_b: u8) -> Self {
         unimplemented!()
     }
 

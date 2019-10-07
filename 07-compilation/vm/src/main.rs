@@ -16,14 +16,15 @@ static GLOBAL_ALLOCATOR: Allocator = Allocator;
 fn main() -> Result<()> {
     unsafe { Allocator::initialize() }
 
-    let sco = SchemeObjectFile::from_file("../test1.sco")?;
+    let sco = SchemeObjectFile::from_file("../test2.sco")?;
 
     println!("{:#?}", sco);
 
-    println!("{:?}", &sco.bytecode[..10]);
-    println!("{:?}", &sco.bytecode[sco.entry_points[0]]);
-
     let mut vm = VirtualMachine::from_sco(sco);
+
+    unsafe {
+        println!("Result: {:?}", vm.run());
+    }
 
     unsafe {
         println!("Result: {:?}", vm.run());
@@ -33,7 +34,6 @@ fn main() -> Result<()> {
 }
 
 pub struct VirtualMachine {
-    bytecode: Vec<u8>,
     pc: CodePointer,
     val: Value,
     fun: Value,
@@ -43,10 +43,15 @@ pub struct VirtualMachine {
     constants: Vec<Value>,
     globals: Vec<Value>,
     stack: Vec<Value>,
+    init_stack: Vec<Value>,
 }
 
 impl VirtualMachine {
     pub fn from_sco(sco: SchemeObjectFile) -> Self {
+        let mut init_stack = vec![Value::Pointer(&sco.bytecode[1])]; // pc for FINISH
+        for e in sco.entry_points.into_iter().rev() {
+            init_stack.push(Value::Pointer(&sco.bytecode[e]));
+        }
         VirtualMachine {
             val: Value::uninitialized(),
             fun: Value::uninitialized(),
@@ -55,15 +60,17 @@ impl VirtualMachine {
             env: ActivationFrame::allocate(0),
             constants: sco.constants,
             globals: vec![Value::uninitialized(); sco.global_vars.len()],
-            stack: vec![Value::Pointer(&sco.bytecode[1])], // pc for FINISH
-            pc: CodePointer::new_unchecked(&sco.bytecode[sco.entry_points[0]]),
-            bytecode: sco.bytecode,
+            stack: vec![],
+            init_stack,
+            pc: CodePointer::new(&Op::Finish),
         }
     }
 
     pub unsafe fn run(&mut self) -> Value {
+        self.stack = self.init_stack.clone();
+        self.pc = self.stack.pop().unwrap().into();
         loop {
-            match dbg!(self.pc.fetch_instruction()) {
+            match self.pc.fetch_instruction() {
                 Op::Nop => {}
                 Op::ShallowArgumentRef0 => self.val = *self.env.argument(0),
                 Op::ShallowArgumentRef1 => self.val = *self.env.argument(1),
@@ -103,9 +110,7 @@ impl VirtualMachine {
 
                 Op::ShortGoto => {
                     let offset = self.pc.fetch_byte();
-                    unsafe {
-                        self.pc.jump(offset as isize);
-                    }
+                    self.pc.jump(offset as isize);
                 }
                 Op::ShortJumpFalse => {
                     let offset = self.pc.fetch_byte();
@@ -319,26 +324,23 @@ struct CodePointer {
 impl CodePointer {
     fn new(code: &Op) -> Self {
         CodePointer {
-            ptr: code as *const _ as *const u8,
+            ptr: &(*code as u8),
         }
     }
-
-    fn new_unchecked(code: &u8) -> Self {
+    unsafe fn new_unchecked(code: &u8) -> Self {
         CodePointer { ptr: code }
     }
 
     unsafe fn fetch_instruction(&mut self) -> Op {
         // self.pc must always point to a valid code location
-        unsafe { Op::from_u8_unchecked(self.fetch_byte()) }
+        Op::from_u8_unchecked(self.fetch_byte())
     }
 
     unsafe fn fetch_byte(&mut self) -> u8 {
         // self.pc must always point to a valid code location
-        unsafe {
-            let b = *self.ptr;
-            self.ptr = self.ptr.offset(1);
-            b
-        }
+        let b = *self.ptr;
+        self.ptr = self.ptr.offset(1);
+        b
     }
 
     unsafe fn offset(&self, offset: isize) -> Self {
