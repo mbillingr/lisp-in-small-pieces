@@ -16,7 +16,7 @@ static GLOBAL_ALLOCATOR: Allocator = Allocator;
 fn main() -> Result<()> {
     unsafe { Allocator::initialize() }
 
-    let sco = SchemeObjectFile::from_file("../test3.sco")?;
+    let sco = SchemeObjectFile::from_file("../test2.sco")?;
 
     println!("{:#?}", sco);
 
@@ -107,6 +107,12 @@ impl VirtualMachine {
                         self.pc.jump(offset as isize);
                     }
                 }
+                Op::ShortJumpFalse => {
+                    let offset = self.pc.fetch_byte();
+                    if self.val.is_false() {
+                        self.pc.jump(offset as isize);
+                    }
+                }
 
                 Op::ExtendEnv => {
                     self.env = &self.val.as_frame().unwrap().extend(self.env);
@@ -130,6 +136,7 @@ impl VirtualMachine {
                 Op::Return => self.pc = self.stack.pop().unwrap().into(),
 
                 Op::FunctionInvoke => self.invoke(self.fun, false),
+                Op::FunctionGoto => self.invoke(self.fun, true),
 
                 Op::AllocateFrame1 => self.val = Value::Frame(ActivationFrame::allocate(1)),
                 Op::AllocateFrame2 => self.val = Value::Frame(ActivationFrame::allocate(2)),
@@ -200,14 +207,23 @@ impl VirtualMachine {
                     let val = self.pc.fetch_byte();
                     self.val = Value::int(val as i64);
                 }
+                Op::ConstMinus1 => self.val = Value::Int(-1),
+                Op::Const0 => self.val = Value::Int(0),
+                Op::Const1 => self.val = Value::Int(1),
+                Op::Const2 => self.val = Value::Int(2),
+                Op::Const4 => self.val = Value::Int(4),
 
                 Op::Call2Cons => {
                     self.val = Value::cons(self.arg1, self.val);
                 }
 
-                Op::Call2Mul => {
-                    self.val = self.arg1.mul(&self.val);
+                Op::Call2Less => {
+                    self.val = self.arg1.less(&self.val);
                 }
+
+                Op::Call2Add => self.val = self.arg1.add(&self.val),
+                Op::Call2Sub => self.val = self.arg1.sub(&self.val),
+                Op::Call2Mul => self.val = self.arg1.mul(&self.val),
 
                 Op::DynamicRef => {
                     let index = self.pc.fetch_byte();

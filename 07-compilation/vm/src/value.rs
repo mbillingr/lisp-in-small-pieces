@@ -7,6 +7,8 @@ pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
 pub enum Value {
     Null,
     Uninitialized,
+    True,
+    False,
     Int(i64),
     Pair(&'static [Value; 2]),
     Symbol(&'static str),
@@ -26,6 +28,13 @@ impl Value {
         Value::Uninitialized
     }
 
+    pub fn bool(b: bool) -> Self {
+        match b {
+            true => Value::True,
+            false => Value::False,
+        }
+    }
+
     pub fn int(i: i64) -> Self {
         Value::Int(i)
     }
@@ -40,6 +49,13 @@ impl Value {
 
     pub fn string(s: &str) -> Self {
         Value::String(Box::leak(Box::new(s.to_owned())))
+    }
+
+    pub fn is_false(&self) -> bool {
+        match self {
+            Value::False => true,
+            _ => false,
+        }
     }
 
     pub fn is_uninitialized(&self) -> bool {
@@ -83,6 +99,27 @@ impl Value {
         match self {
             Value::Frame(frame) => Some(frame),
             _ => None,
+        }
+    }
+
+    pub fn less(&self, rhs: &Self) -> Self {
+        match (self, rhs) {
+            (Value::Int(a), Value::Int(b)) => Value::bool(a < b),
+            _ => panic!("Type Error"),
+        }
+    }
+
+    pub fn add(&self, rhs: &Self) -> Self {
+        match (self, rhs) {
+            (Value::Int(a), Value::Int(b)) => Value::Int(a + b),
+            _ => panic!("Type Error"),
+        }
+    }
+
+    pub fn sub(&self, rhs: &Self) -> Self {
+        match (self, rhs) {
+            (Value::Int(a), Value::Int(b)) => Value::Int(a - b),
+            _ => panic!("Type Error"),
         }
     }
 
