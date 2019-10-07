@@ -16,7 +16,7 @@ static GLOBAL_ALLOCATOR: Allocator = Allocator;
 fn main() -> Result<()> {
     unsafe { Allocator::initialize() }
 
-    let sco = SchemeObjectFile::from_file("../test2.sco")?;
+    let sco = SchemeObjectFile::from_file("../test1.sco")?;
 
     println!("{:#?}", sco);
 
@@ -114,13 +114,9 @@ impl VirtualMachine {
                     }
                 }
 
-                Op::ExtendEnv => {
-                    self.env = &self.val.as_frame().unwrap().extend(self.env);
-                }
-
-                Op::PushValue => {
-                    self.stack.push(self.val);
-                }
+                Op::ExtendEnv => self.env = &self.val.as_frame().unwrap().extend(self.env),
+                Op::UnlinkEnv => self.env = self.env.next().unwrap(),
+                Op::PushValue => self.stack.push(self.val),
                 Op::PopArg1 => self.arg1 = self.stack.pop().unwrap(),
                 Op::PopArg2 => self.arg2 = self.stack.pop().unwrap(),
                 Op::PreserveEnv => self.stack.push(Value::Frame(self.env)),
@@ -217,6 +213,9 @@ impl VirtualMachine {
                     self.val = Value::cons(self.arg1, self.val);
                 }
 
+                Op::Call2NumEq => {
+                    self.val = self.arg1.numeq(&self.val);
+                }
                 Op::Call2Less => {
                     self.val = self.arg1.less(&self.val);
                 }
@@ -389,6 +388,10 @@ impl ActivationFrame {
         self.slots.len()
     }
 
+    fn next(&self) -> Option<&'static ActivationFrame> {
+        self.next.get()
+    }
+
     fn argument(&self, idx: usize) -> &Value {
         &self.slots[idx]
     }
@@ -405,7 +408,11 @@ impl ActivationFrame {
     }
 
     fn deep_fetch(&self, i: usize, j: usize) -> &Value {
-        unimplemented!()
+        let mut env = self;
+        for _ in 0..i {
+            env = env.next().unwrap();
+        }
+        env.argument(j)
     }
 }
 

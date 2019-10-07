@@ -102,6 +102,13 @@ impl Value {
         }
     }
 
+    pub fn numeq(&self, rhs: &Self) -> Self {
+        match (self, rhs) {
+            (Value::Int(a), Value::Int(b)) => Value::bool(a == b),
+            _ => panic!("Type Error"),
+        }
+    }
+
     pub fn less(&self, rhs: &Self) -> Self {
         match (self, rhs) {
             (Value::Int(a), Value::Int(b)) => Value::bool(a < b),
