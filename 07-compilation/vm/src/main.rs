@@ -8,6 +8,7 @@ use error::Result;
 use opcode::Op;
 use scheme_object_file::SchemeObjectFile;
 use std::cell::Cell;
+use std::time::{Duration, Instant};
 use value::{Scm, Value, DYNENV_TAG};
 
 #[global_allocator]
@@ -30,12 +31,19 @@ fn main() -> Result<()> {
         println!("Result: {}", vm.run());
     }
 
-    let mut counts: Vec<_> = vm.statistics.iter().enumerate().map(|(i, n)| (*n, Op::from_u8(i as u8))).collect();
+    let mut counts: Vec<_> = vm
+        .statistics
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (*n, Op::from_u8(i as u8)))
+        .collect();
     counts.sort_by_key(|(n, _)| *n);
 
     for c in counts.iter().rev().take(10) {
         println!("{:?}", c);
     }
+
+    println!("max stack: {}", vm.max_stack);
 
     Ok(())
 }
@@ -70,7 +78,8 @@ pub struct VirtualMachine {
     stack: Vec<OpaquePointer>,
     init_stack: Vec<OpaquePointer>,
 
-    statistics: [usize; 256],
+    statistics: [Duration; 256],
+    max_stack: usize,
 }
 
 impl VirtualMachine {
@@ -87,10 +96,11 @@ impl VirtualMachine {
             env: ActivationFrame::allocate(0),
             constants: sco.constants,
             globals: vec![Scm::uninitialized(); sco.global_vars.len()],
-            stack: vec![],
+            stack: Vec::with_capacity(1024),
             init_stack,
             pc: CodePointer::new(&Op::Finish),
-            statistics: [0; 256],
+            statistics: [Duration::new(0, 0); 256],
+            max_stack: 0,
         }
     }
 
@@ -102,8 +112,9 @@ impl VirtualMachine {
         self.pc = self.stack_pop();
 
         loop {
+            self.max_stack = self.max_stack.max(self.stack.len());
             let op = self.pc.fetch_instruction();
-            self.statistics[op as usize] += 1;
+            let start = Instant::now();
             match op {
                 Op::Nop => {}
                 Op::ShallowArgumentRef0 => self.val = *self.env.argument(0),
@@ -272,6 +283,8 @@ impl VirtualMachine {
 
                 op => unimplemented!("Opcode {:?}", op),
             }
+            let end = Instant::now();
+            self.statistics[op as usize] += end - start;
         }
     }
 
@@ -413,14 +426,15 @@ impl From<Value> for CodePointer {
 #[derive(Debug)]
 pub struct ActivationFrame {
     next: Cell<Option<&'static ActivationFrame>>,
-    slots: Box<[Scm]>,
+    slots: Vec<Scm>,
+    //slots: [Scm; 2],
 }
 
 impl ActivationFrame {
     fn new(size: usize) -> Self {
         ActivationFrame {
             next: Cell::new(None),
-            slots: vec![Scm::uninitialized(); size].into_boxed_slice(),
+            slots: vec![Scm::uninitialized(); size],
         }
     }
 
@@ -437,8 +451,7 @@ impl ActivationFrame {
     }
 
     fn argument(&self, idx: usize) -> &Scm {
-        //&self.slots[idx]
-        unsafe { &*self.slots.as_ptr().offset(idx as isize) }
+        &self.slots[idx]
     }
 
     fn set_argument(&self, idx: usize, value: Scm) {

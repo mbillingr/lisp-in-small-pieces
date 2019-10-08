@@ -7,21 +7,19 @@ use std::os::raw::c_void;
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
 pub const DYNENV_TAG: Scm = Scm { ptr: 123 };
 
-const N_TAG_BITS: usize = 3;
-const TAG_MASK: usize = 0b_111;
-const TAG_POINTER: usize = 0b_000;
-const TAG_INTEGER: usize = 0b_001;
-const TAG_PAIR: usize = 0b_010;
-//const TAG_FRAME: usize = 0b_100;
-//const TAG_CLOSURE: usize = 0b_110;
-const TAG_SPECIAL: usize = 0b_111;
+const N_TAG_BITS: usize = 2;
+const TAG_MASK: usize = 0b_11;
+const TAG_POINTER: usize = 0b_00;
+const TAG_INTEGER: usize = 0b_01;
+const TAG_PAIR: usize = 0b_10;
+const TAG_SPECIAL: usize = 0b_11;
 
 const SPECIAL_UNINIT: usize = 0b_0000_0111;
 const SPECIAL_NULL: usize = 0b_0001_0111;
 const SPECIAL_FALSE: usize = 0b_0010_0111;
 const SPECIAL_TRUE: usize = 0b_0011_0111;
 
-const MASK_IMMEDIATE: usize = 0b001; // this works because all immediates have 1 in the lsb
+const MASK_IMMEDIATE: usize = 0b01; // this works because all immediates have 1 in the lsb
 
 #[derive(Debug, Copy, Clone)]
 pub struct Scm {
@@ -30,8 +28,6 @@ pub struct Scm {
 
 #[derive(Debug, Copy, Clone)]
 pub enum Value {
-    Null,
-    Uninitialized,
     Symbol(&'static str),
     String(&'static String),
 
@@ -48,8 +44,10 @@ impl Scm {
     }
 
     pub fn from_value(value: Value) -> Self {
+        //let p = Box::leak(Box::new(value));
+        let p = VALUE_ALLOCATOR.with(|pa| pa.alloc(value));
         Scm {
-            ptr: Box::leak(Box::new(value)) as *const _ as usize,
+            ptr: p as *const _ as usize,
         }
     }
 
@@ -64,11 +62,12 @@ impl Scm {
     }
 
     pub fn bool(b: bool) -> Self {
-        Scm { ptr: match b {
-            true => SPECIAL_TRUE,
-            false => SPECIAL_FALSE,
+        Scm {
+            ptr: match b {
+                true => SPECIAL_TRUE,
+                false => SPECIAL_FALSE,
+            },
         }
-    }
     }
 
     pub fn int(i: i64) -> Self {
@@ -128,7 +127,7 @@ impl Scm {
     }
 
     pub fn is_uninitialized(&self) -> bool {
-        unsafe { (*self.as_ptr()).is_uninitialized() }
+        self.ptr == SPECIAL_UNINIT
     }
 
     pub fn is_pair(&self) -> bool {
@@ -215,13 +214,6 @@ impl OpaqueCast for Scm {
 }
 
 impl Value {
-    pub fn is_uninitialized(&self) -> bool {
-        match self {
-            Value::Uninitialized => true,
-            _ => false,
-        }
-    }
-
     pub fn as_pointer(&self) -> Option<*const u8> {
         match self {
             Value::Pointer(p) => Some(*p),
@@ -248,7 +240,6 @@ impl PartialEq for Value {
     fn eq(&self, rhs: &Self) -> bool {
         use Value::*;
         match (self, rhs) {
-            (Null, Null) => true,
             (Symbol(a), Symbol(b)) => a == b,
             (String(a), String(b)) => a == b,
             _ => false,
@@ -278,10 +269,29 @@ fn ref_to_addr<T>(r: &T) -> usize {
     r as *const T as usize
 }
 
+impl std::fmt::Display for Scm {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match (self.ptr, self.ptr & TAG_MASK) {
+            (SPECIAL_UNINIT, _) => write!(f, "*uninit*"),
+            (SPECIAL_NULL, _) => write!(f, "'()"),
+            (SPECIAL_FALSE, _) => write!(f, "#f"),
+            (SPECIAL_TRUE, _) => write!(f, "'#t"),
+            (_, TAG_INTEGER) => write!(f, "{}", self.as_int().unwrap()),
+            (_, TAG_PAIR) => {
+                let (car, cdr) = self.as_pair().unwrap();
+                write!(f, "({} . {})", car, cdr)
+            }
+            (_, TAG_POINTER) => write!(f, "{:p}", self.ptr as *const u8),
+            (_, _) => write!(f, "*invalid*"),
+        }
+    }
+}
+
 // ======= BATCH ALLOCATION ==========
 
 thread_local! {
     static PAIR_ALLOCATOR: BatchAllocator<(Scm, Scm)> = BatchAllocator::new();
+    static VALUE_ALLOCATOR: BatchAllocator<Value> = BatchAllocator::new();
 }
 
 #[link(name = "gc", kind = "static")]
@@ -332,25 +342,5 @@ impl<T: Copy> BatchAllocator<T> {
         let item = *self.free_list.get();
         *self.free_list.get() = *(*self.free_list.get() as *mut *mut T);
         item
-    }
-}
-
-impl std::fmt::Display for Scm {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match (self.ptr, self.ptr & TAG_MASK) {
-            (SPECIAL_UNINIT, _) => write!(f, "*uninit*"),
-            (SPECIAL_NULL, _) => write!(f, "'()"),
-            (SPECIAL_FALSE, _) => write!(f, "#f"),
-            (SPECIAL_TRUE, _) => write!(f, "'#t"),
-            (_, TAG_INTEGER) => write!(f, "{}", self.as_int().unwrap()),
-            (_, TAG_PAIR) => {
-                let (car, cdr) = self.as_pair().unwrap();
-                write!(f, "({} . {})", car, cdr)
-            },
-            (_, TAG_POINTER) => {
-                write!(f, "{:p}", self.ptr as *const u8)
-            },
-            (_, _) => write!(f, "*invalid*"),
-        }
     }
 }
