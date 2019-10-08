@@ -1,14 +1,14 @@
 mod error;
-mod scheme_object_file;
 mod opcode;
+mod scheme_object_file;
 mod value;
 
 use bdwgc_alloc::Allocator;
 use error::Result;
-use scheme_object_file::SchemeObjectFile;
 use opcode::Op;
-use value::{DYNENV_TAG, Value, Scm};
+use scheme_object_file::SchemeObjectFile;
 use std::cell::Cell;
+use value::{Scm, Value, DYNENV_TAG};
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
@@ -16,7 +16,7 @@ static GLOBAL_ALLOCATOR: Allocator = Allocator;
 fn main() -> Result<()> {
     unsafe { Allocator::initialize() }
 
-    let sco = SchemeObjectFile::from_file("../test4.sco")?;
+    let sco = SchemeObjectFile::from_file("../test3.sco")?;
 
     println!("{:#?}", sco);
 
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct OpaquePointer(usize);
 
 impl OpaquePointer {
@@ -83,7 +83,7 @@ impl VirtualMachine {
                 Op::ShallowArgumentRef => {
                     let idx = self.pc.fetch_byte();
                     self.val = *self.env.argument(idx as usize);
-                },
+                }
                 Op::DeepArgumentRef => {
                     let i = self.pc.fetch_byte();
                     let j = self.pc.fetch_byte();
@@ -130,9 +130,7 @@ impl VirtualMachine {
                 Op::PopFunction => self.fun = self.stack_pop(),
                 Op::CreateClosure => {
                     let offset = self.pc.fetch_byte();
-                    self.val = Scm::closure(
-                        self.pc.offset(offset as isize),
-                        &self.env);
+                    self.val = Scm::closure(self.pc.offset(offset as isize), &self.env);
                 }
 
                 Op::FunctionInvoke => self.invoke(self.fun, false),
@@ -147,22 +145,59 @@ impl VirtualMachine {
                     self.val = Scm::frame(size as usize);
                 }
 
-                Op::PopFrame0 => self.val.as_frame().unwrap().set_argument(0, self.stack_pop()),
-                Op::PopFrame1 => self.val.as_frame().unwrap().set_argument(1, self.stack_pop()),
-                Op::PopFrame2 => self.val.as_frame().unwrap().set_argument(2, self.stack_pop()),
-                Op::PopFrame3 => self.val.as_frame().unwrap().set_argument(3, self.stack_pop()),
+                Op::PopFrame0 => self
+                    .val
+                    .as_frame()
+                    .unwrap()
+                    .set_argument(0, self.stack_pop()),
+                Op::PopFrame1 => self
+                    .val
+                    .as_frame()
+                    .unwrap()
+                    .set_argument(1, self.stack_pop()),
+                Op::PopFrame2 => self
+                    .val
+                    .as_frame()
+                    .unwrap()
+                    .set_argument(2, self.stack_pop()),
+                Op::PopFrame3 => self
+                    .val
+                    .as_frame()
+                    .unwrap()
+                    .set_argument(3, self.stack_pop()),
                 Op::PopFrame => {
                     let rank = self.pc.fetch_byte();
-                    self.val.as_frame().unwrap().set_argument(rank as usize, self.stack_pop())
-                },
+                    self.val
+                        .as_frame()
+                        .unwrap()
+                        .set_argument(rank as usize, self.stack_pop())
+                }
 
-                Op::IsArity1 => if self.val.as_frame().unwrap().len() != 1 {self.signal_exception("Incorrect arity for nullary function")}
-                Op::IsArity2 => if self.val.as_frame().unwrap().len() != 2 {self.signal_exception("Incorrect arity for unary function")}
-                Op::IsArity3 => if self.val.as_frame().unwrap().len() != 3 {self.signal_exception("Incorrect arity for binary function")}
-                Op::IsArity4 => if self.val.as_frame().unwrap().len() != 4 {self.signal_exception("Incorrect arity for ternary function")}
+                Op::IsArity1 => {
+                    if self.val.as_frame().unwrap().len() != 1 {
+                        self.signal_exception("Incorrect arity for nullary function")
+                    }
+                }
+                Op::IsArity2 => {
+                    if self.val.as_frame().unwrap().len() != 2 {
+                        self.signal_exception("Incorrect arity for unary function")
+                    }
+                }
+                Op::IsArity3 => {
+                    if self.val.as_frame().unwrap().len() != 3 {
+                        self.signal_exception("Incorrect arity for binary function")
+                    }
+                }
+                Op::IsArity4 => {
+                    if self.val.as_frame().unwrap().len() != 4 {
+                        self.signal_exception("Incorrect arity for ternary function")
+                    }
+                }
                 Op::IsArity => {
                     let rank = self.pc.fetch_byte();
-                    if self.val.as_frame().unwrap().len() != rank as usize {self.signal_exception("Incorrect arity")}
+                    if self.val.as_frame().unwrap().len() != rank as usize {
+                        self.signal_exception("Incorrect arity")
+                    }
                 }
 
                 Op::ShortNumber => {
@@ -180,7 +215,7 @@ impl VirtualMachine {
                     self.push_dynamic_binding(index as usize, self.val);
                 }
 
-                op => unimplemented!("Opcode {:?}", op)
+                op => unimplemented!("Opcode {:?}", op),
             }
         }
     }
@@ -233,10 +268,10 @@ impl VirtualMachine {
         let mut idx = self.search_dynenv_index();
         loop {
             if idx == 0 {
-                return Scm::uninitialized()
+                return Scm::uninitialized();
             }
             if self.stack[idx].into::<Scm>().eqv(&index) {
-                return self.stack[idx - 1].into()
+                return self.stack[idx - 1].into();
             }
             idx = self.stack[idx - 2].as_usize();
         }
@@ -246,7 +281,7 @@ impl VirtualMachine {
         let mut idx = self.stack.len();
         loop {
             if idx == 0 {
-                return 0
+                return 0;
             }
             idx -= 1;
             if self.stack[idx].into::<Scm>().eq(&DYNENV_TAG) {
@@ -264,21 +299,17 @@ pub struct CodePointer {
 impl CodePointer {
     fn new(code: &Op) -> Self {
         CodePointer {
-            ptr: code as *const _ as *const u8
+            ptr: code as *const _ as *const u8,
         }
     }
 
     fn new_unchecked(code: &u8) -> Self {
-        CodePointer {
-            ptr: code
-        }
+        CodePointer { ptr: code }
     }
 
     unsafe fn fetch_instruction(&mut self) -> Op {
         // self.pc must always point to a valid code location
-        unsafe {
-            Op::from_u8_unchecked(self.fetch_byte())
-        }
+        unsafe { Op::from_u8_unchecked(self.fetch_byte()) }
     }
 
     unsafe fn fetch_byte(&mut self) -> u8 {
@@ -303,17 +334,13 @@ impl CodePointer {
 
 impl From<CodePointer> for Value {
     fn from(pc: CodePointer) -> Self {
-        unsafe {
-            Value::Pointer(&*pc.ptr)
-        }
+        unsafe { Value::Pointer(&*pc.ptr) }
     }
 }
 
 impl OpaqueCast for CodePointer {
     unsafe fn from_op(op: OpaquePointer) -> Self {
-        CodePointer {
-            ptr: op.0 as _
-        }
+        CodePointer { ptr: op.0 as _ }
     }
 
     fn as_op(&self) -> OpaquePointer {
@@ -331,7 +358,7 @@ impl ActivationFrame {
     fn new(size: usize) -> Self {
         ActivationFrame {
             next: Cell::new(None),
-            slots: vec![Scm::uninitialized(); size].into_boxed_slice()
+            slots: vec![Scm::uninitialized(); size].into_boxed_slice(),
         }
     }
 
@@ -383,7 +410,7 @@ impl Closure {
     fn new(code: CodePointer, env: &'static ActivationFrame) -> Self {
         Closure {
             code,
-            closed_environment: env
+            closed_environment: env,
         }
     }
 

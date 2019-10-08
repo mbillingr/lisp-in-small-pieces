@@ -1,22 +1,34 @@
+use crate::{ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer};
 use lisp_core::lexpr;
-use crate::{Closure, ActivationFrame, OpaqueCast, OpaquePointer, CodePointer};
-
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
-pub const DYNENV_TAG: Scm = Scm {ptr: 123};
+pub const DYNENV_TAG: Scm = Scm { ptr: 123 };
 
+const N_TAG_BITS: usize = 3;
+const TAG_MASK: usize = 0b_111;
+const TAG_POINTER: usize = 0b_000;
+const TAG_INTEGER: usize = 0b_001;
+//const TAG_PAIR: usize = 0b_010;
+//const TAG_FRAME: usize = 0b_100;
+//const TAG_CLOSURE: usize = 0b_110;
+const TAG_SPECIAL: usize = 0b_111;
+
+const SPECIAL_UNINIT: usize = 0b_0000_0111;
+const SPECIAL_NULL: usize = 0b_0001_0111;
+const SPECIAL_FALSE: usize = 0b_0010_0111;
+const SPECIAL_TRUE: usize = 0b_0011_0111;
+
+const MASK_IMMEDIATE: usize = 0b001; // this works because all immediates have 1 in the lsb
 
 #[derive(Debug, Copy, Clone)]
 pub struct Scm {
     ptr: usize,
 }
 
-
 #[derive(Debug, Copy, Clone)]
 pub enum Value {
     Null,
     Uninitialized,
-    Int(i64),
     Pair(Scm, Scm),
     Symbol(&'static str),
     String(&'static String),
@@ -29,26 +41,30 @@ pub enum Value {
 impl Scm {
     pub fn from_static_value(value: &'static Value) -> Self {
         Scm {
-            ptr: value as *const _ as usize
+            ptr: value as *const _ as usize,
         }
     }
 
     pub fn from_value(value: Value) -> Self {
         Scm {
-            ptr: Box::leak(Box::new(value)) as *const _ as usize
+            ptr: Box::leak(Box::new(value)) as *const _ as usize,
         }
     }
 
     pub fn null() -> Self {
-        Self::from_static_value(&Value::Null)
+        Scm { ptr: SPECIAL_NULL }
     }
 
     pub fn uninitialized() -> Self {
-        Self::from_static_value(&Value::Uninitialized)
+        Scm {
+            ptr: SPECIAL_UNINIT,
+        }
     }
 
     pub fn int(i: i64) -> Self {
-        Self::from_value(Value::Int(i))
+        Scm {
+            ptr: (i as usize) << N_TAG_BITS | TAG_INTEGER,
+        }
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Self {
@@ -80,31 +96,35 @@ impl Scm {
     }
 
     unsafe fn deref(&self) -> &Value {
-        unsafe {
-            &*self.as_ptr()
-        }
+        unsafe { &*self.as_ptr() }
+    }
+
+    fn is_immediate(&self) -> bool {
+        self.ptr & MASK_IMMEDIATE != 0
     }
 
     pub fn is_uninitialized(&self) -> bool {
-        unsafe {
-            (*self.as_ptr()).is_uninitialized()
-        }
+        unsafe { (*self.as_ptr()).is_uninitialized() }
     }
 
     pub fn is_closure(&self) -> bool {
         self.as_closure().is_some()
     }
 
-    pub fn as_frame(&self) -> Option<&'static ActivationFrame> {
-        unsafe {
-            self.deref().as_frame()
+    fn as_int(&self) -> Option<i64> {
+        if self.ptr & TAG_MASK == TAG_INTEGER {
+            Some((self.ptr >> N_TAG_BITS) as i64)
+        } else {
+            None
         }
     }
 
+    pub fn as_frame(&self) -> Option<&'static ActivationFrame> {
+        unsafe { self.deref().as_frame() }
+    }
+
     pub fn as_closure(&self) -> Option<&'static Closure> {
-        unsafe {
-            self.deref().as_closure()
-        }
+        unsafe { self.deref().as_closure() }
     }
 
     pub fn eq(&self, other: &Self) -> bool {
@@ -112,17 +132,13 @@ impl Scm {
     }
 
     pub fn eqv(&self, other: &Self) -> bool {
-        unsafe {
-            self.deref() == other.deref()
-        }
+        self.eq(other) || unsafe { self.deref() == other.deref() }
     }
 }
 
 impl OpaqueCast for Scm {
     unsafe fn from_op(op: OpaquePointer) -> Self {
-        Scm {
-            ptr: op.0
-        }
+        Scm { ptr: op.0 }
     }
 
     fn as_op(&self) -> OpaquePointer {
@@ -135,13 +151,6 @@ impl Value {
         match self {
             Value::Uninitialized => true,
             _ => false,
-        }
-    }
-
-    pub fn as_usize(&self) -> Option<usize> {
-        match self {
-            Value::Int(i) => Some(*i as usize),
-            _ => None,
         }
     }
 
@@ -165,7 +174,6 @@ impl PartialEq for Value {
         use Value::*;
         match (self, rhs) {
             (Null, Null) => true,
-            (Int(a), Int(b)) => a == b,
             (Pair(aa, ad), Pair(ba, bd)) => aa.eq(ba) && ad.eq(bd),
             (Symbol(a), Symbol(b)) => a == b,
             (String(a), String(b)) => a == b,
