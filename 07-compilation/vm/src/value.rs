@@ -1,5 +1,8 @@
 use crate::{ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer};
 use lisp_core::lexpr;
+use std::cell::UnsafeCell;
+use std::mem::MaybeUninit;
+use std::os::raw::c_void;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
 pub const DYNENV_TAG: Scm = Scm { ptr: 123 };
@@ -67,11 +70,12 @@ impl Scm {
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Self {
-        let r = Box::leak(Box::new((car, cdr)));
+        //let r = Box::leak(Box::new((car, cdr)));
+        let r = PAIR_ALLOCATOR.with(|pa| pa.alloc((car, cdr)));
         let addr = r as *const _ as usize;
         debug_assert!(addr & TAG_MASK == 0);
         Scm {
-            ptr: addr + TAG_PAIR
+            ptr: addr + TAG_PAIR,
         }
     }
 
@@ -129,9 +133,7 @@ impl Scm {
 
     fn as_pair(&self) -> Option<&(Scm, Scm)> {
         if self.ptr & TAG_MASK == TAG_PAIR {
-            unsafe {
-                Some(int_to_ref(self.ptr - TAG_PAIR))
-            }
+            unsafe { Some(int_to_ref(self.ptr - TAG_PAIR)) }
         } else {
             None
         }
@@ -219,4 +221,61 @@ unsafe fn int_to_ref<T>(i: usize) -> &'static T {
 
 fn ref_to_addr<T>(r: &T) -> usize {
     r as *const T as usize
+}
+
+// ======= BATCH ALLOCATION ==========
+
+thread_local! {
+    static PAIR_ALLOCATOR: BatchAllocator<(Scm, Scm)> = BatchAllocator::new();
+}
+
+#[link(name = "gc", kind = "static")]
+extern "C" {
+    fn GC_malloc_many(n_bytes: usize) -> *mut c_void;
+}
+
+struct BatchAllocator<T: Copy> {
+    free_list: UnsafeCell<*mut T>,
+}
+
+impl<T: Copy> BatchAllocator<T> {
+    fn new() -> Self {
+        BatchAllocator {
+            free_list: UnsafeCell::new(0 as *mut _),
+        }
+    }
+
+    fn alloc(&self, value: T) -> &'static mut T {
+        unsafe {
+            let mut x = self.alloc_uninit();
+            *x = value;
+            x
+        }
+    }
+
+    fn alloc_with<F: FnOnce(&mut T)>(&self, f: F) -> &'static mut T {
+        unsafe {
+            let x = self.alloc_uninit();
+            f(&mut *x);
+            x
+        }
+    }
+
+    unsafe fn alloc_uninit(&self) -> &'static mut T {
+        self.ensure_list();
+        &mut *self.next_item()
+    }
+
+    unsafe fn ensure_list(&self) {
+        if *self.free_list.get() == 0 as *mut _ {
+            *self.free_list.get() = GC_malloc_many(std::mem::size_of::<T>()) as *mut T;
+            debug_assert_ne!(*self.free_list.get(), 0 as *mut _);
+        }
+    }
+
+    unsafe fn next_item(&self) -> *mut T {
+        let item = *self.free_list.get();
+        *self.free_list.get() = *(*self.free_list.get() as *mut *mut T);
+        item
+    }
 }
