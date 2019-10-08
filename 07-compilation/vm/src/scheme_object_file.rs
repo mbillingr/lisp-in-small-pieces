@@ -1,4 +1,4 @@
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
 use crate::value::{Scm, Value};
 use lisp_core::lexpr;
 use std::fs::File;
@@ -42,7 +42,7 @@ fn list_of_symbols(mut val: &lexpr::Value) -> Result<Vec<String>> {
     while let Some((car, cdr)) = val.as_pair() {
         match car.as_symbol() {
             Some(s) => list.push(s.to_string()),
-            None => return Err(Error::UnexpectedType(car.clone()))
+            None => return Err(Error::UnexpectedType(car.clone())),
         }
         val = cdr;
     }
@@ -58,11 +58,7 @@ fn vec_of_values(val: &lexpr::Value) -> Result<Vec<Scm>> {
 
 fn vec_of_bytes(val: &lexpr::Value) -> Result<Vec<u8>> {
     match val {
-        lexpr::Value::Vector(data) => {
-            Ok(data.iter()
-                .map(|x| x.as_u64().unwrap() as u8)
-                .collect())
-        },
+        lexpr::Value::Vector(data) => Ok(data.iter().map(|x| x.as_u64().unwrap() as u8).collect()),
         _ => Err(Error::UnexpectedType(val.clone())),
     }
 }
@@ -72,7 +68,7 @@ fn entries(mut val: &lexpr::Value) -> Result<Vec<usize>> {
     while let Some((car, cdr)) = val.as_pair() {
         match car.as_u64() {
             Some(u) => list.push(u as usize),
-            None => return Err(Error::UnexpectedType(car.clone()))
+            None => return Err(Error::UnexpectedType(car.clone())),
         }
         val = cdr;
     }

@@ -6,7 +6,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     IoError(std::io::Error),
     ParseError(lexpr::parse::Error),
-    UnexpectedType(lexpr::Value)
+    UnexpectedType(lexpr::Value),
 }
 
 impl From<std::io::Error> for Error {

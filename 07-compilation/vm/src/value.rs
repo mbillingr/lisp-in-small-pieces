@@ -8,7 +8,7 @@ const N_TAG_BITS: usize = 3;
 const TAG_MASK: usize = 0b_111;
 const TAG_POINTER: usize = 0b_000;
 const TAG_INTEGER: usize = 0b_001;
-//const TAG_PAIR: usize = 0b_010;
+const TAG_PAIR: usize = 0b_010;
 //const TAG_FRAME: usize = 0b_100;
 //const TAG_CLOSURE: usize = 0b_110;
 const TAG_SPECIAL: usize = 0b_111;
@@ -29,7 +29,6 @@ pub struct Scm {
 pub enum Value {
     Null,
     Uninitialized,
-    Pair(Scm, Scm),
     Symbol(&'static str),
     String(&'static String),
 
@@ -68,7 +67,12 @@ impl Scm {
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Self {
-        Self::from_value(Value::Pair(car, cdr))
+        let r = Box::leak(Box::new((car, cdr)));
+        let addr = r as *const _ as usize;
+        debug_assert!(addr & TAG_MASK == 0);
+        Scm {
+            ptr: addr + TAG_PAIR
+        }
     }
 
     pub fn symbol(s: &str) -> Self {
@@ -107,6 +111,10 @@ impl Scm {
         unsafe { (*self.as_ptr()).is_uninitialized() }
     }
 
+    pub fn is_pair(&self) -> bool {
+        self.as_pair().is_some()
+    }
+
     pub fn is_closure(&self) -> bool {
         self.as_closure().is_some()
     }
@@ -114,6 +122,16 @@ impl Scm {
     fn as_int(&self) -> Option<i64> {
         if self.ptr & TAG_MASK == TAG_INTEGER {
             Some((self.ptr >> N_TAG_BITS) as i64)
+        } else {
+            None
+        }
+    }
+
+    fn as_pair(&self) -> Option<&(Scm, Scm)> {
+        if self.ptr & TAG_MASK == TAG_PAIR {
+            unsafe {
+                Some(int_to_ref(self.ptr - TAG_PAIR))
+            }
         } else {
             None
         }
@@ -174,7 +192,6 @@ impl PartialEq for Value {
         use Value::*;
         match (self, rhs) {
             (Null, Null) => true,
-            (Pair(aa, ad), Pair(ba, bd)) => aa.eq(ba) && ad.eq(bd),
             (Symbol(a), Symbol(b)) => a == b,
             (String(a), String(b)) => a == b,
             _ => false,
@@ -194,4 +211,12 @@ impl From<&lexpr::Value> for Scm {
             _ => unimplemented!(),
         }
     }
+}
+
+unsafe fn int_to_ref<T>(i: usize) -> &'static T {
+    &*(i as *const T)
+}
+
+fn ref_to_addr<T>(r: &T) -> usize {
+    r as *const T as usize
 }
