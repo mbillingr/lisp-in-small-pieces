@@ -110,8 +110,11 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn from_u8(_b: u8) -> Self {
-        unimplemented!()
+    pub fn from_u8(b: u8) -> Self {
+        // Todo: safe impl
+        unsafe {
+            Self::from_u8_unchecked(b)
+        }
     }
 
     pub unsafe fn from_u8_unchecked(b: u8) -> Self {

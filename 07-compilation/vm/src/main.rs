@@ -30,6 +30,13 @@ fn main() -> Result<()> {
         println!("Result: {}", vm.run());
     }
 
+    let mut counts: Vec<_> = vm.statistics.iter().enumerate().map(|(i, n)| (*n, Op::from_u8(i as u8))).collect();
+    counts.sort_by_key(|(n, _)| *n);
+
+    for c in counts.iter().rev().take(10) {
+        println!("{:?}", c);
+    }
+
     Ok(())
 }
 
@@ -62,6 +69,8 @@ pub struct VirtualMachine {
     globals: Vec<Scm>,
     stack: Vec<OpaquePointer>,
     init_stack: Vec<OpaquePointer>,
+
+    statistics: [usize; 256],
 }
 
 impl VirtualMachine {
@@ -81,6 +90,7 @@ impl VirtualMachine {
             stack: vec![],
             init_stack,
             pc: CodePointer::new(&Op::Finish),
+            statistics: [0; 256],
         }
     }
 
@@ -92,7 +102,9 @@ impl VirtualMachine {
         self.pc = self.stack_pop();
 
         loop {
-            match self.pc.fetch_instruction() {
+            let op = self.pc.fetch_instruction();
+            self.statistics[op as usize] += 1;
+            match op {
                 Op::Nop => {}
                 Op::ShallowArgumentRef0 => self.val = *self.env.argument(0),
                 Op::ShallowArgumentRef1 => self.val = *self.env.argument(1),
@@ -425,7 +437,8 @@ impl ActivationFrame {
     }
 
     fn argument(&self, idx: usize) -> &Scm {
-        &self.slots[idx]
+        //&self.slots[idx]
+        unsafe { &*self.slots.as_ptr().offset(idx as isize) }
     }
 
     fn set_argument(&self, idx: usize, value: Scm) {
