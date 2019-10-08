@@ -8,4 +8,8 @@ edition = "2018"
 
 [dependencies]
 lisp-core = { path = "../../crates/lisp-core" }
-bdwgc-alloc = "0.5"
+
+[dependencies.bdwgc-alloc]
+version = "0.5"
+default-features = false
+features = ["cmake"]

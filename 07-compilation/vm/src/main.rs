@@ -8,7 +8,7 @@ use error::Result;
 use opcode::Op;
 use scheme_object_file::SchemeObjectFile;
 use std::cell::Cell;
-use value::{Value, DYNENV_TAG};
+use value::{Scm, Value, DYNENV_TAG};
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
@@ -23,52 +23,74 @@ fn main() -> Result<()> {
     let mut vm = VirtualMachine::from_sco(sco);
 
     unsafe {
-        println!("Result: {:?}", vm.run());
+        println!("Result: {}", vm.run());
     }
 
     unsafe {
-        println!("Result: {:?}", vm.run());
+        println!("Result: {}", vm.run());
     }
 
     Ok(())
 }
 
+#[derive(Debug, Copy, Clone)]
+struct OpaquePointer(usize);
+
+impl OpaquePointer {
+    unsafe fn into<T: OpaqueCast>(self) -> T {
+        T::from_op(self)
+    }
+
+    fn as_usize(&self) -> usize {
+        self.0
+    }
+}
+
+trait OpaqueCast {
+    unsafe fn from_op(op: OpaquePointer) -> Self;
+    fn as_op(&self) -> OpaquePointer;
+}
+
 pub struct VirtualMachine {
     pc: CodePointer,
-    val: Value,
-    fun: Value,
-    arg1: Value,
-    arg2: Value,
+    val: Scm,
+    fun: Scm,
+    arg1: Scm,
+    arg2: Scm,
     env: &'static ActivationFrame,
-    constants: Vec<Value>,
-    globals: Vec<Value>,
-    stack: Vec<Value>,
-    init_stack: Vec<Value>,
+    constants: Vec<Scm>,
+    globals: Vec<Scm>,
+    stack: Vec<OpaquePointer>,
+    init_stack: Vec<OpaquePointer>,
 }
 
 impl VirtualMachine {
     pub fn from_sco(sco: SchemeObjectFile) -> Self {
-        let mut init_stack = vec![Value::Pointer(&sco.bytecode[1])]; // pc for FINISH
+        let mut init_stack = vec![CodePointer::new_unchecked(&sco.bytecode[1]).as_op()]; // pc for FINISH
         for e in sco.entry_points.into_iter().rev() {
-            init_stack.push(Value::Pointer(&sco.bytecode[e]));
+            init_stack.push(CodePointer::new_unchecked(&sco.bytecode[e]).as_op());
         }
         VirtualMachine {
-            val: Value::uninitialized(),
-            fun: Value::uninitialized(),
-            arg1: Value::uninitialized(),
-            arg2: Value::uninitialized(),
+            val: Scm::uninitialized(),
+            fun: Scm::uninitialized(),
+            arg1: Scm::uninitialized(),
+            arg2: Scm::uninitialized(),
             env: ActivationFrame::allocate(0),
             constants: sco.constants,
-            globals: vec![Value::uninitialized(); sco.global_vars.len()],
+            globals: vec![Scm::uninitialized(); sco.global_vars.len()],
             stack: vec![],
             init_stack,
             pc: CodePointer::new(&Op::Finish),
         }
     }
 
-    pub unsafe fn run(&mut self) -> Value {
-        self.stack = self.init_stack.clone();
-        self.pc = self.stack.pop().unwrap().into();
+    pub unsafe fn run(&mut self) -> Scm {
+        self.stack.clear();
+        for &i in &self.init_stack {
+            self.stack.push(i)
+        }
+        self.pc = self.stack_pop();
+
         loop {
             match self.pc.fetch_instruction() {
                 Op::Nop => {}
@@ -121,60 +143,57 @@ impl VirtualMachine {
 
                 Op::ExtendEnv => self.env = &self.val.as_frame().unwrap().extend(self.env),
                 Op::UnlinkEnv => self.env = self.env.next().unwrap(),
-                Op::PushValue => self.stack.push(self.val),
-                Op::PopArg1 => self.arg1 = self.stack.pop().unwrap(),
-                Op::PopArg2 => self.arg2 = self.stack.pop().unwrap(),
-                Op::PreserveEnv => self.stack.push(Value::Frame(self.env)),
-                Op::RestoreEnv => self.env = self.stack.pop().unwrap().as_frame().unwrap(),
-                Op::PopFunction => self.fun = self.stack.pop().unwrap(),
+                Op::PushValue => self.stack_push(self.val),
+                Op::PopArg1 => self.arg1 = self.stack_pop(),
+                Op::PopArg2 => self.arg2 = self.stack_pop(),
+                Op::PreserveEnv => self.stack_push(self.env),
+                Op::RestoreEnv => self.env = self.stack_pop(),
+                Op::PopFunction => self.fun = self.stack_pop(),
                 Op::CreateClosure => {
                     let offset = self.pc.fetch_byte();
-                    self.val = Value::Closure(Closure::allocate(
-                        self.pc.offset(offset as isize),
-                        &self.env,
-                    ));
+                    self.val = Scm::closure(self.pc.offset(offset as isize), &self.env);
                 }
-                Op::Return => self.pc = self.stack.pop().unwrap().into(),
+                Op::Return => self.pc = self.stack_pop(),
 
                 Op::FunctionInvoke => self.invoke(self.fun, false),
                 Op::FunctionGoto => self.invoke(self.fun, true),
 
-                Op::AllocateFrame1 => self.val = Value::Frame(ActivationFrame::allocate(1)),
-                Op::AllocateFrame2 => self.val = Value::Frame(ActivationFrame::allocate(2)),
-                Op::AllocateFrame3 => self.val = Value::Frame(ActivationFrame::allocate(3)),
-                Op::AllocateFrame4 => self.val = Value::Frame(ActivationFrame::allocate(4)),
-                Op::AllocateFrame5 => self.val = Value::Frame(ActivationFrame::allocate(5)),
+                Op::AllocateFrame1 => self.val = Scm::frame(1),
+                Op::AllocateFrame2 => self.val = Scm::frame(2),
+                Op::AllocateFrame3 => self.val = Scm::frame(3),
+                Op::AllocateFrame4 => self.val = Scm::frame(4),
+                Op::AllocateFrame5 => self.val = Scm::frame(5),
                 Op::AllocateFrame => {
                     let size = self.pc.fetch_byte();
-                    self.val = Value::Frame(ActivationFrame::allocate(size as usize));
+                    self.val = Scm::frame(size as usize);
                 }
 
                 Op::PopFrame0 => self
                     .val
                     .as_frame()
                     .unwrap()
-                    .set_argument(0, self.stack.pop().unwrap()),
+                    .set_argument(0, self.stack_pop()),
                 Op::PopFrame1 => self
                     .val
                     .as_frame()
                     .unwrap()
-                    .set_argument(1, self.stack.pop().unwrap()),
+                    .set_argument(1, self.stack_pop()),
                 Op::PopFrame2 => self
                     .val
                     .as_frame()
                     .unwrap()
-                    .set_argument(2, self.stack.pop().unwrap()),
+                    .set_argument(2, self.stack_pop()),
                 Op::PopFrame3 => self
                     .val
                     .as_frame()
                     .unwrap()
-                    .set_argument(3, self.stack.pop().unwrap()),
+                    .set_argument(3, self.stack_pop()),
                 Op::PopFrame => {
                     let rank = self.pc.fetch_byte();
                     self.val
                         .as_frame()
                         .unwrap()
-                        .set_argument(rank as usize, self.stack.pop().unwrap())
+                        .set_argument(rank as usize, self.stack_pop())
                 }
 
                 Op::IsArity1 => {
@@ -206,16 +225,16 @@ impl VirtualMachine {
 
                 Op::ShortNumber => {
                     let val = self.pc.fetch_byte();
-                    self.val = Value::int(val as i64);
+                    self.val = Scm::int(val as i64);
                 }
-                Op::ConstMinus1 => self.val = Value::Int(-1),
-                Op::Const0 => self.val = Value::Int(0),
-                Op::Const1 => self.val = Value::Int(1),
-                Op::Const2 => self.val = Value::Int(2),
-                Op::Const4 => self.val = Value::Int(4),
+                Op::ConstMinus1 => self.val = Scm::int(-1),
+                Op::Const0 => self.val = Scm::int(0),
+                Op::Const1 => self.val = Scm::int(1),
+                Op::Const2 => self.val = Scm::int(2),
+                Op::Const4 => self.val = Scm::int(4),
 
                 Op::Call2Cons => {
-                    self.val = Value::cons(self.arg1, self.val);
+                    self.val = Scm::cons(self.arg1, self.val);
                 }
 
                 Op::Call2NumEq => {
@@ -244,16 +263,23 @@ impl VirtualMachine {
         }
     }
 
-    fn invoke(&mut self, f: Value, tail: bool) {
-        match f {
-            Value::Closure(cls) => {
-                if !tail {
-                    self.stack.push(self.pc.into());
-                }
-                self.env = cls.closed_environment;
-                self.pc = cls.code;
+    fn stack_push<T: OpaqueCast>(&mut self, item: T) {
+        self.stack.push(item.as_op())
+    }
+
+    unsafe fn stack_pop<T: OpaqueCast>(&mut self) -> T {
+        T::from_op(self.stack.pop().unwrap())
+    }
+
+    fn invoke(&mut self, f: Scm, tail: bool) {
+        if let Some(cls) = f.as_closure() {
+            if !tail {
+                self.stack_push(self.pc);
             }
-            _ => self.signal_exception(format!("Not a function {:?}", f)),
+            self.env = cls.closed_environment;
+            self.pc = cls.code;
+        } else {
+            self.signal_exception(format!("Not a function {:?}", f))
         }
     }
 
@@ -261,24 +287,23 @@ impl VirtualMachine {
         unimplemented!("{}", msg.to_string())
     }
 
-    fn global_fetch(&self, idx: usize) -> &Value {
+    fn global_fetch(&self, idx: usize) -> &Scm {
         &self.globals[idx]
     }
 
-    fn quotation_fetch(&self, idx: usize) -> &Value {
+    fn quotation_fetch(&self, idx: usize) -> &Scm {
         &self.constants[idx]
     }
 
-    fn global_update(&mut self, idx: usize, value: Value) {
+    fn global_update(&mut self, idx: usize, value: Scm) {
         self.globals[idx] = value;
     }
 
-    fn push_dynamic_binding(&mut self, index: usize, value: Value) {
-        self.stack
-            .push(Value::int(self.search_dynenv_index() as i64));
-        self.stack.push(value);
-        self.stack.push(Value::int(index as i64));
-        self.stack.push(DYNENV_TAG);
+    unsafe fn push_dynamic_binding(&mut self, index: usize, value: Scm) {
+        self.stack_push(Scm::int(self.search_dynenv_index() as i64));
+        self.stack_push(value);
+        self.stack_push(Scm::int(index as i64));
+        self.stack_push(DYNENV_TAG);
     }
 
     fn pop_dynamic_binding(&mut self) {
@@ -288,28 +313,28 @@ impl VirtualMachine {
         self.stack.pop();
     }
 
-    fn find_dynamic_value(&self, index: usize) -> Value {
-        let index = Value::Int(index as i64);
+    unsafe fn find_dynamic_value(&self, index: usize) -> Scm {
+        let index = Scm::int(index as i64);
         let mut idx = self.search_dynenv_index();
         loop {
             if idx == 0 {
-                return Value::uninitialized();
+                return Scm::uninitialized();
             }
-            if self.stack[idx].eqv(&index) {
-                return self.stack[idx - 1];
+            if self.stack[idx].into::<Scm>().eqv(&index) {
+                return self.stack[idx - 1].into();
             }
-            idx = self.stack[idx - 2].as_usize().unwrap();
+            idx = self.stack[idx - 2].as_usize();
         }
     }
 
-    fn search_dynenv_index(&self) -> usize {
+    unsafe fn search_dynenv_index(&self) -> usize {
         let mut idx = self.stack.len();
         loop {
             if idx == 0 {
                 return 0;
             }
             idx -= 1;
-            if self.stack[idx].eqv(&DYNENV_TAG) {
+            if self.stack[idx].into::<Scm>().eq(&DYNENV_TAG) {
                 return idx - 1;
             }
         }
@@ -317,23 +342,24 @@ impl VirtualMachine {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct CodePointer {
+pub struct CodePointer {
     ptr: *const u8,
 }
 
 impl CodePointer {
     fn new(code: &Op) -> Self {
         CodePointer {
-            ptr: &(*code as u8),
+            ptr: code as *const _ as *const u8,
         }
     }
-    unsafe fn new_unchecked(code: &u8) -> Self {
+
+    fn new_unchecked(code: &u8) -> Self {
         CodePointer { ptr: code }
     }
 
     unsafe fn fetch_instruction(&mut self) -> Op {
         // self.pc must always point to a valid code location
-        Op::from_u8_unchecked(self.fetch_byte())
+        unsafe { Op::from_u8_unchecked(self.fetch_byte()) }
     }
 
     unsafe fn fetch_byte(&mut self) -> u8 {
@@ -354,9 +380,13 @@ impl CodePointer {
     }
 }
 
-impl From<CodePointer> for Value {
-    fn from(pc: CodePointer) -> Self {
-        Value::Pointer(pc.ptr)
+impl OpaqueCast for CodePointer {
+    unsafe fn from_op(op: OpaquePointer) -> Self {
+        CodePointer { ptr: op.0 as _ }
+    }
+
+    fn as_op(&self) -> OpaquePointer {
+        OpaquePointer(self.ptr as usize)
     }
 }
 
@@ -371,14 +401,14 @@ impl From<Value> for CodePointer {
 #[derive(Debug)]
 pub struct ActivationFrame {
     next: Cell<Option<&'static ActivationFrame>>,
-    slots: Box<[Value]>,
+    slots: Box<[Scm]>,
 }
 
 impl ActivationFrame {
     fn new(size: usize) -> Self {
         ActivationFrame {
             next: Cell::new(None),
-            slots: vec![Value::uninitialized(); size].into_boxed_slice(),
+            slots: vec![Scm::uninitialized(); size].into_boxed_slice(),
         }
     }
 
@@ -394,11 +424,11 @@ impl ActivationFrame {
         self.next.get()
     }
 
-    fn argument(&self, idx: usize) -> &Value {
+    fn argument(&self, idx: usize) -> &Scm {
         &self.slots[idx]
     }
 
-    fn set_argument(&self, idx: usize, value: Value) {
+    fn set_argument(&self, idx: usize, value: Scm) {
         unsafe {
             *(&self.slots[idx] as *const _ as *mut _) = value;
         }
@@ -409,12 +439,22 @@ impl ActivationFrame {
         self
     }
 
-    fn deep_fetch(&self, i: usize, j: usize) -> &Value {
+    fn deep_fetch(&self, i: usize, j: usize) -> &Scm {
         let mut env = self;
         for _ in 0..i {
             env = env.next().unwrap();
         }
         env.argument(j)
+    }
+}
+
+impl OpaqueCast for &'static ActivationFrame {
+    unsafe fn from_op(op: OpaquePointer) -> Self {
+        &*(op.0 as *const _)
+    }
+
+    fn as_op(&self) -> OpaquePointer {
+        OpaquePointer(*self as *const _ as _)
     }
 }
 

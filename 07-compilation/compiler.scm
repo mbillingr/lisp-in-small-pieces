@@ -284,3 +284,4 @@
 (compile-file "07-compilation/test1")
 (compile-file "07-compilation/test2")
 (compile-file "07-compilation/test3")
+(compile-file "07-compilation/test4")

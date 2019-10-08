@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::value::Value;
+use crate::value::{Scm, Value};
 use lisp_core::lexpr;
 use std::fs::File;
 use std::io::Read;
@@ -8,7 +8,7 @@ use std::io::Read;
 pub struct SchemeObjectFile {
     pub dynamic_vars: Vec<String>,
     pub global_vars: Vec<String>,
-    pub constants: Vec<Value>,
+    pub constants: Vec<Scm>,
     pub bytecode: &'static [u8],
     pub entry_points: Vec<usize>,
 }
@@ -49,7 +49,7 @@ fn list_of_symbols(mut val: &lexpr::Value) -> Result<Vec<String>> {
     Ok(list)
 }
 
-fn vec_of_values(val: &lexpr::Value) -> Result<Vec<Value>> {
+fn vec_of_values(val: &lexpr::Value) -> Result<Vec<Scm>> {
     match val {
         lexpr::Value::Vector(data) => Ok(data.iter().map(Into::into).collect()),
         _ => Err(Error::UnexpectedType(val.clone())),
