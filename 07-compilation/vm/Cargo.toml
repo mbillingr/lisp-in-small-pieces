@@ -9,6 +9,7 @@ edition = "2018"
 [features]
 default = ["batch-alloc"]
 batch-alloc = []
+disable-global-gc = []
 
 [dependencies]
 lisp-core = { path = "../../crates/lisp-core" }

@@ -11,6 +11,7 @@ use std::cell::Cell;
 use std::time::{Duration, Instant};
 use value::{Scm, Value, DYNENV_TAG};
 
+#[cfg(not(feature="disable-global-gc"))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
 
