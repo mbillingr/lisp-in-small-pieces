@@ -3,6 +3,7 @@ use lisp_core::lexpr;
 use std::cell::UnsafeCell;
 use std::mem::MaybeUninit;
 use std::os::raw::c_void;
+use std::marker::PhantomData;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
 pub const DYNENV_TAG: Scm = Scm { ptr: 123 };
@@ -77,8 +78,8 @@ impl Scm {
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Self {
-        //let r = Box::leak(Box::new((car, cdr)));
-        let r = PAIR_ALLOCATOR.with(|pa| pa.alloc((car, cdr)));
+        let r = Box::leak(Box::new((car, cdr)));
+        //let r = PAIR_ALLOCATOR.with(|pa| pa.alloc((car, cdr)));
         let addr = r as *const _ as usize;
         debug_assert!(addr & TAG_MASK == 0);
         Scm {
@@ -289,9 +290,22 @@ impl std::fmt::Display for Scm {
 
 // ======= BATCH ALLOCATION ==========
 
+// TODO: feature to switch between BoxAllocator and BatchAllocator (the BatchAllocator seems to cause problems on windows).
 thread_local! {
     static PAIR_ALLOCATOR: BatchAllocator<(Scm, Scm)> = BatchAllocator::new();
     static VALUE_ALLOCATOR: BatchAllocator<Value> = BatchAllocator::new();
+}
+
+struct BoxAllocator<T: Copy>(PhantomData<T>);
+
+impl<T: Copy> BoxAllocator<T> {
+    fn new() -> Self {
+        BoxAllocator(PhantomData)
+    }
+
+    fn alloc(&self, value: T) -> &'static mut T {
+        Box::leak(Box::new(value))
+    }
 }
 
 #[link(name = "gc", kind = "static")]
@@ -305,6 +319,7 @@ struct BatchAllocator<T: Copy> {
 
 impl<T: Copy> BatchAllocator<T> {
     fn new() -> Self {
+        assert!(std::mem::size_of::<T>() >= std::mem::size_of::<usize>());
         BatchAllocator {
             free_list: UnsafeCell::new(0 as *mut _),
         }
@@ -313,34 +328,40 @@ impl<T: Copy> BatchAllocator<T> {
     fn alloc(&self, value: T) -> &'static mut T {
         unsafe {
             let mut x = self.alloc_uninit();
-            *x = value;
-            x
+            std::ptr::write(x, value);
+            &mut *x
         }
     }
 
-    fn alloc_with<F: FnOnce(&mut T)>(&self, f: F) -> &'static mut T {
-        unsafe {
-            let x = self.alloc_uninit();
-            f(&mut *x);
-            x
-        }
-    }
-
-    unsafe fn alloc_uninit(&self) -> &'static mut T {
+    unsafe fn alloc_uninit(&self) -> *mut T {
         self.ensure_list();
-        &mut *self.next_item()
+        self.next_item()
     }
 
     unsafe fn ensure_list(&self) {
-        if *self.free_list.get() == 0 as *mut _ {
-            *self.free_list.get() = GC_malloc_many(std::mem::size_of::<T>()) as *mut T;
-            debug_assert_ne!(*self.free_list.get(), 0 as *mut _);
+        if *self.free_list.get() == std::mem::transmute(0_usize) {
+            let memory = GC_malloc_many(std::mem::size_of::<T>());
+            *self.free_list.get() = std::mem::transmute(memory);
+            assert_ne!(*self.free_list.get(), std::mem::transmute(0_usize));
         }
     }
 
     unsafe fn next_item(&self) -> *mut T {
-        let item = *self.free_list.get();
-        *self.free_list.get() = *(*self.free_list.get() as *mut *mut T);
+        // C macro: #define GC_NEXT(p) (*(void * *)(p))
+        let head = self.free_list.get();
+        let item = *head;
+        let next_item = *(item as *mut *mut T);
+        *head = next_item;
         item
+    }
+
+    unsafe fn count_items(&self) -> usize {
+        let mut n = 0;
+        let mut head = *self.free_list.get();
+        while head as usize != 0 {
+            n += 1;
+            head = *(head as *mut *mut T);
+        }
+        n
     }
 }
