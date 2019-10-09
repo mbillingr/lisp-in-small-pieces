@@ -1,4 +1,5 @@
 mod error;
+mod op_impl;
 mod opcode;
 mod scheme_object_file;
 mod value;
@@ -11,7 +12,7 @@ use std::cell::Cell;
 use std::time::{Duration, Instant};
 use value::{Scm, Value, DYNENV_TAG};
 
-#[cfg(not(feature="disable-global-gc"))]
+#[cfg(not(feature = "disable-global-gc"))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
 
@@ -49,7 +50,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct OpaquePointer(usize);
 
 impl OpaquePointer {
@@ -67,6 +68,7 @@ trait OpaqueCast {
     fn as_op(&self) -> OpaquePointer;
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct VirtualMachine {
     pc: CodePointer,
     val: Scm,
@@ -75,12 +77,117 @@ pub struct VirtualMachine {
     arg2: Scm,
     env: &'static ActivationFrame,
     constants: Vec<Scm>,
+    mut_globals: Vec<Scm>,
     globals: Vec<Scm>,
     stack: Vec<OpaquePointer>,
     init_stack: Vec<OpaquePointer>,
 
-    statistics: [Duration; 256],
+    statistics: Vec<Duration>,
     max_stack: usize,
+}
+
+macro_rules! dispatch {
+    ($s:ident.$code:ident) => {
+        $s.$code();
+    };
+    ($s:ident.$code:ident($a:ident)) => {{
+        let $a = $s.pc.fetch_byte();
+        $s.$code($a);
+    }};
+    ($s:ident.$code:ident($a:ident, $b:ident)) => {{
+        let $a = $s.pc.fetch_byte();
+        let $b = $s.pc.fetch_byte();
+        $s.$code($a, $b);
+    }};
+}
+
+macro_rules! defprimitive {
+    ($name:ident() $body:block) => {
+        defprimitive!(stringify!($name), $body)
+    };
+    ($name:ident($a:ident) $body:block) => {
+        defprimitive!(stringify!($name), $a, $body)
+    };
+    ($name:ident($a:ident, $b:ident) $body:block) => {
+        defprimitive!(stringify!($name), $a, $b, $body)
+    };
+    ($name:ident($a:ident, $b:ident, $c:ident) $body:block) => {
+        defprimitive!(stringify!($name), $a, $b, $c, $body)
+    };
+
+    ($name:expr, $body:block) => {{
+        Scm::primitive(Primitive {
+            name: $name,
+            behavior: |vm| {
+                let frame = vm.val.as_frame().unwrap();
+                if frame.len() == 0 + 1 {
+                    vm.val = $body;
+                    unsafe {
+                        vm.pc = vm.stack_pop();
+                    }
+                } else {
+                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                }
+            },
+        })
+    }};
+
+    ($name:expr, $a:ident, $body:block) => {{
+        Scm::primitive(Primitive {
+            name: $name,
+            behavior: |vm| {
+                let frame = vm.val.as_frame().unwrap();
+                if frame.len() == 1 + 1 {
+                    let $a = *frame.argument(0);
+                    vm.val = $body;
+                    unsafe {
+                        vm.pc = vm.stack_pop();
+                    }
+                } else {
+                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                }
+            },
+        })
+    }};
+
+    ($name:expr, $a:ident, $b:ident, $body:block) => {{
+        Scm::primitive(Primitive {
+            name: $name,
+            behavior: |vm| {
+                let frame = vm.val.as_frame().unwrap();
+                if frame.len() == 2 + 1 {
+                    let $a = *frame.argument(0);
+                    let $b = *frame.argument(1);
+                    vm.val = $body;
+                    unsafe {
+                        vm.pc = vm.stack_pop();
+                    }
+                } else {
+                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                }
+            },
+        })
+    }};
+
+    ($name:expr, $a:ident, $b:ident, $c:ident, $body:block) => {{
+        Scm::primitive(Primitive {
+            name: $name,
+            behavior: |vm| {
+                let frame = vm.val.as_frame().unwrap();
+                if frame.len() == 2 + 1 {
+                    let $a = *frame.argument(0);
+                    let $b = *frame.argument(1);
+                    let $c = *frame.argument(1);
+                    vm.val = $body;
+                    unsafe {
+                        vm.pc = vm.stack_pop();
+                    }
+                } else {
+                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                }
+            },
+        })
+    }};
 }
 
 impl VirtualMachine {
@@ -96,13 +203,41 @@ impl VirtualMachine {
             arg2: Scm::uninitialized(),
             env: ActivationFrame::allocate(0),
             constants: sco.constants,
-            globals: vec![Scm::uninitialized(); sco.global_vars.len()],
+            mut_globals: vec![Scm::uninitialized(); sco.global_vars.len()],
+            globals: Self::init_predefined(),
             stack: Vec::with_capacity(1024),
             init_stack,
             pc: CodePointer::new(&Op::Finish),
-            statistics: [Duration::new(0, 0); 256],
+            statistics: vec![Duration::new(0, 0); 256],
             max_stack: 0,
         }
+    }
+
+    fn init_predefined() -> Vec<Scm> {
+        vec![
+            Scm::bool(true),
+            Scm::bool(false),
+            Scm::null(),
+            defprimitive!(cons(car, cdr) { Scm::cons(car, cdr) }),
+            defprimitive!(car(x) { x.as_pair().unwrap().0 }),
+            defprimitive!(cdr(x) { x.as_pair().unwrap().1 }),
+            defprimitive!("pair?", x, { Scm::bool(x.is_pair()) }),
+            defprimitive!("symbol?", x, { Scm::bool(x.is_symbol()) }),
+            defprimitive!("eq?", a, b, { Scm::bool(a.eq(&b)) }),
+            defprimitive!("null?", x, { Scm::bool(x.is_null()) }),
+            defprimitive!("set-car!", x, a, {
+                unsafe {
+                    x.set_car(a);
+                }
+                Scm::uninitialized()
+            }),
+            defprimitive!("set-cdr!", x, d, {
+                unsafe {
+                    x.set_cdr(d);
+                }
+                Scm::uninitialized()
+            }),
+        ]
     }
 
     pub unsafe fn run(&mut self) -> Scm {
@@ -117,36 +252,26 @@ impl VirtualMachine {
             let op = self.pc.fetch_instruction();
             let start = Instant::now();
             match op {
-                Op::Nop => {}
-                Op::ShallowArgumentRef0 => self.val = *self.env.argument(0),
-                Op::ShallowArgumentRef1 => self.val = *self.env.argument(1),
-                Op::ShallowArgumentRef2 => self.val = *self.env.argument(2),
-                Op::ShallowArgumentRef3 => self.val = *self.env.argument(3),
-                Op::ShallowArgumentRef => {
-                    let idx = self.pc.fetch_byte();
-                    self.val = *self.env.argument(idx as usize);
-                }
-                Op::DeepArgumentRef => {
-                    let i = self.pc.fetch_byte();
-                    let j = self.pc.fetch_byte();
-                    self.val = *self.env.deep_fetch(i as usize, j as usize);
-                }
-                Op::GlobalRef => {
-                    let i = self.pc.fetch_byte();
-                    self.val = *self.global_fetch(i as usize);
-                }
-                Op::CheckedGlobalRef => {
-                    let i = self.pc.fetch_byte();
-                    self.val = *self.global_fetch(i as usize);
-                    if self.val.is_uninitialized() {
-                        self.signal_exception("Uninitialized global variable")
-                    }
-                }
-                Op::Constant => {
-                    let i = self.pc.fetch_byte();
-                    self.val = *self.quotation_fetch(i as usize);
-                }
-
+                Op::Nop => dispatch!(self.nop),
+                Op::ShallowArgumentRef0 => dispatch!(self.shallow_argument_ref0),
+                Op::ShallowArgumentRef1 => dispatch!(self.shallow_argument_ref1),
+                Op::ShallowArgumentRef2 => dispatch!(self.shallow_argument_ref2),
+                Op::ShallowArgumentRef3 => dispatch!(self.shallow_argument_ref3),
+                Op::ShallowArgumentRef => dispatch!(self.shallow_argument_ref(idx)),
+                Op::DeepArgumentRef => dispatch!(self.deep_argument_ref(i, j)),
+                Op::GlobalRef => dispatch!(self.global_ref(idx)),
+                Op::CheckedGlobalRef => dispatch!(self.checked_global_ref(idx)),
+                Op::Constant => dispatch!(self.constant(idx)),
+                Op::Predefined0 => dispatch!(self.predefined0),
+                Op::Predefined1 => dispatch!(self.predefined1),
+                Op::Predefined2 => dispatch!(self.predefined2),
+                Op::Predefined3 => dispatch!(self.predefined3),
+                Op::Predefined4 => dispatch!(self.predefined4),
+                Op::Predefined5 => dispatch!(self.predefined5),
+                Op::Predefined6 => dispatch!(self.predefined6),
+                Op::Predefined7 => dispatch!(self.predefined7),
+                Op::Predefined8 => dispatch!(self.predefined8),
+                Op::Predefined => dispatch!(self.predefined(idx)),
                 Op::Finish => return self.val,
 
                 Op::SetGlobal => {
@@ -304,6 +429,11 @@ impl VirtualMachine {
             }
             self.env = cls.closed_environment;
             self.pc = cls.code;
+        } else if let Some(prim) = f.as_primitive() {
+            if !tail {
+                self.stack_push(self.pc);
+            }
+            (prim.behavior)(self)
         } else {
             self.signal_exception(format!("Not a function {:?}", f))
         }
@@ -314,7 +444,7 @@ impl VirtualMachine {
     }
 
     fn global_fetch(&self, idx: usize) -> &Scm {
-        &self.globals[idx]
+        &self.mut_globals[idx]
     }
 
     fn quotation_fetch(&self, idx: usize) -> &Scm {
@@ -322,7 +452,7 @@ impl VirtualMachine {
     }
 
     fn global_update(&mut self, idx: usize, value: Scm) {
-        self.globals[idx] = value;
+        self.mut_globals[idx] = value;
     }
 
     unsafe fn push_dynamic_binding(&mut self, index: usize, value: Scm) {
@@ -367,7 +497,7 @@ impl VirtualMachine {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct CodePointer {
     ptr: *const u8,
 }
@@ -424,7 +554,7 @@ impl From<Value> for CodePointer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ActivationFrame {
     next: Cell<Option<&'static ActivationFrame>>,
     slots: Vec<Scm>,
@@ -502,4 +632,10 @@ impl Closure {
     fn allocate(code: CodePointer, env: &'static ActivationFrame) -> &'static Self {
         Box::leak(Box::new(Self::new(code, env)))
     }
+}
+
+#[derive(Copy, Clone)]
+pub struct Primitive {
+    name: &'static str,
+    behavior: fn(&mut VirtualMachine),
 }

@@ -1,4 +1,6 @@
-use crate::{ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer};
+use crate::{
+    ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer, Primitive, VirtualMachine,
+};
 use lisp_core::lexpr;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
@@ -23,16 +25,17 @@ thread_local! {
     static VALUE_ALLOCATOR: allocator::Allocator<Value> = allocator::Allocator::new();
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Scm {
     ptr: usize,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum Value {
     Symbol(&'static str),
     String(&'static String),
 
+    Primitive(&'static Primitive),
     Frame(&'static ActivationFrame),
     Closure(&'static Closure),
     Pointer(&'static u8),
@@ -79,13 +82,23 @@ impl Scm {
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Self {
-        let r = Box::leak(Box::new((car, cdr)));
-        //let r = PAIR_ALLOCATOR.with(|pa| pa.alloc((car, cdr)));
+        //let r = Box::leak(Box::new((car, cdr)));
+        let r = PAIR_ALLOCATOR.with(|pa| pa.alloc((car, cdr)));
         let addr = r as *const _ as usize;
         debug_assert!(addr & TAG_MASK == 0);
         Scm {
             ptr: addr + TAG_PAIR,
         }
+    }
+
+    pub unsafe fn set_car(&self, car: Scm) {
+        let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
+        *(r as *mut _) = car;
+    }
+
+    pub unsafe fn set_cdr(&self, cdr: Scm) {
+        let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
+        *(r as *mut Scm).offset(1) = cdr;
     }
 
     pub fn symbol(s: &str) -> Self {
@@ -96,6 +109,11 @@ impl Scm {
     pub fn string(s: &str) -> Self {
         let s = Box::leak(Box::new(s.to_owned()));
         Scm::from_value(Value::String(s))
+    }
+
+    pub fn primitive(p: Primitive) -> Self {
+        let p = Box::leak(Box::new(p));
+        Scm::from_value(Value::Primitive(p))
     }
 
     pub fn frame(size: usize) -> Self {
@@ -128,6 +146,14 @@ impl Scm {
         self.ptr == SPECIAL_FALSE
     }
 
+    pub fn is_true(&self) -> bool {
+        self.ptr == SPECIAL_TRUE
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.ptr == SPECIAL_NULL
+    }
+
     pub fn is_uninitialized(&self) -> bool {
         self.ptr == SPECIAL_UNINIT
     }
@@ -136,11 +162,15 @@ impl Scm {
         self.as_pair().is_some()
     }
 
+    pub fn is_symbol(&self) -> bool {
+        self.as_symbol().is_some()
+    }
+
     pub fn is_closure(&self) -> bool {
         self.as_closure().is_some()
     }
 
-    fn as_int(&self) -> Option<i64> {
+    pub fn as_int(&self) -> Option<i64> {
         if self.ptr & TAG_MASK == TAG_INTEGER {
             Some((self.ptr >> N_TAG_BITS) as i64)
         } else {
@@ -148,9 +178,25 @@ impl Scm {
         }
     }
 
-    fn as_pair(&self) -> Option<&(Scm, Scm)> {
+    pub fn as_pair(&self) -> Option<&(Scm, Scm)> {
         if self.ptr & TAG_MASK == TAG_PAIR {
             unsafe { Some(int_to_ref(self.ptr - TAG_PAIR)) }
+        } else {
+            None
+        }
+    }
+
+    pub fn as_symbol(&self) -> Option<&'static str> {
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_symbol() }
+        } else {
+            None
+        }
+    }
+
+    pub fn as_primitive(&self) -> Option<&'static Primitive> {
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_primitive() }
         } else {
             None
         }
@@ -219,6 +265,20 @@ impl Value {
     pub fn as_pointer(&self) -> Option<*const u8> {
         match self {
             Value::Pointer(p) => Some(*p),
+            _ => None,
+        }
+    }
+
+    pub fn as_symbol(&self) -> Option<&'static str> {
+        match self {
+            Value::Symbol(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_primitive(&self) -> Option<&'static Primitive> {
+        match self {
+            Value::Primitive(p) => Some(p),
             _ => None,
         }
     }
