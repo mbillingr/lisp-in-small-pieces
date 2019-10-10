@@ -1,5 +1,4 @@
 use crate::ActivationFrame;
-use crate::CodePointer;
 use crate::Scm;
 use crate::Value;
 use crate::VirtualMachine;
@@ -217,6 +216,7 @@ impl VirtualMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CodePointer;
     use crate::Op;
     use crate::OpaqueCast;
 
@@ -281,17 +281,17 @@ mod tests {
     fn test_deep_argument_ref() {
         let mut vm = init_machine();
 
-        let mut env = ActivationFrame::allocate(2);
+        let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         vm.env = env.extend(vm.env);
 
-        let mut env = ActivationFrame::allocate(2);
+        let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(10));
         env.set_argument(1, Scm::int(20));
         vm.env = env.extend(vm.env);
 
-        let mut env = ActivationFrame::allocate(2);
+        let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(100));
         env.set_argument(1, Scm::int(200));
         vm.env = env.extend(vm.env);
@@ -429,9 +429,9 @@ mod tests {
     fn test_set_deep_argument() {
         let mut vm = init_machine();
 
-        let mut env1 = ActivationFrame::allocate(2);
-        let mut env2 = ActivationFrame::allocate(2);
-        let mut env3 = ActivationFrame::allocate(2);
+        let env1 = ActivationFrame::allocate(2);
+        let env2 = ActivationFrame::allocate(2);
+        let env3 = ActivationFrame::allocate(2);
         env1.extend(vm.env);
         env2.extend(env1);
         vm.env = env3.extend(env2);
@@ -587,13 +587,13 @@ mod tests {
     #[test]
     fn test_extend_env() {
         let mut reference = init_machine();
-        let mut env = ActivationFrame::allocate(2);
+        let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         reference.env = env.extend(reference.env);
 
         let mut vm = init_machine();
-        let mut env = ActivationFrame::allocate(2);
+        let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
 
@@ -605,10 +605,10 @@ mod tests {
 
     #[test]
     fn test_unlink_env() {
-        let mut reference = init_machine();
+        let reference = init_machine();
 
         let mut vm = init_machine();
-        let mut env = ActivationFrame::allocate(2);
+        let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         vm.env = env.extend(vm.env);
@@ -665,7 +665,7 @@ mod tests {
     fn test_preserve_env() {
         let mut reference = init_machine();
 
-        let mut env = ActivationFrame::allocate(3);
+        let env = ActivationFrame::allocate(3);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         env.set_argument(2, Scm::int(4));
@@ -681,11 +681,11 @@ mod tests {
 
     #[test]
     fn test_restore_env() {
-        let mut reference = init_machine();
+        let reference = init_machine();
 
         let mut vm = init_machine();
         vm.stack = vec![vm.env.as_op()];
-        let mut env = ActivationFrame::allocate(3);
+        let env = ActivationFrame::allocate(3);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         env.set_argument(2, Scm::int(4));

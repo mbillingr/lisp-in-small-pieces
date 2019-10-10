@@ -478,7 +478,7 @@ impl CodePointer {
 
     unsafe fn fetch_instruction(&mut self) -> Op {
         // self.pc must always point to a valid code location
-        unsafe { Op::from_u8_unchecked(self.fetch_byte()) }
+        Op::from_u8_unchecked(self.fetch_byte())
     }
 
     unsafe fn fetch_byte(&mut self) -> u8 {
@@ -492,10 +492,6 @@ impl CodePointer {
         CodePointer {
             ptr: self.ptr.offset(offset),
         }
-    }
-
-    unsafe fn jump(&mut self, offset: isize) {
-        self.ptr = self.ptr.offset(offset);
     }
 }
 

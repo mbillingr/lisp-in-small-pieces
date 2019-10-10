@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum Op {

@@ -1,6 +1,4 @@
-use crate::{
-    ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer, Primitive, VirtualMachine,
-};
+use crate::{ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer, Primitive};
 use lisp_core::lexpr;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
@@ -11,14 +9,14 @@ const TAG_MASK: usize = 0b_11;
 const TAG_POINTER: usize = 0b_00;
 const TAG_INTEGER: usize = 0b_01;
 const TAG_PAIR: usize = 0b_10;
-const TAG_SPECIAL: usize = 0b_11;
+//const TAG_SPECIAL: usize = 0b_11;
 
 const SPECIAL_UNINIT: usize = 0b_0000_0111;
 const SPECIAL_NULL: usize = 0b_0001_0111;
 const SPECIAL_FALSE: usize = 0b_0010_0111;
 const SPECIAL_TRUE: usize = 0b_0011_0111;
 
-const MASK_IMMEDIATE: usize = 0b01; // this works because all immediates have 1 in the lsb
+//const MASK_IMMEDIATE: usize = 0b01; // this works because all immediates have 1 in the lsb
 
 thread_local! {
     static PAIR_ALLOCATOR: allocator::Allocator<(Scm, Scm)> = allocator::Allocator::new();
@@ -135,12 +133,12 @@ impl Scm {
     }
 
     unsafe fn deref(&self) -> &Value {
-        unsafe { &*self.as_ptr() }
+        &*self.as_ptr()
     }
 
-    fn is_immediate(&self) -> bool {
+    /*fn is_immediate(&self) -> bool {
         self.ptr & MASK_IMMEDIATE != 0
-    }
+    }*/
 
     pub fn is_false(&self) -> bool {
         self.ptr == SPECIAL_FALSE
@@ -373,10 +371,6 @@ unsafe fn int_to_ref<T>(i: usize) -> &'static T {
     &*(i as *const T)
 }
 
-fn ref_to_addr<T>(r: &T) -> usize {
-    r as *const T as usize
-}
-
 impl std::fmt::Display for Scm {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match (self.ptr, self.ptr & TAG_MASK) {
@@ -453,7 +447,7 @@ mod allocator {
 
         pub fn alloc(&self, value: T) -> &'static mut T {
             unsafe {
-                let mut x = self.alloc_uninit();
+                let x = self.alloc_uninit();
                 std::ptr::write(x, value);
                 &mut *x
             }
@@ -479,16 +473,6 @@ mod allocator {
             let next_item = *(item as *mut *mut T);
             *head = next_item;
             item
-        }
-
-        unsafe fn count_items(&self) -> usize {
-            let mut n = 0;
-            let mut head = *self.free_list.get();
-            while head as usize != 0 {
-                n += 1;
-                head = *(head as *mut *mut T);
-            }
-            n
         }
     }
 }

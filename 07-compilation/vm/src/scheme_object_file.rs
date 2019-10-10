@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::value::{Scm, Value};
+use crate::value::Scm;
 use lisp_core::lexpr;
 use std::fs::File;
 use std::io::Read;
