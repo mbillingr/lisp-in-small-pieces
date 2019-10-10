@@ -188,7 +188,7 @@ impl VirtualMachine {
     }
 
     #[inline(always)]
-    pub fn is_arity(&mut self, rank: u8) {
+    pub fn is_arity(&self, rank: u8) {
         if self.val.as_frame().unwrap().len() != rank as usize {
             self.signal_exception(match rank {
                 1 => "Incorrect arity for nullary function",
@@ -201,7 +201,7 @@ impl VirtualMachine {
     }
 
     #[inline(always)]
-    pub fn is_arity_greater(&mut self, rank: u8) {
+    pub fn is_arity_greater(&self, rank: u8) {
         if self.val.as_frame().unwrap().len() < rank as usize {
             self.signal_exception("Too few function arguments");
         }
