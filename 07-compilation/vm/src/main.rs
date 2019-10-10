@@ -99,6 +99,15 @@ macro_rules! dispatch {
         let $b = $s.pc.fetch_byte();
         $s.$code($a, $b);
     }};
+    ($s:ident.$code:ident()) => {
+        $s.$code();
+    };
+    ($s:ident.$code:ident($a:expr)) => {{
+        $s.$code($a);
+    }};
+    ($s:ident.$code:ident($a:expr, $b:expr)) => {{
+        $s.$code($a, $b);
+    }};
 }
 
 macro_rules! defprimitive {
@@ -253,10 +262,10 @@ impl VirtualMachine {
             let start = Instant::now();
             match op {
                 Op::Nop => dispatch!(self.nop),
-                Op::ShallowArgumentRef0 => dispatch!(self.shallow_argument_ref0),
-                Op::ShallowArgumentRef1 => dispatch!(self.shallow_argument_ref1),
-                Op::ShallowArgumentRef2 => dispatch!(self.shallow_argument_ref2),
-                Op::ShallowArgumentRef3 => dispatch!(self.shallow_argument_ref3),
+                Op::ShallowArgumentRef0 => dispatch!(self.shallow_argument_ref(0)),
+                Op::ShallowArgumentRef1 => dispatch!(self.shallow_argument_ref(21)),
+                Op::ShallowArgumentRef2 => dispatch!(self.shallow_argument_ref(2)),
+                Op::ShallowArgumentRef3 => dispatch!(self.shallow_argument_ref(3)),
                 Op::ShallowArgumentRef => dispatch!(self.shallow_argument_ref(idx)),
                 Op::DeepArgumentRef => dispatch!(self.deep_argument_ref(i, j)),
                 Op::GlobalRef => dispatch!(self.global_ref(idx)),
@@ -265,43 +274,35 @@ impl VirtualMachine {
                 Op::Predefined0 => dispatch!(self.predefined0),
                 Op::Predefined1 => dispatch!(self.predefined1),
                 Op::Predefined2 => dispatch!(self.predefined2),
-                Op::Predefined3 => dispatch!(self.predefined3),
-                Op::Predefined4 => dispatch!(self.predefined4),
-                Op::Predefined5 => dispatch!(self.predefined5),
-                Op::Predefined6 => dispatch!(self.predefined6),
-                Op::Predefined7 => dispatch!(self.predefined7),
-                Op::Predefined8 => dispatch!(self.predefined8),
+                Op::Predefined3 => dispatch!(self.predefined(3)),
+                Op::Predefined4 => dispatch!(self.predefined(4)),
+                Op::Predefined5 => dispatch!(self.predefined(5)),
+                Op::Predefined6 => dispatch!(self.predefined(6)),
+                Op::Predefined7 => dispatch!(self.predefined(7)),
+                Op::Predefined8 => dispatch!(self.predefined(8)),
                 Op::Predefined => dispatch!(self.predefined(idx)),
                 Op::Finish => return self.val,
+                Op::SetShallowArgument0 => dispatch!(self.set_shallow_argument(0)),
+                Op::SetShallowArgument1 => dispatch!(self.set_shallow_argument(1)),
+                Op::SetShallowArgument2 => dispatch!(self.set_shallow_argument(2)),
+                Op::SetShallowArgument3 => dispatch!(self.set_shallow_argument(3)),
+                Op::SetShallowArgument => dispatch!(self.set_shallow_argument(idx)),
+                Op::SetDeepArgument => dispatch!(self.set_deep_argument(i, j)),
+                Op::SetGlobal => dispatch!(self.set_global(idx)),
+                Op::LongGoto => dispatch!(self.long_goto(lo, hi)),
+                Op::LongJumpFalse => dispatch!(self.long_jump_false(lo, hi)),
+                Op::ShortGoto => dispatch!(self.short_goto(lo)),
+                Op::ShortJumpFalse => dispatch!(self.short_jump_false(lo)),
+                Op::ExtendEnv => dispatch!(self.extend_env),
+                Op::UnlinkEnv => dispatch!(self.unlink_env),
+                Op::PushValue => dispatch!(self.push_value),
+                Op::PopArg1 => dispatch!(self.pop_arg1),
+                Op::PopArg2 => dispatch!(self.pop_arg2),
+                Op::PreserveEnv => dispatch!(self.preserve_env),
+                Op::RestoreEnv => dispatch!(self.restore_env),
+                Op::PopFunction => dispatch!(self.pop_fun),
+                Op::CreateClosure => dispatch!(self.create_closure(offset)),
 
-                Op::SetGlobal => {
-                    let i = self.pc.fetch_byte();
-                    self.global_update(i as usize, self.val);
-                }
-
-                Op::ShortGoto => {
-                    let offset = self.pc.fetch_byte();
-                    self.pc.jump(offset as isize);
-                }
-                Op::ShortJumpFalse => {
-                    let offset = self.pc.fetch_byte();
-                    if self.val.is_false() {
-                        self.pc.jump(offset as isize);
-                    }
-                }
-
-                Op::ExtendEnv => self.env = &self.val.as_frame().unwrap().extend(self.env),
-                Op::UnlinkEnv => self.env = self.env.next().unwrap(),
-                Op::PushValue => self.stack_push(self.val),
-                Op::PopArg1 => self.arg1 = self.stack_pop(),
-                Op::PopArg2 => self.arg2 = self.stack_pop(),
-                Op::PreserveEnv => self.stack_push(self.env),
-                Op::RestoreEnv => self.env = self.stack_pop(),
-                Op::PopFunction => self.fun = self.stack_pop(),
-                Op::CreateClosure => {
-                    let offset = self.pc.fetch_byte();
-                    self.val = Scm::closure(self.pc.offset(offset as isize), &self.env);
-                }
                 Op::Return => self.pc = self.stack_pop(),
 
                 Op::FunctionInvoke => self.invoke(self.fun, false),
@@ -602,6 +603,12 @@ impl ActivationFrame {
             env = env.next().unwrap();
         }
         env.argument(j)
+    }
+
+    fn deep_set(&self, i: usize, j: usize, value: Scm) {
+        unsafe {
+            *(self.deep_fetch(i, j) as *const _ as *mut _) = value;
+        }
     }
 }
 
