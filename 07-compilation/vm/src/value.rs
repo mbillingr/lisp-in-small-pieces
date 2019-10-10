@@ -211,11 +211,19 @@ impl Scm {
     }
 
     pub fn as_frame(&self) -> Option<&'static ActivationFrame> {
-        unsafe { self.deref().as_frame() }
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_frame() }
+        } else {
+            None
+        }
     }
 
     pub fn as_closure(&self) -> Option<&'static Closure> {
-        unsafe { self.deref().as_closure() }
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_closure() }
+        } else {
+            None
+        }
     }
 
     pub fn eq(&self, other: &Self) -> bool {
@@ -223,7 +231,17 @@ impl Scm {
     }
 
     pub fn eqv(&self, other: &Self) -> bool {
-        self.eq(other) || unsafe { self.deref() == other.deref() }
+        if self.eq(other) {
+            return true;
+        }
+
+        match (self.as_value(), other.as_value()) {
+            (None, None) => {}
+            (Some(a), Some(b)) => return a == b,
+            _ => return false,
+        }
+
+        false
     }
 
     pub fn equal(&self, other: &Self) -> bool {

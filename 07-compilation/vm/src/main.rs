@@ -16,6 +16,14 @@ use value::{Scm, Value, DYNENV_TAG};
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
 
+// Note that parallel tests do not work in combination with the allocator
+// because it is not practically possible to call Allocator::initialize()
+// in the main thread of the test harness and register the test threads
+// with GC.
+// Workarounds:
+//    a) run tests without GC (cargo test --no-default-features --features=disable-global-gc)
+//    b) run tests serially (cargo test -- --test-threads=1)
+
 fn main() -> Result<()> {
     unsafe { Allocator::initialize() }
 
@@ -305,78 +313,32 @@ impl VirtualMachine {
 
                 Op::Return => dispatch!(self.return_),
                 Op::PackFrame => dispatch!(self.pack_frame(arity)),
-                Op::FunctionInvoke => self.invoke(self.fun, false),
-                Op::FunctionGoto => self.invoke(self.fun, true),
+                Op::FunctionInvoke => dispatch!(self.function_invoke),
+                Op::FunctionGoto => dispatch!(self.function_goto),
+                Op::PopConsFrame => dispatch!(self.pop_cons_frame(arity)),
 
-                Op::AllocateFrame1 => self.val = Scm::frame(1),
-                Op::AllocateFrame2 => self.val = Scm::frame(2),
-                Op::AllocateFrame3 => self.val = Scm::frame(3),
-                Op::AllocateFrame4 => self.val = Scm::frame(4),
-                Op::AllocateFrame5 => self.val = Scm::frame(5),
-                Op::AllocateFrame => {
-                    let size = self.pc.fetch_byte();
-                    self.val = Scm::frame(size as usize);
-                }
+                Op::AllocateFrame1 => dispatch!(self.allocate_frame(1)),
+                Op::AllocateFrame2 => dispatch!(self.allocate_frame(2)),
+                Op::AllocateFrame3 => dispatch!(self.allocate_frame(3)),
+                Op::AllocateFrame4 => dispatch!(self.allocate_frame(4)),
+                Op::AllocateFrame5 => dispatch!(self.allocate_frame(5)),
+                Op::AllocateFrame => dispatch!(self.allocate_frame(size)),
+                Op::AllocateDottedFrame => dispatch!(self.allocate_dotted_frame(size)),
 
-                Op::PopFrame0 => self
-                    .val
-                    .as_frame()
-                    .unwrap()
-                    .set_argument(0, self.stack_pop()),
-                Op::PopFrame1 => self
-                    .val
-                    .as_frame()
-                    .unwrap()
-                    .set_argument(1, self.stack_pop()),
-                Op::PopFrame2 => self
-                    .val
-                    .as_frame()
-                    .unwrap()
-                    .set_argument(2, self.stack_pop()),
-                Op::PopFrame3 => self
-                    .val
-                    .as_frame()
-                    .unwrap()
-                    .set_argument(3, self.stack_pop()),
-                Op::PopFrame => {
-                    let rank = self.pc.fetch_byte();
-                    self.val
-                        .as_frame()
-                        .unwrap()
-                        .set_argument(rank as usize, self.stack_pop())
-                }
+                Op::PopFrame0 => dispatch!(self.pop_frame(0)),
+                Op::PopFrame1 => dispatch!(self.pop_frame(1)),
+                Op::PopFrame2 => dispatch!(self.pop_frame(2)),
+                Op::PopFrame3 => dispatch!(self.pop_frame(3)),
+                Op::PopFrame => dispatch!(self.pop_frame(idx)),
 
-                Op::IsArity1 => {
-                    if self.val.as_frame().unwrap().len() != 1 {
-                        self.signal_exception("Incorrect arity for nullary function")
-                    }
-                }
-                Op::IsArity2 => {
-                    if self.val.as_frame().unwrap().len() != 2 {
-                        self.signal_exception("Incorrect arity for unary function")
-                    }
-                }
-                Op::IsArity3 => {
-                    if self.val.as_frame().unwrap().len() != 3 {
-                        self.signal_exception("Incorrect arity for binary function")
-                    }
-                }
-                Op::IsArity4 => {
-                    if self.val.as_frame().unwrap().len() != 4 {
-                        self.signal_exception("Incorrect arity for ternary function")
-                    }
-                }
-                Op::IsArity => {
-                    let rank = self.pc.fetch_byte();
-                    if self.val.as_frame().unwrap().len() != rank as usize {
-                        self.signal_exception("Incorrect arity")
-                    }
-                }
+                Op::IsArity1 => dispatch!(self.is_arity(1)),
+                Op::IsArity2 => dispatch!(self.is_arity(2)),
+                Op::IsArity3 => dispatch!(self.is_arity(3)),
+                Op::IsArity4 => dispatch!(self.is_arity(4)),
+                Op::IsArity => dispatch!(self.is_arity(rank)),
 
-                Op::ShortNumber => {
-                    let val = self.pc.fetch_byte();
-                    self.val = Scm::int(val as i64);
-                }
+                Op::IsArityGreater => dispatch!(self.is_arity_greater(rank)),
+                Op::ShortNumber => dispatch!(self.short_number(value)),
                 Op::ConstMinus1 => self.val = Scm::int(-1),
                 Op::Const0 => self.val = Scm::int(0),
                 Op::Const1 => self.val = Scm::int(1),

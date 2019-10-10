@@ -149,6 +149,69 @@ impl VirtualMachine {
     pub fn pack_frame(&mut self, arity: u8) {
         self.val.as_frame().unwrap().listify(arity as usize)
     }
+
+    #[inline(always)]
+    pub fn function_invoke(&mut self) {
+        self.invoke(self.fun, false);
+    }
+
+    #[inline(always)]
+    pub fn function_goto(&mut self) {
+        self.invoke(self.fun, true);
+    }
+
+    #[inline(always)]
+    pub unsafe fn pop_cons_frame(&mut self, arity: u8) {
+        let arity = arity as usize;
+        let frame = self.val.as_frame().unwrap();
+        frame.set_argument(arity, Scm::cons(self.stack_pop(), *frame.argument(arity)))
+    }
+
+    #[inline(always)]
+    pub fn allocate_frame(&mut self, size: u8) {
+        self.val = Scm::frame(size as usize);
+    }
+
+    #[inline(always)]
+    pub fn allocate_dotted_frame(&mut self, size: u8) {
+        let size = size as usize;
+        let frame = ActivationFrame::allocate(size);
+        frame.set_argument(size - 1, Scm::null());
+        self.val = Scm::from_value(Value::Frame(frame));
+    }
+
+    #[inline(always)]
+    pub unsafe fn pop_frame(&mut self, idx: u8) {
+        self.val
+            .as_frame()
+            .unwrap()
+            .set_argument(idx as usize, self.stack_pop())
+    }
+
+    #[inline(always)]
+    pub fn is_arity(&mut self, rank: u8) {
+        if self.val.as_frame().unwrap().len() != rank as usize {
+            self.signal_exception(match rank {
+                1 => "Incorrect arity for nullary function",
+                2 => "Incorrect arity for unary function",
+                3 => "Incorrect arity for binary function",
+                4 => "Incorrect arity for ternary function",
+                _ => "Incorrect arity",
+            })
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_arity_greater(&mut self, rank: u8) {
+        if self.val.as_frame().unwrap().len() < rank as usize {
+            self.signal_exception("Too few function arguments");
+        }
+    }
+
+    #[inline(always)]
+    pub fn short_number(&mut self, value: u8) {
+        self.val = Scm::int(value as i64);
+    }
 }
 
 #[cfg(test)]
@@ -670,8 +733,6 @@ mod tests {
 
     #[test]
     fn test_pack_frame() {
-        let code = vec![Op::Nop; 32];
-
         let ref_frame = ActivationFrame::new(5);
         ref_frame.set_argument(0, Scm::int(1));
         ref_frame.set_argument(1, Scm::int(2));
@@ -697,5 +758,74 @@ mod tests {
         assert_eq!(vm.val.as_frame().unwrap().slots[2], ref_frame.slots[2]);
         assert!(vm.val.as_frame().unwrap().slots[3].equal(&ref_frame.slots[3]));
         assert_eq!(vm.val.as_frame().unwrap().slots[4], ref_frame.slots[4]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Not a function")]
+    fn test_function_invoke() {
+        let mut vm = init_machine();
+        vm.function_invoke();
+    }
+
+    #[test]
+    #[should_panic(expected = "Not a function")]
+    fn test_function_goto() {
+        let mut vm = init_machine();
+        vm.function_goto();
+    }
+
+    #[test]
+    fn test_pop_cons_frame() {
+        let ref_frame = ActivationFrame::new(1);
+        ref_frame.set_argument(
+            0,
+            Scm::cons(Scm::int(2), Scm::cons(Scm::int(3), Scm::int(1))),
+        );
+
+        let mut vm = init_machine();
+        vm.stack = vec![Scm::int(2).as_op(), Scm::int(3).as_op()];
+        vm.val = Scm::frame(1);
+        let frame = vm.val.as_frame().unwrap();
+        frame.set_argument(0, Scm::int(1));
+
+        unsafe {
+            vm.pop_cons_frame(0);
+            vm.pop_cons_frame(0);
+        }
+        assert!(vm.val.as_frame().unwrap().slots[0].equal(&ref_frame.slots[0]));
+    }
+
+    #[test]
+    fn test_allocate_frame() {
+        let mut vm = init_machine();
+
+        vm.allocate_frame(10);
+        assert_eq!(vm.val.as_frame().map(|frame| frame.slots.len()), Some(10));
+    }
+
+    #[test]
+    fn test_allocate_dotted_frame() {
+        let mut vm = init_machine();
+
+        vm.allocate_dotted_frame(10);
+        assert_eq!(vm.val.as_frame().map(|frame| frame.slots.len()), Some(10));
+        assert_eq!(vm.val.as_frame().unwrap().slots[9], Scm::null());
+    }
+
+    #[test]
+    fn test_pop_frame() {
+        let ref_frame = ActivationFrame::new(2);
+        ref_frame.set_argument(0, Scm::int(42));
+        ref_frame.set_argument(1, Scm::int(666));
+
+        let mut vm = init_machine();
+        vm.stack = vec![Scm::int(42).as_op(), Scm::int(666).as_op()];
+        vm.val = Scm::frame(2);
+
+        unsafe {
+            vm.pop_frame(1);
+            vm.pop_frame(0);
+        }
+        assert_eq!(vm.val.as_frame().unwrap().slots, ref_frame.slots);
     }
 }
