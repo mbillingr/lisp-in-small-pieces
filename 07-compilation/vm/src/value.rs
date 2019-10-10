@@ -170,6 +170,14 @@ impl Scm {
         self.as_closure().is_some()
     }
 
+    pub fn as_value(&self) -> Option<&Value> {
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            Some(unsafe { self.deref() })
+        } else {
+            None
+        }
+    }
+
     pub fn as_int(&self) -> Option<i64> {
         if self.ptr & TAG_MASK == TAG_INTEGER {
             Some((self.ptr >> N_TAG_BITS) as i64)
@@ -216,6 +224,26 @@ impl Scm {
 
     pub fn eqv(&self, other: &Self) -> bool {
         self.eq(other) || unsafe { self.deref() == other.deref() }
+    }
+
+    pub fn equal(&self, other: &Self) -> bool {
+        if self.eq(other) {
+            return true;
+        }
+
+        match (self.as_pair(), other.as_pair()) {
+            (None, None) => {}
+            (Some(a), Some(b)) => return a.0.equal(&b.0) && a.1.equal(&b.1),
+            _ => return false,
+        }
+
+        match (self.as_value(), other.as_value()) {
+            (None, None) => {}
+            (Some(a), Some(b)) => return a == b,
+            _ => return false,
+        }
+
+        false
     }
 
     pub fn numeq(&self, rhs: &Self) -> Self {
@@ -343,8 +371,21 @@ impl std::fmt::Display for Scm {
                 let (car, cdr) = self.as_pair().unwrap();
                 write!(f, "({} . {})", car, cdr)
             }
-            (_, TAG_POINTER) => write!(f, "{:p}", self.ptr as *const u8),
+            (_, TAG_POINTER) => write!(f, "{}", unsafe { self.deref() }),
             (_, _) => write!(f, "*invalid*"),
+        }
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Value::Symbol(s) => write!(f, "{}", s),
+            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Primitive(p) => write!(f, "<primitive {}>", p.name),
+            Value::Frame(af) => write!(f, "{:?}", af),
+            Value::Closure(c) => write!(f, "{:?}", c),
+            Value::Pointer(p) => write!(f, "{:p}", p),
         }
     }
 }

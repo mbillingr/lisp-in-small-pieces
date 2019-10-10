@@ -139,6 +139,16 @@ impl VirtualMachine {
     pub unsafe fn create_closure(&mut self, offset: u8) {
         self.val = Scm::closure(self.pc.offset(offset as isize), self.env)
     }
+
+    #[inline(always)]
+    pub unsafe fn return_(&mut self) {
+        self.pc = self.stack_pop();
+    }
+
+    #[inline(always)]
+    pub fn pack_frame(&mut self, arity: u8) {
+        self.val.as_frame().unwrap().listify(arity as usize)
+    }
 }
 
 #[cfg(test)]
@@ -638,5 +648,54 @@ mod tests {
             vm.val.as_closure().unwrap().code,
             CodePointer::new(&code[3])
         );
+    }
+
+    #[test]
+    fn test_return() {
+        let code = vec![Op::Nop; 32];
+
+        let mut reference = init_machine();
+        reference.pc = CodePointer::new(&code[5]);
+
+        let mut vm = init_machine();
+        vm.pc = CodePointer::new(&code[15]);
+        vm.stack = vec![CodePointer::new(&code[5]).as_op()];
+
+        unsafe {
+            vm.return_();
+        }
+
+        assert_eq!(vm, reference);
+    }
+
+    #[test]
+    fn test_pack_frame() {
+        let code = vec![Op::Nop; 32];
+
+        let ref_frame = ActivationFrame::new(5);
+        ref_frame.set_argument(0, Scm::int(1));
+        ref_frame.set_argument(1, Scm::int(2));
+        ref_frame.set_argument(2, Scm::int(3));
+        ref_frame.set_argument(
+            3,
+            Scm::cons(Scm::int(4), Scm::cons(Scm::int(5), Scm::null())),
+        );
+        ref_frame.set_argument(4, Scm::int(5));
+
+        let mut vm = init_machine();
+        vm.val = Scm::frame(5);
+        let frame = vm.val.as_frame().unwrap();
+        frame.set_argument(0, Scm::int(1));
+        frame.set_argument(1, Scm::int(2));
+        frame.set_argument(2, Scm::int(3));
+        frame.set_argument(3, Scm::int(4));
+        frame.set_argument(4, Scm::int(5));
+
+        vm.pack_frame(3);
+        assert_eq!(vm.val.as_frame().unwrap().slots[0], ref_frame.slots[0]);
+        assert_eq!(vm.val.as_frame().unwrap().slots[1], ref_frame.slots[1]);
+        assert_eq!(vm.val.as_frame().unwrap().slots[2], ref_frame.slots[2]);
+        assert!(vm.val.as_frame().unwrap().slots[3].equal(&ref_frame.slots[3]));
+        assert_eq!(vm.val.as_frame().unwrap().slots[4], ref_frame.slots[4]);
     }
 }

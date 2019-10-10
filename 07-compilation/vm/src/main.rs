@@ -303,8 +303,8 @@ impl VirtualMachine {
                 Op::PopFunction => dispatch!(self.pop_fun),
                 Op::CreateClosure => dispatch!(self.create_closure(offset)),
 
-                Op::Return => self.pc = self.stack_pop(),
-
+                Op::Return => dispatch!(self.return_),
+                Op::PackFrame => dispatch!(self.pack_frame(arity)),
                 Op::FunctionInvoke => self.invoke(self.fun, false),
                 Op::FunctionGoto => self.invoke(self.fun, true),
 
@@ -609,6 +609,15 @@ impl ActivationFrame {
         unsafe {
             *(self.deep_fetch(i, j) as *const _ as *mut _) = value;
         }
+    }
+
+    /// Put excess arguments as a list after the last argument
+    fn listify(&self, arity: usize) {
+        let mut list = Scm::null();
+        for x in self.slots[arity..].iter().rev().copied() {
+            list = Scm::cons(x, list);
+        }
+        self.set_argument(arity, list);
     }
 }
 
