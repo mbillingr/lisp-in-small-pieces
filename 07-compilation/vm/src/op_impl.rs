@@ -226,6 +226,22 @@ impl VirtualMachine {
     pub fn call1_is_pair(&mut self) {
         self.val = Scm::bool(self.val.is_pair());
     }
+
+    #[inline(always)]
+    pub fn call1_is_symbol(&mut self) {
+        self.val = Scm::bool(self.val.is_symbol());
+    }
+
+    #[inline(always)]
+    pub fn call1_display(&mut self) {
+        println!("{}", self.val);
+        self.val = Scm::uninitialized();
+    }
+
+    #[inline(always)]
+    pub fn call1_is_null(&mut self) {
+        self.val = Scm::bool(self.val.is_null());
+    }
 }
 
 #[cfg(test)]
@@ -886,6 +902,48 @@ mod tests {
         vm.val = Scm::null();
 
         vm.call1_is_pair();
+        assert_eq!(vm, reference);
+    }
+
+    #[test]
+    fn test_call1_is_symbol() {
+        let mut reference = init_machine();
+        reference.val = Scm::bool(true);
+
+        let mut vm = init_machine();
+        vm.val = Scm::symbol("foo");
+
+        vm.call1_is_symbol();
+        assert_eq!(vm, reference);
+
+        let mut reference = init_machine();
+        reference.val = Scm::bool(false);
+
+        let mut vm = init_machine();
+        vm.val = Scm::string("bar");
+
+        vm.call1_is_symbol();
+        assert_eq!(vm, reference);
+    }
+
+    #[test]
+    fn test_call1_is_nulll() {
+        let mut reference = init_machine();
+        reference.val = Scm::bool(true);
+
+        let mut vm = init_machine();
+        vm.val = Scm::null();
+
+        vm.call1_is_null();
+        assert_eq!(vm, reference);
+
+        let mut reference = init_machine();
+        reference.val = Scm::bool(false);
+
+        let mut vm = init_machine();
+        vm.val = Scm::uninitialized();
+
+        vm.call1_is_null();
         assert_eq!(vm, reference);
     }
 }

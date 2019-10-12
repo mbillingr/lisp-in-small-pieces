@@ -347,6 +347,10 @@ impl VirtualMachine {
 
                 Op::Call1Car => dispatch!(self.call1_car),
                 Op::Call1Cdr => dispatch!(self.call1_cdr),
+                Op::Call1Pair => dispatch!(self.call1_is_pair),
+                Op::Call1Symbol => dispatch!(self.call1_is_symbol),
+                Op::Call1Display => dispatch!(self.call1_display),
+                Op::Call1Null => dispatch!(self.call1_is_null),
 
                 Op::Call2Cons => {
                     self.val = Scm::cons(self.arg1, self.val);
