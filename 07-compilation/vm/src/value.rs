@@ -89,14 +89,30 @@ impl Scm {
         }
     }
 
-    pub unsafe fn set_car(&self, car: Scm) {
+    pub unsafe fn set_car_unchecked(&self, car: Scm) {
         let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
         *(r as *mut _) = car;
     }
 
-    pub unsafe fn set_cdr(&self, cdr: Scm) {
+    pub unsafe fn set_cdr_unchecked(&self, cdr: Scm) {
         let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
         *(r as *mut Scm).offset(1) = cdr;
+    }
+
+    pub fn car(&self) -> Option<Self> {
+        self.as_pair().map(|(x, _)| *x)
+    }
+
+    pub fn cdr(&self) -> Option<Self> {
+        self.as_pair().map(|(_, x)| *x)
+    }
+
+    pub unsafe fn car_unchecked(&self) -> Self {
+        *int_to_ref(self.ptr - TAG_PAIR)
+    }
+
+    pub unsafe fn cdr_unchecked(&self) -> Self {
+        *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>())
     }
 
     pub fn symbol(s: &str) -> Self {

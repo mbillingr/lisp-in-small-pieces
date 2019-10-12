@@ -211,6 +211,21 @@ impl VirtualMachine {
     pub fn short_number(&mut self, value: u8) {
         self.val = Scm::int(value as i64);
     }
+
+    #[inline(always)]
+    pub fn call1_car(&mut self) {
+        self.val = self.val.car().expect("Not a pair");
+    }
+
+    #[inline(always)]
+    pub fn call1_cdr(&mut self) {
+        self.val = self.val.cdr().expect("Not a pair");
+    }
+
+    #[inline(always)]
+    pub fn call1_is_pair(&mut self) {
+        self.val = Scm::bool(self.val.is_pair());
+    }
 }
 
 #[cfg(test)]
@@ -827,5 +842,50 @@ mod tests {
             vm.pop_frame(0);
         }
         assert_eq!(vm.val.as_frame().unwrap().slots, ref_frame.slots);
+    }
+
+    #[test]
+    fn test_call1car() {
+        let mut reference = init_machine();
+        reference.val = Scm::int(6);
+
+        let mut vm = init_machine();
+        vm.val = Scm::cons(Scm::int(6), Scm::int(7));
+
+        vm.call1_car();
+        assert_eq!(vm, reference);
+    }
+
+    #[test]
+    fn test_call1cdr() {
+        let mut reference = init_machine();
+        reference.val = Scm::int(7);
+
+        let mut vm = init_machine();
+        vm.val = Scm::cons(Scm::int(6), Scm::int(7));
+
+        vm.call1_cdr();
+        assert_eq!(vm, reference);
+    }
+
+    #[test]
+    fn test_call1_is_pair() {
+        let mut reference = init_machine();
+        reference.val = Scm::bool(true);
+
+        let mut vm = init_machine();
+        vm.val = Scm::cons(Scm::int(6), Scm::int(7));
+
+        vm.call1_is_pair();
+        assert_eq!(vm, reference);
+
+        let mut reference = init_machine();
+        reference.val = Scm::bool(false);
+
+        let mut vm = init_machine();
+        vm.val = Scm::null();
+
+        vm.call1_is_pair();
+        assert_eq!(vm, reference);
     }
 }

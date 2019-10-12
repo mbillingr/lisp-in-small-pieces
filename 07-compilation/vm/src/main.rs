@@ -244,13 +244,13 @@ impl VirtualMachine {
             defprimitive!("null?", x, { Scm::bool(x.is_null()) }),
             defprimitive!("set-car!", x, a, {
                 unsafe {
-                    x.set_car(a);
+                    x.set_car_unchecked(a);
                 }
                 Scm::uninitialized()
             }),
             defprimitive!("set-cdr!", x, d, {
                 unsafe {
-                    x.set_cdr(d);
+                    x.set_cdr_unchecked(d);
                 }
                 Scm::uninitialized()
             }),
@@ -344,6 +344,9 @@ impl VirtualMachine {
                 Op::Const1 => self.val = Scm::int(1),
                 Op::Const2 => self.val = Scm::int(2),
                 Op::Const4 => self.val = Scm::int(4),
+
+                Op::Call1Car => dispatch!(self.call1_car),
+                Op::Call1Cdr => dispatch!(self.call1_cdr),
 
                 Op::Call2Cons => {
                     self.val = Scm::cons(self.arg1, self.val);
