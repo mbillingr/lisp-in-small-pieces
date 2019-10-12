@@ -89,32 +89,6 @@ impl Scm {
         }
     }
 
-    pub unsafe fn set_car_unchecked(&self, car: Scm) {
-        let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
-        *(r as *mut _) = car;
-    }
-
-    pub unsafe fn set_cdr_unchecked(&self, cdr: Scm) {
-        let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
-        *(r as *mut Scm).offset(1) = cdr;
-    }
-
-    pub fn car(&self) -> Option<Self> {
-        self.as_pair().map(|(x, _)| *x)
-    }
-
-    pub fn cdr(&self) -> Option<Self> {
-        self.as_pair().map(|(_, x)| *x)
-    }
-
-    pub unsafe fn car_unchecked(&self) -> Self {
-        *int_to_ref(self.ptr - TAG_PAIR)
-    }
-
-    pub unsafe fn cdr_unchecked(&self) -> Self {
-        *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>())
-    }
-
     pub fn symbol(s: &str) -> Self {
         let s = Box::leak(Box::new(s.to_owned()));
         Scm::from_value(Value::Symbol(s))
@@ -182,6 +156,13 @@ impl Scm {
 
     pub fn is_closure(&self) -> bool {
         self.as_closure().is_some()
+    }
+
+    pub fn as_bool(&self) -> bool {
+        match self.ptr {
+            SPECIAL_FALSE => false,
+            _ => true,
+        }
     }
 
     pub fn as_value(&self) -> Option<&Value> {
@@ -278,13 +259,37 @@ impl Scm {
         false
     }
 
-    pub fn numeq(&self, rhs: &Self) -> Self {
-        Self::bool(self.eq(rhs))
+    pub fn numeq(&self, rhs: &Self) -> bool {
+        match (self.as_int(), rhs.as_int()) {
+            (Some(a), Some(b)) => a == b,
+            _ => panic!("Type Error"),
+        }
     }
 
-    pub fn less(&self, rhs: &Self) -> Self {
+    pub fn less(&self, rhs: &Self) -> bool {
         match (self.as_int(), rhs.as_int()) {
-            (Some(a), Some(b)) => Self::bool(a < b),
+            (Some(a), Some(b)) => a < b,
+            _ => panic!("Type Error"),
+        }
+    }
+
+    pub fn less_eq(&self, rhs: &Self) -> bool {
+        match (self.as_int(), rhs.as_int()) {
+            (Some(a), Some(b)) => a <= b,
+            _ => panic!("Type Error"),
+        }
+    }
+
+    pub fn greater(&self, rhs: &Self) -> bool {
+        match (self.as_int(), rhs.as_int()) {
+            (Some(a), Some(b)) => a > b,
+            _ => panic!("Type Error"),
+        }
+    }
+
+    pub fn greater_eq(&self, rhs: &Self) -> bool {
+        match (self.as_int(), rhs.as_int()) {
+            (Some(a), Some(b)) => a >= b,
             _ => panic!("Type Error"),
         }
     }
@@ -308,6 +313,32 @@ impl Scm {
             (Some(a), Some(b)) => Self::int(a * b),
             _ => panic!("Type Error"),
         }
+    }
+
+    pub unsafe fn set_car_unchecked(&self, car: Scm) {
+        let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
+        *(r as *mut _) = car;
+    }
+
+    pub unsafe fn set_cdr_unchecked(&self, cdr: Scm) {
+        let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
+        *(r as *mut Scm).offset(1) = cdr;
+    }
+
+    pub fn car(&self) -> Option<Self> {
+        self.as_pair().map(|(x, _)| *x)
+    }
+
+    pub fn cdr(&self) -> Option<Self> {
+        self.as_pair().map(|(_, x)| *x)
+    }
+
+    pub unsafe fn car_unchecked(&self) -> Self {
+        *int_to_ref(self.ptr - TAG_PAIR)
+    }
+
+    pub unsafe fn cdr_unchecked(&self) -> Self {
+        *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>())
     }
 }
 

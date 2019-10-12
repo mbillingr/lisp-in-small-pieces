@@ -242,6 +242,63 @@ impl VirtualMachine {
     pub fn call1_is_null(&mut self) {
         self.val = Scm::bool(self.val.is_null());
     }
+
+    #[inline(always)]
+    pub fn call2_cons(&mut self) {
+        self.val = Scm::cons(self.arg1, self.val);
+    }
+
+    #[inline(always)]
+    pub fn call2_eq(&mut self) {
+        self.val = Scm::bool(Scm::eq(&self.arg1, &self.val));
+    }
+
+    #[inline(always)]
+    pub fn call2_set_car(&mut self) {
+        if !self.arg1.is_pair() {
+            panic!("Not a pair");
+        }
+        unsafe {
+            self.arg1.set_car_unchecked(self.val);
+        }
+        self.val = Scm::uninitialized();
+    }
+
+    #[inline(always)]
+    pub fn call2_set_cdr(&mut self) {
+        if !self.arg1.is_pair() {
+            panic!("Not a pair");
+        }
+        unsafe {
+            self.arg1.set_cdr_unchecked(self.val);
+        }
+        self.val = Scm::uninitialized();
+    }
+
+    #[inline(always)]
+    pub fn call2_numeq(&mut self) {
+        self.val = Scm::bool(Scm::numeq(&self.arg1, &self.val));
+    }
+
+    #[inline(always)]
+    pub fn call2_less(&mut self) {
+        self.val = Scm::bool(Scm::less(&self.arg1, &self.val));
+    }
+
+    #[inline(always)]
+    pub fn call2_less_eq(&mut self) {
+        self.val = Scm::bool(Scm::less_eq(&self.arg1, &self.val));
+    }
+
+    #[inline(always)]
+    pub fn call2_greater(&mut self) {
+        self.val = Scm::bool(Scm::greater(&self.arg1, &self.val));
+    }
+
+    #[inline(always)]
+    pub fn call2_greater_eq(&mut self) {
+        self.val = Scm::bool(Scm::greater_eq(&self.arg1, &self.val));
+    }
 }
 
 #[cfg(test)]
@@ -945,5 +1002,149 @@ mod tests {
 
         vm.call1_is_null();
         assert_eq!(vm, reference);
+    }
+
+    #[test]
+    fn test_call2_cons() {
+        let mut vm = init_machine();
+
+        vm.val = Scm::null();
+        vm.arg1 = Scm::int(42);
+        vm.call2_cons();
+        assert!(vm.val.equal(&Scm::cons(Scm::int(42), Scm::null())));
+    }
+
+    #[test]
+    fn test_call2_eq() {
+        let mut vm = init_machine();
+
+        vm.val = Scm::cons(Scm::int(42), Scm::int(0));
+        vm.arg1 = vm.val;
+        vm.call2_eq();
+        assert!(vm.val.as_bool());
+
+        vm.val = Scm::cons(Scm::int(42), Scm::int(0));
+        vm.arg1 = Scm::cons(Scm::int(42), Scm::int(0));
+        vm.call2_eq();
+        assert!(!vm.val.as_bool());
+    }
+
+    #[test]
+    fn test_call2_set_car() {
+        let mut vm = init_machine();
+
+        let pair = Scm::cons(Scm::int(42), Scm::int(0));
+
+        vm.val = Scm::int(123);
+        vm.arg1 = pair;
+        vm.call2_set_car();
+        assert_eq!(pair.car(), Some(Scm::int(123)));
+    }
+
+    #[test]
+    fn test_call2_set_cdr() {
+        let mut vm = init_machine();
+
+        let pair = Scm::cons(Scm::int(42), Scm::int(0));
+
+        vm.val = Scm::int(456);
+        vm.arg1 = pair;
+        vm.call2_set_cdr();
+        assert_eq!(pair.cdr(), Some(Scm::int(456)));
+    }
+
+    #[test]
+    fn test_call2_numeq() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(42);
+        vm.val = Scm::int(42);
+        vm.call2_numeq();
+        assert!(vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(12);
+        vm.call2_numeq();
+        assert!(!vm.val.as_bool());
+    }
+
+    #[test]
+    fn test_call2_less() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(42);
+        vm.val = Scm::int(42);
+        vm.call2_less();
+        assert!(!vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(56);
+        vm.call2_less();
+        assert!(vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(12);
+        vm.call2_less();
+        assert!(!vm.val.as_bool());
+    }
+
+    #[test]
+    fn test_call2_less_eq() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(42);
+        vm.val = Scm::int(42);
+        vm.call2_less_eq();
+        assert!(vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(56);
+        vm.call2_less_eq();
+        assert!(vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(12);
+        vm.call2_less_eq();
+        assert!(!vm.val.as_bool());
+    }
+
+    #[test]
+    fn test_call2_greater() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(42);
+        vm.val = Scm::int(42);
+        vm.call2_greater();
+        assert!(!vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(56);
+        vm.call2_greater();
+        assert!(!vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(12);
+        vm.call2_greater();
+        assert!(vm.val.as_bool());
+    }
+
+    #[test]
+    fn test_call2_greater_eq() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(42);
+        vm.val = Scm::int(42);
+        vm.call2_greater_eq();
+        assert!(vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(56);
+        vm.call2_greater_eq();
+        assert!(!vm.val.as_bool());
+
+        vm.arg1 = Scm::int(34);
+        vm.val = Scm::int(12);
+        vm.call2_greater_eq();
+        assert!(vm.val.as_bool());
     }
 }

@@ -351,17 +351,15 @@ impl VirtualMachine {
                 Op::Call1Symbol => dispatch!(self.call1_is_symbol),
                 Op::Call1Display => dispatch!(self.call1_display),
                 Op::Call1Null => dispatch!(self.call1_is_null),
-
-                Op::Call2Cons => {
-                    self.val = Scm::cons(self.arg1, self.val);
-                }
-
-                Op::Call2NumEq => {
-                    self.val = self.arg1.numeq(&self.val);
-                }
-                Op::Call2Less => {
-                    self.val = self.arg1.less(&self.val);
-                }
+                Op::Call2Cons => dispatch!(self.call2_cons),
+                Op::Call2Eq => dispatch!(self.call2_eq),
+                Op::Call2SetCar => dispatch!(self.call2_set_car),
+                Op::Call2SetCdr => dispatch!(self.call2_set_cdr),
+                Op::Call2NumEq => dispatch!(self.call2_numeq),
+                Op::Call2Less => dispatch!(self.call2_less),
+                Op::Call2LessEq => dispatch!(self.call2_less_eq),
+                Op::Call2Greater => dispatch!(self.call2_greater),
+                Op::Call2GreaterEq => dispatch!(self.call2_greater_eq),
 
                 Op::Call2Add => self.val = self.arg1.add(&self.val),
                 Op::Call2Sub => self.val = self.arg1.sub(&self.val),
