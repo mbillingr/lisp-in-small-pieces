@@ -4,17 +4,20 @@ use lisp_core::lexpr;
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
 pub const DYNENV_TAG: Scm = Scm { ptr: 123 };
 
-const N_TAG_BITS: usize = 2;
-const TAG_MASK: usize = 0b_11;
-const TAG_POINTER: usize = 0b_00;
-const TAG_INTEGER: usize = 0b_01;
-const TAG_PAIR: usize = 0b_10;
+const N_TAG_BITS: isize = 2;
+const TAG_MASK: isize = 0b_11;
+const TAG_POINTER: isize = 0b_00;
+const TAG_INTEGER: isize = 0b_01;
+const TAG_PAIR: isize = 0b_10;
 //const TAG_SPECIAL: usize = 0b_11;
 
-const SPECIAL_UNINIT: usize = 0b_0000_0111;
-const SPECIAL_NULL: usize = 0b_0001_0111;
-const SPECIAL_FALSE: usize = 0b_0010_0111;
-const SPECIAL_TRUE: usize = 0b_0011_0111;
+const SPECIAL_UNINIT: isize = 0b_0000_0111;
+const SPECIAL_NULL: isize = 0b_0001_0111;
+const SPECIAL_FALSE: isize = 0b_0010_0111;
+const SPECIAL_TRUE: isize = 0b_0011_0111;
+
+pub const SCM_MAX_INT: i64 = i64::max_value() / 4;
+pub const SCM_MIN_INT: i64 = i64::min_value() / 4;
 
 //const MASK_IMMEDIATE: usize = 0b01; // this works because all immediates have 1 in the lsb
 
@@ -25,7 +28,7 @@ thread_local! {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Scm {
-    ptr: usize,
+    ptr: isize,
 }
 
 #[derive(Copy, Clone)]
@@ -42,16 +45,14 @@ pub enum Value {
 impl Scm {
     pub fn from_static_value(value: &'static Value) -> Self {
         Scm {
-            ptr: value as *const _ as usize,
+            ptr: ref_to_int(value),
         }
     }
 
     pub fn from_value(value: Value) -> Self {
         //let p = Box::leak(Box::new(value));
         let p = VALUE_ALLOCATOR.with(|pa| pa.alloc(value));
-        Scm {
-            ptr: p as *const _ as usize,
-        }
+        Scm { ptr: ref_to_int(p) }
     }
 
     pub fn null() -> Self {
@@ -75,14 +76,14 @@ impl Scm {
 
     pub fn int(i: i64) -> Self {
         Scm {
-            ptr: (i as usize) << N_TAG_BITS | TAG_INTEGER,
+            ptr: (i as isize) << N_TAG_BITS | TAG_INTEGER,
         }
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Self {
         //let r = Box::leak(Box::new((car, cdr)));
         let r = PAIR_ALLOCATOR.with(|pa| pa.alloc((car, cdr)));
-        let addr = r as *const _ as usize;
+        let addr = ref_to_int(r);
         debug_assert!(addr & TAG_MASK == 0);
         Scm {
             ptr: addr + TAG_PAIR,
@@ -310,7 +311,7 @@ impl Scm {
 
     pub fn mul(&self, rhs: &Self) -> Self {
         match (self.as_int(), rhs.as_int()) {
-            (Some(a), Some(b)) => Self::int(a * b),
+            (Some(a), Some(b)) => Self::int(dbg!(a) * dbg!(b)),
             _ => panic!("Type Error"),
         }
     }
@@ -338,17 +339,17 @@ impl Scm {
     }
 
     pub unsafe fn cdr_unchecked(&self) -> Self {
-        *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>())
+        *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>() as isize)
     }
 }
 
 impl OpaqueCast for Scm {
     unsafe fn from_op(op: OpaquePointer) -> Self {
-        Scm { ptr: op.0 }
+        Scm { ptr: op.0 as isize }
     }
 
     fn as_op(&self) -> OpaquePointer {
-        OpaquePointer(self.ptr)
+        OpaquePointer(self.ptr as usize)
     }
 }
 
@@ -414,8 +415,16 @@ impl From<&lexpr::Value> for Scm {
     }
 }
 
-unsafe fn int_to_ref<T>(i: usize) -> &'static T {
+unsafe fn int_to_ref<T>(i: isize) -> &'static T {
     &*(i as *const T)
+}
+
+fn ref_to_int<T>(v: &T) -> isize {
+    ptr_to_int(v)
+}
+
+fn ptr_to_int<T>(v: *const T) -> isize {
+    v as isize
 }
 
 impl std::fmt::Display for Scm {
@@ -521,5 +530,83 @@ mod allocator {
             *head = next_item;
             item
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn value_alignment_is_large_enough_for_tags() {
+        let value_alignment = std::mem::align_of::<Value>();
+        assert_eq!(
+            value_alignment % (1 << N_TAG_BITS),
+            0,
+            "value alignment is {} but must be a multiple of {}",
+            value_alignment,
+            (1 << N_TAG_BITS)
+        );
+    }
+
+    #[test]
+    fn successive_values_are_aligned_correctly() {
+        let values = vec![
+            Value::Symbol("foo"),
+            Value::String(Box::leak(Box::new("bar".to_string()))),
+            Value::Pointer(&42),
+        ];
+
+        assert_eq!(ref_to_int(&values[0]) & TAG_MASK, TAG_POINTER);
+        assert_eq!(ref_to_int(&values[1]) & TAG_MASK, TAG_POINTER);
+        assert_eq!(ref_to_int(&values[2]) & TAG_MASK, TAG_POINTER);
+    }
+
+    #[test]
+    fn zero_int_tagged_correctly() {
+        let x = Scm::int(0);
+        assert_eq!(x.ptr, TAG_INTEGER);
+    }
+
+    #[test]
+    fn positive_int_tagged_correctly() {
+        let x = Scm::int(1);
+        assert_eq!(x.ptr & TAG_MASK, TAG_INTEGER);
+    }
+
+    #[test]
+    fn negative_int_tagged_correctly() {
+        let x = Scm::int(-1);
+        assert_eq!(x.ptr & TAG_MASK, TAG_INTEGER);
+    }
+
+    #[test]
+    fn signed_bitshift_behaves_as_expected() {
+        assert_eq!(1_i64 << 3, 8);
+        assert_eq!(8_i64 >> 3, 1);
+        assert_eq!(-1_i64 << 3, -8);
+        assert_eq!(-8_i64 >> 3, -1);
+
+        assert_eq!(1_isize << N_TAG_BITS & TAG_MASK, 0);
+        assert_eq!(-1_isize << N_TAG_BITS & TAG_MASK, 0);
+    }
+
+    #[test]
+    fn integer_cast_behaves_as_expected() {
+        assert_eq!(-1isize as usize, usize::max_value());
+    }
+
+    #[test]
+    fn integers_are_correctly_represented() {
+        fn check_int(i: i64) {
+            let x = Scm::int(i);
+            assert_eq!(x.as_int(), Some(i));
+        }
+
+        check_int(0);
+        check_int(1);
+        check_int(SCM_MAX_INT);
+        check_int(-1);
+        check_int(SCM_MIN_INT);
     }
 }
