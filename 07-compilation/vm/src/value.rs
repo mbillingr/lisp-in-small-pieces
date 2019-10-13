@@ -316,6 +316,13 @@ impl Scm {
         }
     }
 
+    pub fn div(&self, rhs: &Self) -> Self {
+        match (self.as_int(), rhs.as_int()) {
+            (Some(a), Some(b)) => Self::int(dbg!(a) / dbg!(b)),
+            _ => panic!("Type Error"),
+        }
+    }
+
     pub unsafe fn set_car_unchecked(&self, car: Scm) {
         let r: *const Scm = int_to_ref(self.ptr - TAG_PAIR);
         *(r as *mut _) = car;

@@ -299,6 +299,26 @@ impl VirtualMachine {
     pub fn call2_greater_eq(&mut self) {
         self.val = Scm::bool(Scm::greater_eq(&self.arg1, &self.val));
     }
+
+    #[inline(always)]
+    pub fn call2_add(&mut self) {
+        self.val = self.arg1.add(&self.val);
+    }
+
+    #[inline(always)]
+    pub fn call2_sub(&mut self) {
+        self.val = self.arg1.sub(&self.val);
+    }
+
+    #[inline(always)]
+    pub fn call2_mul(&mut self) {
+        self.val = self.arg1.mul(&self.val);
+    }
+
+    #[inline(always)]
+    pub fn call2_div(&mut self) {
+        self.val = self.arg1.div(&self.val);
+    }
 }
 
 #[cfg(test)]
@@ -1146,5 +1166,65 @@ mod tests {
         vm.val = Scm::int(12);
         vm.call2_greater_eq();
         assert!(vm.val.as_bool());
+    }
+
+    #[test]
+    fn test_call2_add() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(123);
+        vm.val = Scm::int(456);
+        vm.call2_add();
+        assert_eq!(vm.val, Scm::int(579));
+
+        vm.arg1 = Scm::int(-12);
+        vm.val = Scm::int(2);
+        vm.call2_add();
+        assert_eq!(vm.val, Scm::int(-10));
+    }
+
+    #[test]
+    fn test_call2_sub() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(123);
+        vm.val = Scm::int(456);
+        vm.call2_sub();
+        assert_eq!(vm.val, Scm::int(-333));
+
+        vm.arg1 = Scm::int(12);
+        vm.val = Scm::int(-8);
+        vm.call2_sub();
+        assert_eq!(vm.val, Scm::int(20));
+    }
+
+    #[test]
+    fn test_call2_mul() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(123);
+        vm.val = Scm::int(456);
+        vm.call2_mul();
+        assert_eq!(vm.val, Scm::int(56088));
+
+        vm.arg1 = Scm::int(12);
+        vm.val = Scm::int(-3);
+        vm.call2_mul();
+        assert_eq!(vm.val, Scm::int(-36));
+    }
+
+    #[test]
+    fn test_call2_div() {
+        let mut vm = init_machine();
+
+        vm.arg1 = Scm::int(246);
+        vm.val = Scm::int(123);
+        vm.call2_div();
+        assert_eq!(vm.val, Scm::int(2));
+
+        vm.arg1 = Scm::int(12);
+        vm.val = Scm::int(-3);
+        vm.call2_div();
+        assert_eq!(vm.val, Scm::int(-4));
     }
 }

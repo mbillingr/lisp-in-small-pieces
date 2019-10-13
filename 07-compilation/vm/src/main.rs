@@ -360,10 +360,10 @@ impl VirtualMachine {
                 Op::Call2LessEq => dispatch!(self.call2_less_eq),
                 Op::Call2Greater => dispatch!(self.call2_greater),
                 Op::Call2GreaterEq => dispatch!(self.call2_greater_eq),
-
-                Op::Call2Add => self.val = self.arg1.add(&self.val),
-                Op::Call2Sub => self.val = self.arg1.sub(&self.val),
-                Op::Call2Mul => self.val = self.arg1.mul(&self.val),
+                Op::Call2Add => dispatch!(self.call2_add),
+                Op::Call2Sub => dispatch!(self.call2_sub),
+                Op::Call2Mul => dispatch!(self.call2_mul),
+                Op::Call2Div => dispatch!(self.call2_div),
 
                 Op::DynamicRef => {
                     let index = self.pc.fetch_byte();
