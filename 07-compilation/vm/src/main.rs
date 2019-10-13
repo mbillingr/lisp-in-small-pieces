@@ -69,11 +69,25 @@ impl OpaquePointer {
     fn as_usize(&self) -> usize {
         self.0
     }
+
+    fn ptr_eq<T: OpaqueCast>(&self, other: &T) -> bool {
+        self.0 == other.as_op().0
+    }
 }
 
 trait OpaqueCast {
     unsafe fn from_op(op: OpaquePointer) -> Self;
     fn as_op(&self) -> OpaquePointer;
+}
+
+impl OpaqueCast for usize {
+    unsafe fn from_op(op: OpaquePointer) -> Self {
+        op.0
+    }
+
+    fn as_op(&self) -> OpaquePointer {
+        OpaquePointer(*self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -365,15 +379,9 @@ impl VirtualMachine {
                 Op::Call2Mul => dispatch!(self.call2_mul),
                 Op::Call2Div => dispatch!(self.call2_div),
 
-                Op::DynamicRef => {
-                    let index = self.pc.fetch_byte();
-                    self.val = self.find_dynamic_value(index as usize);
-                }
-                Op::DynamicPop => self.pop_dynamic_binding(),
-                Op::DynamicPush => {
-                    let index = self.pc.fetch_byte();
-                    self.push_dynamic_binding(index as usize, self.val);
-                }
+                Op::DynamicRef => dispatch!(self.dynamic_ref(index)),
+                Op::DynamicPop => dispatch!(self.dynamic_pop),
+                Op::DynamicPush => dispatch!(self.dynamic_push(index)),
 
                 op => unimplemented!("Opcode {:?}", op),
             }
@@ -423,10 +431,10 @@ impl VirtualMachine {
         self.mut_globals[idx] = value;
     }
 
-    unsafe fn push_dynamic_binding(&mut self, index: usize, value: Scm) {
-        self.stack_push(Scm::int(self.search_dynenv_index() as i64));
+    fn push_dynamic_binding(&mut self, index: usize, value: Scm) {
+        self.stack_push(self.search_dynenv_index());
         self.stack_push(value);
-        self.stack_push(Scm::int(index as i64));
+        self.stack_push(index);
         self.stack_push(DYNENV_TAG);
     }
 
@@ -438,27 +446,26 @@ impl VirtualMachine {
     }
 
     unsafe fn find_dynamic_value(&self, index: usize) -> Scm {
-        let index = Scm::int(index as i64);
         let mut idx = self.search_dynenv_index();
         loop {
             if idx == 0 {
                 return Scm::uninitialized();
             }
-            if self.stack[idx].into::<Scm>().eqv(&index) {
+            if self.stack[idx].into::<usize>() == index {
                 return self.stack[idx - 1].into();
             }
             idx = self.stack[idx - 2].as_usize();
         }
     }
 
-    unsafe fn search_dynenv_index(&self) -> usize {
+    fn search_dynenv_index(&self) -> usize {
         let mut idx = self.stack.len();
         loop {
             if idx == 0 {
                 return 0;
             }
             idx -= 1;
-            if self.stack[idx].into::<Scm>().eq(&DYNENV_TAG) {
+            if self.stack[idx].ptr_eq(&DYNENV_TAG) {
                 return idx - 1;
             }
         }

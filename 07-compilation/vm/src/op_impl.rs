@@ -319,6 +319,21 @@ impl VirtualMachine {
     pub fn call2_div(&mut self) {
         self.val = self.arg1.div(&self.val);
     }
+
+    #[inline(always)]
+    pub unsafe fn dynamic_ref(&mut self, idx: u8) {
+        self.val = self.find_dynamic_value(idx as usize)
+    }
+
+    #[inline(always)]
+    pub unsafe fn dynamic_pop(&mut self) {
+        self.pop_dynamic_binding();
+    }
+
+    #[inline(always)]
+    pub fn dynamic_push(&mut self, idx: u8) {
+        self.push_dynamic_binding(idx as usize, self.val);
+    }
 }
 
 #[cfg(test)]
@@ -1226,5 +1241,51 @@ mod tests {
         vm.val = Scm::int(-3);
         vm.call2_div();
         assert_eq!(vm.val, Scm::int(-4));
+    }
+
+    #[test]
+    fn test_dynamic_ref() {
+        let mut vm = init_machine();
+        vm.push_dynamic_binding(1, Scm::int(0));
+        vm.push_dynamic_binding(2, Scm::int(42));
+        vm.push_dynamic_binding(1, Scm::int(10));
+
+        unsafe {
+            vm.dynamic_ref(2);
+        }
+        assert_eq!(vm.val, Scm::int(42));
+        unsafe {
+            vm.dynamic_ref(1);
+        }
+        assert_eq!(vm.val, Scm::int(10));
+    }
+
+    #[test]
+    fn test_dynamic_pop() {
+        let mut vm = init_machine();
+        vm.push_dynamic_binding(1, Scm::int(0));
+        vm.push_dynamic_binding(2, Scm::int(42));
+        vm.push_dynamic_binding(1, Scm::int(10));
+
+        vm.pop_dynamic_binding();
+
+        unsafe {
+            vm.dynamic_ref(1);
+        }
+        assert_eq!(vm.val, Scm::int(0));
+    }
+
+    #[test]
+    fn test_dynamic_push() {
+        let mut vm = init_machine();
+
+        vm.val = Scm::int(123);
+        vm.dynamic_push(255);
+        vm.val = Scm::uninitialized();
+
+        unsafe {
+            vm.dynamic_ref(255);
+        }
+        assert_eq!(vm.val, Scm::int(123));
     }
 }
