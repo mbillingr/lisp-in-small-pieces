@@ -26,7 +26,7 @@ impl VirtualMachine {
     pub fn checked_global_ref(&mut self, idx: u8) {
         self.global_ref(idx);
         if self.val.is_uninitialized() {
-            self.signal_exception("Uninitialized global variable")
+            self.signal_exception_str(true, "Uninitialized global variable")
         }
     }
 
@@ -188,22 +188,25 @@ impl VirtualMachine {
     }
 
     #[inline(always)]
-    pub fn is_arity(&self, rank: u8) {
+    pub fn is_arity(&mut self, rank: u8) {
         if self.val.as_frame().unwrap().len() != rank as usize {
-            self.signal_exception(match rank {
-                1 => "Incorrect arity for nullary function",
-                2 => "Incorrect arity for unary function",
-                3 => "Incorrect arity for binary function",
-                4 => "Incorrect arity for ternary function",
-                _ => "Incorrect arity",
-            })
+            self.signal_exception_str(
+                false,
+                match rank {
+                    1 => "Incorrect arity for nullary function",
+                    2 => "Incorrect arity for unary function",
+                    3 => "Incorrect arity for binary function",
+                    4 => "Incorrect arity for ternary function",
+                    _ => "Incorrect arity",
+                },
+            )
         }
     }
 
     #[inline(always)]
-    pub fn is_arity_greater(&self, rank: u8) {
+    pub fn is_arity_greater(&mut self, rank: u8) {
         if self.val.as_frame().unwrap().len() < rank as usize {
-            self.signal_exception("Too few function arguments");
+            self.signal_exception_str(false, "Too few function arguments");
         }
     }
 

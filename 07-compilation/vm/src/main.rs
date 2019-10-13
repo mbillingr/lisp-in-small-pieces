@@ -157,7 +157,7 @@ macro_rules! defprimitive {
                         vm.pc = vm.stack_pop();
                     }
                 } else {
-                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                    vm.signal_exception_str(false, concat!("incorrect arity: ", $name))
                 }
             },
         })
@@ -175,7 +175,7 @@ macro_rules! defprimitive {
                         vm.pc = vm.stack_pop();
                     }
                 } else {
-                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                    vm.signal_exception_str(false, concat!("incorrect arity: ", $name))
                 }
             },
         })
@@ -194,7 +194,7 @@ macro_rules! defprimitive {
                         vm.pc = vm.stack_pop();
                     }
                 } else {
-                    vm.signal_exception(concat!("incorrect arity: ", $name))
+                    vm.signal_exception_str(false, concat!("incorrect arity: ", $name))
                 }
             },
         })
@@ -411,12 +411,8 @@ impl VirtualMachine {
             }
             (prim.behavior)(self)
         } else {
-            self.signal_exception(format!("Not a function {:?}", f))
+            self.signal_exception_str(false, format!("Not a function {:?}", f))
         }
-    }
-
-    fn signal_exception<T: ToString>(&self, msg: T) {
-        unimplemented!("{}", msg.to_string())
     }
 
     fn global_fetch(&self, idx: usize) -> &Scm {
@@ -468,6 +464,42 @@ impl VirtualMachine {
             if self.stack[idx].ptr_eq(&DYNENV_TAG) {
                 return idx - 1;
             }
+        }
+    }
+
+    unsafe fn search_exception_handler(&self) -> Scm {
+        self.find_dynamic_value(0)
+    }
+
+    unsafe fn push_exception_handler(&mut self) {
+        let handlers = self.search_exception_handler();
+        self.push_dynamic_binding(0, Scm::cons(self.val, handlers));
+    }
+
+    fn pop_exception_handler(&mut self) {
+        self.pop_dynamic_binding();
+    }
+
+    fn signal_exception_str<T: ToString>(&mut self, is_continuable: bool, msg: T) {
+        self.signal_exception(is_continuable, Scm::string(msg))
+    }
+
+    fn signal_exception(&mut self, is_continuable: bool, exception: Scm) {
+        let handlers = unsafe { self.search_exception_handler() };
+        let frame = ActivationFrame::allocate(2 + 1);
+        frame.set_argument(0, Scm::bool(is_continuable));
+        frame.set_argument(1, exception);
+        self.val = Scm::from_value(Value::Frame(frame));
+        self.stack_push(self.pc);
+        self.preserve_env();
+        let tail = handlers.cdr().unwrap();
+        self.push_dynamic_binding(0, if tail.is_null() { handlers } else { tail });
+        if is_continuable {
+            //self.stack_push(2)  // pc for (POP-HANDLER) (RESTORE-ENV)
+            unimplemented!()
+        } else {
+            //self.stack_push(0)  // pc for (NON-CONT-ERR)
+            unimplemented!()
         }
     }
 }

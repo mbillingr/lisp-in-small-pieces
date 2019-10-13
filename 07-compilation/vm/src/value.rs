@@ -95,8 +95,8 @@ impl Scm {
         Scm::from_value(Value::Symbol(s))
     }
 
-    pub fn string(s: &str) -> Self {
-        let s = Box::leak(Box::new(s.to_owned()));
+    pub fn string<T: ToString>(s: T) -> Self {
+        let s = Box::leak(Box::new(s.to_string()));
         Scm::from_value(Value::String(s))
     }
 
