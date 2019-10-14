@@ -16,6 +16,11 @@ use value::{Scm, Value, DYNENV_TAG};
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
 
+const EXCEPTION_HANDLER_DYNAMIC_INDEX: usize = 0;
+
+static BYTECODE_VALID_CONTINUE_EXCEPTION: [Op; 3] = [Op::PopHandler, Op::RestoreEnv, Op::Return];
+static BYTECODE_INVALID_CONTINUE_EXCEPTION: [Op; 1] = [Op::NonContErr];
+
 // Note that parallel tests do not work in combination with the allocator
 // because it is not practically possible to call Allocator::initialize()
 // in the main thread of the test harness and register the test threads
@@ -272,12 +277,12 @@ impl VirtualMachine {
     }
 
     pub unsafe fn run(&mut self) -> Scm {
-        self.stack.clear();
-        for &i in &self.init_stack {
-            self.stack.push(i)
-        }
+        self.prepare_stack();
         self.pc = self.stack_pop();
+        self.continue_running()
+    }
 
+    pub unsafe fn continue_running(&mut self) -> Scm {
         loop {
             self.max_stack = self.max_stack.max(self.stack.len());
             let op = self.pc.fetch_instruction();
@@ -390,6 +395,28 @@ impl VirtualMachine {
         }
     }
 
+    fn prepare_stack(&mut self) {
+        self.stack.clear();
+
+        self.push_dynamic_binding(
+            EXCEPTION_HANDLER_DYNAMIC_INDEX,
+            Scm::cons(
+                Scm::primitive(Primitive {
+                    name: "top-level error handler",
+                    behavior: |vm| {
+                        let frame = vm.val.as_frame().unwrap();
+                        panic!("Unhandled exception: {}", frame.argument(1));
+                    },
+                }),
+                Scm::null(),
+            ),
+        );
+
+        for &i in &self.init_stack {
+            self.stack.push(i)
+        }
+    }
+
     fn stack_push<T: OpaqueCast>(&mut self, item: T) {
         self.stack.push(item.as_op())
     }
@@ -468,12 +495,16 @@ impl VirtualMachine {
     }
 
     unsafe fn search_exception_handler(&self) -> Scm {
-        self.find_dynamic_value(0)
+        println!("{:?}", self.stack);
+        self.find_dynamic_value(EXCEPTION_HANDLER_DYNAMIC_INDEX)
     }
 
     unsafe fn push_exception_handler(&mut self) {
         let handlers = self.search_exception_handler();
-        self.push_dynamic_binding(0, Scm::cons(self.val, handlers));
+        self.push_dynamic_binding(
+            EXCEPTION_HANDLER_DYNAMIC_INDEX,
+            Scm::cons(self.val, handlers),
+        );
     }
 
     fn pop_exception_handler(&mut self) {
@@ -485,7 +516,7 @@ impl VirtualMachine {
     }
 
     fn signal_exception(&mut self, is_continuable: bool, exception: Scm) {
-        let handlers = unsafe { self.search_exception_handler() };
+        let handlers = dbg!(unsafe { self.search_exception_handler() });
         let frame = ActivationFrame::allocate(2 + 1);
         frame.set_argument(0, Scm::bool(is_continuable));
         frame.set_argument(1, exception);
@@ -493,14 +524,16 @@ impl VirtualMachine {
         self.stack_push(self.pc);
         self.preserve_env();
         let tail = handlers.cdr().unwrap();
-        self.push_dynamic_binding(0, if tail.is_null() { handlers } else { tail });
+        self.push_dynamic_binding(
+            EXCEPTION_HANDLER_DYNAMIC_INDEX,
+            if tail.is_null() { handlers } else { tail },
+        );
         if is_continuable {
-            //self.stack_push(2)  // pc for (POP-HANDLER) (RESTORE-ENV)
-            unimplemented!()
+            self.stack_push(CodePointer::new(&BYTECODE_VALID_CONTINUE_EXCEPTION[0]));
         } else {
-            //self.stack_push(0)  // pc for (NON-CONT-ERR)
-            unimplemented!()
+            self.stack_push(CodePointer::new(&BYTECODE_INVALID_CONTINUE_EXCEPTION[0]));
         }
+        self.invoke(handlers.car().unwrap(), true)
     }
 }
 

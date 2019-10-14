@@ -457,15 +457,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "not yet implemented")]
+    #[should_panic(expected = "Uninitialized global variable")]
     fn test_checked_global_ref() {
         let mut vm = init_machine();
+        vm.prepare_stack();
         vm.mut_globals = vec![Scm::uninitialized()];
-        let mut reference = vm.clone();
 
         vm.checked_global_ref(0);
-        reference.val = Scm::uninitialized();
-        assert_eq!(vm, reference);
     }
 
     #[test]
@@ -890,6 +888,7 @@ mod tests {
     #[should_panic(expected = "Not a function")]
     fn test_function_invoke() {
         let mut vm = init_machine();
+        vm.prepare_stack();
         vm.function_invoke();
     }
 
@@ -897,6 +896,7 @@ mod tests {
     #[should_panic(expected = "Not a function")]
     fn test_function_goto() {
         let mut vm = init_machine();
+        vm.prepare_stack();
         vm.function_goto();
     }
 
