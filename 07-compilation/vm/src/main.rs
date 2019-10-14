@@ -2,6 +2,8 @@ mod error;
 mod op_impl;
 mod opcode;
 mod scheme_object_file;
+#[cfg(test)]
+mod op_tests;
 mod value;
 
 use bdwgc_alloc::Allocator;
@@ -599,6 +601,26 @@ impl OpaqueCast for CodePointer {
 
     fn as_op(&self) -> OpaquePointer {
         OpaquePointer(self.ptr as usize)
+    }
+}
+
+impl OpaqueCast for &Op {
+    unsafe fn from_op(op: OpaquePointer) -> Self {
+        unimplemented!()
+    }
+
+    fn as_op(&self) -> OpaquePointer {
+        OpaquePointer(CodePointer::new(self).ptr as usize)
+    }
+}
+
+impl OpaqueCast for &[Op] {
+    unsafe fn from_op(op: OpaquePointer) -> Self {
+        unimplemented!()
+    }
+
+    fn as_op(&self) -> OpaquePointer {
+        OpaquePointer(CodePointer::new(&self[0]).ptr as usize)
     }
 }
 
