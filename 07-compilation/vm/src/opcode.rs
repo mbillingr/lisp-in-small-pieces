@@ -107,6 +107,7 @@ pub enum Op {
     PushHandler = 246,
     PopHandler = 247,
 
+    PopEscaper = 250,
     PushEscaper = 251,
 }
 

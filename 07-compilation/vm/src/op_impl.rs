@@ -2,6 +2,7 @@ use crate::{ActivationFrame, EXCEPTION_HANDLER_DYNAMIC_INDEX};
 use crate::Scm;
 use crate::Value;
 use crate::VirtualMachine;
+use crate::value::ESCAPE_TAG;
 
 impl VirtualMachine {
     #[inline(always)]
@@ -96,7 +97,7 @@ impl VirtualMachine {
 
     #[inline(always)]
     pub fn extend_env(&mut self) {
-        self.env = &self.val.as_frame().unwrap().extend(self.env);
+        self.env = &self.val.as_frame().unwrap().extends(self.env);
     }
 
     #[inline(always)]
@@ -352,6 +353,18 @@ impl VirtualMachine {
     pub fn pop_handler(&mut self) {
         self.pop_exception_handler();
     }
+
+    #[inline(always)]
+    pub unsafe fn push_escaper(&mut self, offset: u8) {
+        self.preserve_env();
+        let escape = Scm::escape(self.stack.len() + 3);
+        let frame = ActivationFrame::allocate(1);
+        frame.set_argument(0, escape);
+        self.env = frame.extends(self.env);
+        self.stack_push(escape);
+        self.stack_push(ESCAPE_TAG);
+        self.stack_push(self.pc.offset(offset as isize))
+    }
 }
 
 #[cfg(test)]
@@ -426,17 +439,17 @@ mod tests {
         let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
-        vm.env = env.extend(vm.env);
+        vm.env = env.extends(vm.env);
 
         let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(10));
         env.set_argument(1, Scm::int(20));
-        vm.env = env.extend(vm.env);
+        vm.env = env.extends(vm.env);
 
         let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(100));
         env.set_argument(1, Scm::int(200));
-        vm.env = env.extend(vm.env);
+        vm.env = env.extends(vm.env);
 
         let mut reference = vm.clone();
 
@@ -572,9 +585,9 @@ mod tests {
         let env1 = ActivationFrame::allocate(2);
         let env2 = ActivationFrame::allocate(2);
         let env3 = ActivationFrame::allocate(2);
-        env1.extend(vm.env);
-        env2.extend(env1);
-        vm.env = env3.extend(env2);
+        env1.extends(vm.env);
+        env2.extends(env1);
+        vm.env = env3.extends(env2);
 
         let mut reference = vm.clone();
 
@@ -730,7 +743,7 @@ mod tests {
         let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
-        reference.env = env.extend(reference.env);
+        reference.env = env.extends(reference.env);
 
         let mut vm = init_machine();
         let env = ActivationFrame::allocate(2);
@@ -751,7 +764,7 @@ mod tests {
         let env = ActivationFrame::allocate(2);
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
-        vm.env = env.extend(vm.env);
+        vm.env = env.extends(vm.env);
 
         vm.unlink_env();
         assert_eq!(vm, reference);
@@ -809,11 +822,11 @@ mod tests {
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         env.set_argument(2, Scm::int(4));
-        reference.env = env.extend(reference.env);
+        reference.env = env.extends(reference.env);
         reference.stack = vec![env.as_op()];
 
         let mut vm = init_machine();
-        vm.env = env.extend(vm.env);
+        vm.env = env.extends(vm.env);
 
         vm.preserve_env();
         assert_eq!(vm, reference);
@@ -829,7 +842,7 @@ mod tests {
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
         env.set_argument(2, Scm::int(4));
-        vm.env = env.extend(vm.env);
+        vm.env = env.extends(vm.env);
 
         unsafe {
             vm.restore_env();
@@ -1357,5 +1370,14 @@ mod tests {
         unsafe {
             assert_eq!(vm.continue_running(), handled);
         }
+    }
+
+    #[test]
+    fn test_push_escaper() {
+        let mut vm = init_machine();
+        unsafe {
+            vm.push_escaper(5);
+        }
+        assert!(vm.env.argument(0).is_escape());
     }
 }

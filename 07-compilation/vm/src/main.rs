@@ -640,7 +640,7 @@ impl ActivationFrame {
         }
     }
 
-    fn extend(&self, env: &'static ActivationFrame) -> &Self {
+    fn extends(&self, env: &'static ActivationFrame) -> &Self {
         self.next.set(Some(env));
         self
     }
@@ -695,6 +695,23 @@ impl Closure {
 
     fn allocate(code: CodePointer, env: &'static ActivationFrame) -> &'static Self {
         Box::leak(Box::new(Self::new(code, env)))
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Escape {
+    stack_index: usize,
+}
+
+impl Escape {
+    fn new(stack_index: usize) -> Self {
+        Escape {
+            stack_index
+        }
+    }
+
+    fn allocate(stack_index: usize) -> &'static Self {
+        Box::leak(Box::new(Self::new(stack_index)))
     }
 }
 

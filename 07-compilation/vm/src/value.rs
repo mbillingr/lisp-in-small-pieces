@@ -1,8 +1,9 @@
-use crate::{ActivationFrame, Closure, CodePointer, OpaqueCast, OpaquePointer, Primitive};
+use crate::{ActivationFrame, Closure, CodePointer, Escape, OpaqueCast, OpaquePointer, Primitive};
 use lisp_core::lexpr;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
-pub const DYNENV_TAG: Scm = Scm { ptr: 123 };
+pub const DYNENV_TAG: Scm = Scm { ptr: 123 * 4 };
+pub const ESCAPE_TAG: Scm = Scm { ptr: 456 * 4 };
 
 const N_TAG_BITS: isize = 2;
 const TAG_MASK: isize = 0b_11;
@@ -39,6 +40,7 @@ pub enum Value {
     Primitive(&'static Primitive),
     Frame(&'static ActivationFrame),
     Closure(&'static Closure),
+    Escape(&'static Escape),
     Pointer(&'static u8),
 }
 
@@ -115,6 +117,11 @@ impl Scm {
         Self::from_value(Value::Closure(cls))
     }
 
+    pub fn escape(stack_index: usize) -> Self {
+        let esc = Escape::allocate(stack_index);
+        Self::from_value(Value::Escape(esc))
+    }
+
     pub fn pointer(ptr: &'static u8) -> Self {
         Self::from_value(Value::Pointer(ptr))
     }
@@ -157,6 +164,10 @@ impl Scm {
 
     pub fn is_closure(&self) -> bool {
         self.as_closure().is_some()
+    }
+
+    pub fn is_escape(&self) -> bool {
+        self.as_escape().is_some()
     }
 
     pub fn as_bool(&self) -> bool {
@@ -217,6 +228,14 @@ impl Scm {
     pub fn as_closure(&self) -> Option<&'static Closure> {
         if self.ptr & TAG_MASK == TAG_POINTER {
             unsafe { self.deref().as_closure() }
+        } else {
+            None
+        }
+    }
+
+    pub fn as_escape(&self) -> Option<&'static Escape> {
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_escape() }
         } else {
             None
         }
@@ -395,6 +414,13 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn as_escape(&self) -> Option<&'static Escape> {
+        match self {
+            Value::Escape(esc) => Some(esc),
+            _ => None,
+        }
+    }
 }
 
 impl PartialEq for Value {
@@ -460,6 +486,7 @@ impl std::fmt::Display for Value {
             Value::Primitive(p) => write!(f, "<primitive {}>", p.name),
             Value::Frame(af) => write!(f, "{:?}", af),
             Value::Closure(c) => write!(f, "{:?}", c),
+            Value::Escape(e) => write!(f, "{:?}", e),
             Value::Pointer(p) => write!(f, "{:p}", p),
         }
     }
