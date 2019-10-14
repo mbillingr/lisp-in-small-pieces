@@ -219,3 +219,12 @@
   (let* ((r2 (r-extend* r (list n)))
          (m+ (meaning-sequence e+ r2 #t)))
     (ESCAPER m+)))
+
+(define (SHALLOW-ARGUMENT-SET! j m)
+  (append m (SET-SHALLOW-ARGUMENT! j)))
+
+(define (DEEP-ARGUMENT-SET! i j m)
+  (append m (SET-DEEP-ARGUMENT! i j)))
+
+(define (GLOBAL-SET! i m)
+  (append m (SET-GLOBAL! i))) 
