@@ -1,4 +1,4 @@
-use crate::ActivationFrame;
+use crate::{ActivationFrame, EXCEPTION_HANDLER_DYNAMIC_INDEX};
 use crate::Scm;
 use crate::Value;
 use crate::VirtualMachine;
@@ -337,6 +337,21 @@ impl VirtualMachine {
     pub fn dynamic_push(&mut self, idx: u8) {
         self.push_dynamic_binding(idx as usize, self.val);
     }
+
+    #[inline(always)]
+    pub unsafe fn non_cont_err(&mut self) {
+        self.signal_exception_str(false, "Attempt to continue non-continuable exception");
+    }
+
+    #[inline(always)]
+    pub unsafe fn push_handler(&mut self) {
+        self.push_exception_handler(self.val);
+    }
+
+    #[inline(always)]
+    pub fn pop_handler(&mut self) {
+        self.pop_exception_handler();
+    }
 }
 
 #[cfg(test)]
@@ -345,6 +360,7 @@ mod tests {
     use crate::CodePointer;
     use crate::Op;
     use crate::OpaqueCast;
+    use crate::Primitive;
 
     fn init_machine() -> VirtualMachine {
         VirtualMachine {
@@ -1290,5 +1306,56 @@ mod tests {
             vm.dynamic_ref(255);
         }
         assert_eq!(vm.val, Scm::int(123));
+    }
+
+    #[test]
+    fn test_push_handler() {
+        let mut vm = init_machine();
+        vm.prepare_stack();
+
+        static handled: Scm = Scm::int(123456789);
+
+        vm.val = Scm::primitive(Primitive{
+            name: "my handler",
+            behavior: |vm| {
+                vm.val = handled;
+            }
+        });
+        unsafe {
+            vm.push_handler();
+        }
+
+        vm.val = Scm::int(123);
+        vm.function_goto();
+        unsafe {
+            assert_eq!(vm.continue_running(), handled);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Unhandled exception")]
+    fn test_pop_handler() {
+        let mut vm = init_machine();
+        vm.prepare_stack();
+
+        static handled: Scm = Scm::int(123456789);
+
+        vm.val = Scm::primitive(Primitive{
+            name: "my handler",
+            behavior: |vm| {
+                vm.val = handled;
+            }
+        });
+        unsafe {
+            vm.push_handler();
+        }
+
+        vm.pop_handler();
+
+        vm.val = Scm::int(123);
+        vm.function_goto();
+        unsafe {
+            assert_eq!(vm.continue_running(), handled);
+        }
     }
 }

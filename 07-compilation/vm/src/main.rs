@@ -388,6 +388,10 @@ impl VirtualMachine {
                 Op::DynamicPop => dispatch!(self.dynamic_pop),
                 Op::DynamicPush => dispatch!(self.dynamic_push(index)),
 
+                Op::NonContErr => dispatch!(self.non_cont_err),
+                Op::PushHandler => dispatch!(self.push_handler),
+                Op::PopHandler => dispatch!(self.pop_handler),
+
                 op => unimplemented!("Opcode {:?}", op),
             }
             let end = Instant::now();
@@ -495,15 +499,14 @@ impl VirtualMachine {
     }
 
     unsafe fn search_exception_handler(&self) -> Scm {
-        println!("{:?}", self.stack);
         self.find_dynamic_value(EXCEPTION_HANDLER_DYNAMIC_INDEX)
     }
 
-    unsafe fn push_exception_handler(&mut self) {
+    unsafe fn push_exception_handler(&mut self, handler: Scm) {
         let handlers = self.search_exception_handler();
         self.push_dynamic_binding(
             EXCEPTION_HANDLER_DYNAMIC_INDEX,
-            Scm::cons(self.val, handlers),
+            Scm::cons(handler, handlers),
         );
     }
 
@@ -516,7 +519,7 @@ impl VirtualMachine {
     }
 
     fn signal_exception(&mut self, is_continuable: bool, exception: Scm) {
-        let handlers = dbg!(unsafe { self.search_exception_handler() });
+        let handlers = unsafe { self.search_exception_handler() };
         let frame = ActivationFrame::allocate(2 + 1);
         frame.set_argument(0, Scm::bool(is_continuable));
         frame.set_argument(1, exception);
@@ -563,6 +566,16 @@ impl CodePointer {
         let b = *self.ptr;
         self.ptr = self.ptr.offset(1);
         b
+    }
+
+    unsafe fn peek_instruction(&self) -> Op {
+        // self.pc must always point to a valid code location
+        Op::from_u8_unchecked(self.peek_byte())
+    }
+
+    unsafe fn peek_byte(&self) -> u8 {
+        // self.pc must always point to a valid code location
+        *self.ptr
     }
 
     unsafe fn offset(&self, offset: isize) -> Self {

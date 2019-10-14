@@ -59,7 +59,7 @@ impl Scm {
         Scm { ptr: SPECIAL_NULL }
     }
 
-    pub fn uninitialized() -> Self {
+    pub const fn uninitialized() -> Self {
         Scm {
             ptr: SPECIAL_UNINIT,
         }
@@ -74,7 +74,7 @@ impl Scm {
         }
     }
 
-    pub fn int(i: i64) -> Self {
+    pub const fn int(i: i64) -> Self {
         Scm {
             ptr: (i as isize) << N_TAG_BITS | TAG_INTEGER,
         }
