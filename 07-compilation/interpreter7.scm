@@ -873,19 +873,6 @@
 
 ; ===========================================================================
 
-(define (save-stack)
-  (let ((copy (make-vector *stack-index*)))
-    (vector-copy! *stack* copy 0 *stack-index*)
-    copy))
-
-(define (restore-stack copy)
-  (set! *stack-index* (vector-length copy))
-  (vector-copy! copy *stack* 0 *stack-index*))
-
-(define original-vector-copy! vector-copy!)
-(define (vector-copy! old new start end)
-  (original-vector-copy! new start old start (- end start)))
-
 
 (define (make-continuation stack)
   `(continuation ,stack))

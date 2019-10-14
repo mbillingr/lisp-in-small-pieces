@@ -88,3 +88,46 @@
 (defprimitive '- - 2)
 (defprimitive '* * 2)
 (defprimitive '/ / 2)
+
+(definitial 'call/cc
+  (let* ((arity 1)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (= arity+1 (activation-frame-argument-length *val*))
+            (let ((f (activation-frame-argument *val* 0))
+                  (frame (allocate-activation-frame (+ 1 1))))
+              (set-activation-frame-argument!
+                frame 0 (make-continuation (save-stack)))
+              (set! *val* frame)
+              (set! *fun* f)       ; useful for debug
+              (invoke f #t))
+            (signal-exception #t (list "Incorrect arity" 'call/cc)))))))
+
+(definitial 'apply
+  (let* ((arity 2)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (>= (activation-frame-argument-length *val*) arity+1)
+            (let* ((proc (activation-frame-argument *val* 0))
+                   (last-arg-index (- (activation-frame-argument-length *val*) 2))
+                   (last-arg (activation-frame-argument *val* last-arg-index))
+                   (size (+ last-arg-index (length last-arg)))
+                   (frame (allocate-activation-frame size)))
+              (define (copy-args i)
+                (if (< i last-arg-index)
+                    (begin (set-activation-frame-argument!
+                             frame (- i 1) (activation-frame-argument *val* i))
+                           (copy-args (+ i 1)))))
+              (define (copy-args2 i last-arg)
+                (if (not (null? last-arg))
+                    (begin (set-activation-frame-argument!
+                             frame i (car last-arg))
+                           (copy-args2 (+ i 1) (cdr last-arg)))))
+              (copy-args 1)
+              (copy-args2 (- last-arg-index 1) last-arg)
+              (set! *val* frame)
+              (set! *fun* proc)       ; useful for debug
+              (invoke proc #t))
+            (signal-exception #t (list "Incorrect arity" 'apply)))))))
