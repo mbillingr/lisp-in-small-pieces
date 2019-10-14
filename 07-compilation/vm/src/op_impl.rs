@@ -1,4 +1,4 @@
-use crate::{ActivationFrame, EXCEPTION_HANDLER_DYNAMIC_INDEX};
+use crate::ActivationFrame;
 use crate::Scm;
 use crate::Value;
 use crate::VirtualMachine;
@@ -112,12 +112,12 @@ impl VirtualMachine {
 
     #[inline(always)]
     pub unsafe fn pop_arg1(&mut self) {
-        self.arg1 = self.stack_pop();
+        self.arg1 = self.stack_pop_into();
     }
 
     #[inline(always)]
     pub unsafe fn pop_arg2(&mut self) {
-        self.arg2 = self.stack_pop();
+        self.arg2 = self.stack_pop_into();
     }
 
     #[inline(always)]
@@ -127,12 +127,12 @@ impl VirtualMachine {
 
     #[inline(always)]
     pub unsafe fn restore_env(&mut self) {
-        self.env = self.stack_pop();
+        self.env = self.stack_pop_into();
     }
 
     #[inline(always)]
     pub unsafe fn pop_fun(&mut self) {
-        self.fun = self.stack_pop();
+        self.fun = self.stack_pop_into();
     }
 
     #[inline(always)]
@@ -142,7 +142,7 @@ impl VirtualMachine {
 
     #[inline(always)]
     pub unsafe fn return_(&mut self) {
-        self.pc = self.stack_pop();
+        self.pc = self.stack_pop_into();
     }
 
     #[inline(always)]
@@ -164,7 +164,7 @@ impl VirtualMachine {
     pub unsafe fn pop_cons_frame(&mut self, arity: u8) {
         let arity = arity as usize;
         let frame = self.val.as_frame().unwrap();
-        frame.set_argument(arity, Scm::cons(self.stack_pop(), *frame.argument(arity)))
+        frame.set_argument(arity, Scm::cons(self.stack_pop_into(), *frame.argument(arity)))
     }
 
     #[inline(always)]
@@ -185,7 +185,7 @@ impl VirtualMachine {
         self.val
             .as_frame()
             .unwrap()
-            .set_argument(idx as usize, self.stack_pop())
+            .set_argument(idx as usize, self.stack_pop_into())
     }
 
     #[inline(always)]
@@ -352,6 +352,13 @@ impl VirtualMachine {
     #[inline(always)]
     pub fn pop_handler(&mut self) {
         self.pop_exception_handler();
+    }
+
+    #[inline(always)]
+    pub unsafe fn pop_escaper(&mut self) {
+        let _tag = self.stack_pop();
+        let _escape = self.stack_pop();
+        self.restore_env();
     }
 
     #[inline(always)]
@@ -1326,12 +1333,12 @@ mod tests {
         let mut vm = init_machine();
         vm.prepare_stack();
 
-        static handled: Scm = Scm::int(123456789);
+        static HANDLED: Scm = Scm::int(123456789);
 
         vm.val = Scm::primitive(Primitive{
             name: "my handler",
             behavior: |vm| {
-                vm.val = handled;
+                vm.val = HANDLED;
             }
         });
         unsafe {
@@ -1341,7 +1348,7 @@ mod tests {
         vm.val = Scm::int(123);
         vm.function_goto();
         unsafe {
-            assert_eq!(vm.continue_running(), handled);
+            assert_eq!(vm.continue_running(), HANDLED);
         }
     }
 
@@ -1351,12 +1358,12 @@ mod tests {
         let mut vm = init_machine();
         vm.prepare_stack();
 
-        static handled: Scm = Scm::int(123456789);
+        static HANDLED: Scm = Scm::int(123456789);
 
         vm.val = Scm::primitive(Primitive{
             name: "my handler",
             behavior: |vm| {
-                vm.val = handled;
+                vm.val = HANDLED;
             }
         });
         unsafe {
@@ -1368,7 +1375,7 @@ mod tests {
         vm.val = Scm::int(123);
         vm.function_goto();
         unsafe {
-            assert_eq!(vm.continue_running(), handled);
+            assert_eq!(vm.continue_running(), HANDLED);
         }
     }
 
@@ -1379,5 +1386,17 @@ mod tests {
             vm.push_escaper(5);
         }
         assert!(vm.env.argument(0).is_escape());
+    }
+
+    #[test]
+    fn test_pop_escaper() {
+        let mut vm = init_machine();
+        let env = vm.env;
+        unsafe {
+            vm.push_escaper(5);
+            vm.return_();
+            vm.pop_escaper();
+        }
+        assert_eq!(vm.env, env);
     }
 }

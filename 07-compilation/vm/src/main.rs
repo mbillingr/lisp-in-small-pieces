@@ -159,7 +159,7 @@ macro_rules! defprimitive {
                 if frame.len() == 0 + 1 {
                     vm.val = $body;
                     unsafe {
-                        vm.pc = vm.stack_pop();
+                        vm.pc = vm.stack_pop_into();
                     }
                 } else {
                     vm.signal_exception_str(false, concat!("incorrect arity: ", $name))
@@ -177,7 +177,7 @@ macro_rules! defprimitive {
                     let $a = *frame.argument(0);
                     vm.val = $body;
                     unsafe {
-                        vm.pc = vm.stack_pop();
+                        vm.pc = vm.stack_pop_into();
                     }
                 } else {
                     vm.signal_exception_str(false, concat!("incorrect arity: ", $name))
@@ -196,7 +196,7 @@ macro_rules! defprimitive {
                     let $b = *frame.argument(1);
                     vm.val = $body;
                     unsafe {
-                        vm.pc = vm.stack_pop();
+                        vm.pc = vm.stack_pop_into();
                     }
                 } else {
                     vm.signal_exception_str(false, concat!("incorrect arity: ", $name))
@@ -278,7 +278,7 @@ impl VirtualMachine {
 
     pub unsafe fn run(&mut self) -> Scm {
         self.prepare_stack();
-        self.pc = self.stack_pop();
+        self.pc = self.stack_pop_into();
         self.continue_running()
     }
 
@@ -392,7 +392,10 @@ impl VirtualMachine {
                 Op::PushHandler => dispatch!(self.push_handler),
                 Op::PopHandler => dispatch!(self.pop_handler),
 
-                op => unimplemented!("Opcode {:?}", op),
+                Op::PopEscaper => dispatch!(self.pop_escaper),
+                Op::PushEscaper => dispatch!(self.push_escaper(offset)),
+
+                //op => unimplemented!("Opcode {:?}", op),
             }
             let end = Instant::now();
             self.statistics[op as usize] += end - start;
@@ -425,8 +428,12 @@ impl VirtualMachine {
         self.stack.push(item.as_op())
     }
 
-    unsafe fn stack_pop<T: OpaqueCast>(&mut self) -> T {
-        T::from_op(self.stack.pop().unwrap())
+    unsafe fn stack_pop_into<T: OpaqueCast>(&mut self) -> T {
+        T::from_op(self.stack_pop())
+    }
+
+    fn stack_pop(&mut self) -> OpaquePointer {
+        self.stack.pop().unwrap()
     }
 
     fn invoke(&mut self, f: Scm, tail: bool) {
@@ -466,10 +473,10 @@ impl VirtualMachine {
     }
 
     fn pop_dynamic_binding(&mut self) {
-        self.stack.pop();
-        self.stack.pop();
-        self.stack.pop();
-        self.stack.pop();
+        self.stack_pop();
+        self.stack_pop();
+        self.stack_pop();
+        self.stack_pop();
     }
 
     unsafe fn find_dynamic_value(&self, index: usize) -> Scm {
@@ -568,7 +575,7 @@ impl CodePointer {
         b
     }
 
-    unsafe fn peek_instruction(&self) -> Op {
+    /*unsafe fn peek_instruction(&self) -> Op {
         // self.pc must always point to a valid code location
         Op::from_u8_unchecked(self.peek_byte())
     }
@@ -576,7 +583,7 @@ impl CodePointer {
     unsafe fn peek_byte(&self) -> u8 {
         // self.pc must always point to a valid code location
         *self.ptr
-    }
+    }*/
 
     unsafe fn offset(&self, offset: isize) -> Self {
         CodePointer {
