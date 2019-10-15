@@ -1,57 +1,44 @@
-use crate::{ActivationFrame, Closure, CodePointer, Escape, OpaqueCast, OpaquePointer, Primitive};
+use super::{
+    ActivationFrame, Closure, CodePointer, Escape, OpaqueCast, OpaquePointer, Primitive,
+    ScmBoxedValue,
+};
+use crate::memory::{PAIR_ALLOCATOR, VALUE_ALLOCATOR};
 use lisp_core::lexpr;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
 pub const DYNENV_TAG: Scm = Scm { ptr: 123 * 4 };
 pub const ESCAPE_TAG: Scm = Scm { ptr: 456 * 4 };
 
-const N_TAG_BITS: isize = 2;
-const TAG_MASK: isize = 0b_11;
-const TAG_POINTER: isize = 0b_00;
-const TAG_INTEGER: isize = 0b_01;
-const TAG_PAIR: isize = 0b_10;
+pub const N_TAG_BITS: isize = 2;
+pub const TAG_MASK: isize = 0b_11;
+pub const TAG_POINTER: isize = 0b_00;
+pub const TAG_INTEGER: isize = 0b_01;
+pub const TAG_PAIR: isize = 0b_10;
 //const TAG_SPECIAL: usize = 0b_11;
 
-const SPECIAL_UNINIT: isize = 0b_0000_0111;
-const SPECIAL_NULL: isize = 0b_0001_0111;
-const SPECIAL_FALSE: isize = 0b_0010_0111;
-const SPECIAL_TRUE: isize = 0b_0011_0111;
+pub const SPECIAL_UNINIT: isize = 0b_0000_0111;
+pub const SPECIAL_NULL: isize = 0b_0001_0111;
+pub const SPECIAL_FALSE: isize = 0b_0010_0111;
+pub const SPECIAL_TRUE: isize = 0b_0011_0111;
 
 pub const SCM_MAX_INT: i64 = i64::max_value() / 4;
 pub const SCM_MIN_INT: i64 = i64::min_value() / 4;
 
 //const MASK_IMMEDIATE: usize = 0b01; // this works because all immediates have 1 in the lsb
 
-thread_local! {
-    static PAIR_ALLOCATOR: allocator::Allocator<(Scm, Scm)> = allocator::Allocator::new();
-    static VALUE_ALLOCATOR: allocator::Allocator<Value> = allocator::Allocator::new();
-}
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Scm {
-    ptr: isize,
-}
-
-#[derive(Copy, Clone)]
-pub enum Value {
-    Symbol(&'static str),
-    String(&'static String),
-
-    Primitive(&'static Primitive),
-    Frame(&'static ActivationFrame),
-    Closure(&'static Closure),
-    Escape(&'static Escape),
-    Pointer(&'static u8),
+    pub(crate) ptr: isize,
 }
 
 impl Scm {
-    pub fn from_static_value(value: &'static Value) -> Self {
+    /*pub fn from_static_value(value: &'static Value) -> Self {
         Scm {
             ptr: ref_to_int(value),
         }
-    }
+    }*/
 
-    pub fn from_value(value: Value) -> Self {
+    pub fn from_value(value: ScmBoxedValue) -> Self {
         //let p = Box::leak(Box::new(value));
         let p = VALUE_ALLOCATOR.with(|pa| pa.alloc(value));
         Scm { ptr: ref_to_int(p) }
@@ -94,43 +81,43 @@ impl Scm {
 
     pub fn symbol(s: &str) -> Self {
         let s = Box::leak(Box::new(s.to_owned()));
-        Scm::from_value(Value::Symbol(s))
+        Scm::from_value(ScmBoxedValue::Symbol(s))
     }
 
     pub fn string<T: ToString>(s: T) -> Self {
         let s = Box::leak(Box::new(s.to_string()));
-        Scm::from_value(Value::String(s))
+        Scm::from_value(ScmBoxedValue::String(s))
     }
 
     pub fn primitive(p: Primitive) -> Self {
         let p = Box::leak(Box::new(p));
-        Scm::from_value(Value::Primitive(p))
+        Scm::from_value(ScmBoxedValue::Primitive(p))
     }
 
     pub fn frame(size: usize) -> Self {
         let frm = ActivationFrame::allocate(size);
-        Scm::from_value(Value::Frame(frm))
+        Scm::from_value(ScmBoxedValue::Frame(frm))
     }
 
     pub fn closure(code: CodePointer, env: &'static ActivationFrame) -> Self {
         let cls = Closure::allocate(code, env);
-        Self::from_value(Value::Closure(cls))
+        Self::from_value(ScmBoxedValue::Closure(cls))
     }
 
     pub fn escape(stack_index: usize) -> Self {
         let esc = Escape::allocate(stack_index);
-        Self::from_value(Value::Escape(esc))
+        Self::from_value(ScmBoxedValue::Escape(esc))
     }
 
-    pub fn pointer(ptr: &'static u8) -> Self {
+    /*pub fn pointer(ptr: &'static u8) -> Self {
         Self::from_value(Value::Pointer(ptr))
+    }*/
+
+    fn as_ptr(&self) -> *const ScmBoxedValue {
+        self.ptr as *const ScmBoxedValue
     }
 
-    fn as_ptr(&self) -> *const Value {
-        self.ptr as *const Value
-    }
-
-    unsafe fn deref(&self) -> &Value {
+    pub unsafe fn deref(&self) -> &ScmBoxedValue {
         &*self.as_ptr()
     }
 
@@ -142,9 +129,9 @@ impl Scm {
         self.ptr == SPECIAL_FALSE
     }
 
-    pub fn is_true(&self) -> bool {
+    /*pub fn is_true(&self) -> bool {
         self.ptr == SPECIAL_TRUE
-    }
+    }*/
 
     pub fn is_null(&self) -> bool {
         self.ptr == SPECIAL_NULL
@@ -177,7 +164,7 @@ impl Scm {
         }
     }
 
-    pub fn as_value(&self) -> Option<&Value> {
+    pub fn as_value(&self) -> Option<&ScmBoxedValue> {
         if self.ptr & TAG_MASK == TAG_POINTER {
             Some(unsafe { self.deref() })
         } else {
@@ -360,77 +347,24 @@ impl Scm {
         self.as_pair().map(|(_, x)| *x)
     }
 
-    pub unsafe fn car_unchecked(&self) -> Self {
+    /*pub unsafe fn car_unchecked(&self) -> Self {
         *int_to_ref(self.ptr - TAG_PAIR)
     }
 
     pub unsafe fn cdr_unchecked(&self) -> Self {
         *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>() as isize)
-    }
+    }*/
 }
 
 impl OpaqueCast for Scm {
     unsafe fn from_op(op: OpaquePointer) -> Self {
-        Scm { ptr: op.0 as isize }
+        Scm {
+            ptr: op.as_usize() as isize,
+        }
     }
 
     fn as_op(&self) -> OpaquePointer {
-        OpaquePointer(self.ptr as usize)
-    }
-}
-
-impl Value {
-    pub fn as_pointer(&self) -> Option<*const u8> {
-        match self {
-            Value::Pointer(p) => Some(*p),
-            _ => None,
-        }
-    }
-
-    pub fn as_symbol(&self) -> Option<&'static str> {
-        match self {
-            Value::Symbol(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    pub fn as_primitive(&self) -> Option<&'static Primitive> {
-        match self {
-            Value::Primitive(p) => Some(p),
-            _ => None,
-        }
-    }
-
-    pub fn as_frame(&self) -> Option<&'static ActivationFrame> {
-        match self {
-            Value::Frame(frame) => Some(frame),
-            _ => None,
-        }
-    }
-
-    pub fn as_closure(&self) -> Option<&'static Closure> {
-        match self {
-            Value::Closure(cls) => Some(cls),
-            _ => None,
-        }
-    }
-
-    pub fn as_escape(&self) -> Option<&'static Escape> {
-        match self {
-            Value::Escape(esc) => Some(esc),
-            _ => None,
-        }
-    }
-}
-
-impl PartialEq for Value {
-    fn eq(&self, rhs: &Self) -> bool {
-        use Value::*;
-        match (self, rhs) {
-            (Symbol(a), Symbol(b)) => a == b,
-            (String(a), String(b)) => a == b,
-            _ => false,
-        }
+        OpaquePointer::new(self.ptr as usize)
     }
 }
 
@@ -460,120 +394,13 @@ fn ptr_to_int<T>(v: *const T) -> isize {
     v as isize
 }
 
-impl std::fmt::Display for Scm {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match (self.ptr, self.ptr & TAG_MASK) {
-            (SPECIAL_UNINIT, _) => write!(f, "*uninit*"),
-            (SPECIAL_NULL, _) => write!(f, "'()"),
-            (SPECIAL_FALSE, _) => write!(f, "#f"),
-            (SPECIAL_TRUE, _) => write!(f, "'#t"),
-            (_, TAG_INTEGER) => write!(f, "{}", self.as_int().unwrap()),
-            (_, TAG_PAIR) => {
-                let (car, cdr) = self.as_pair().unwrap();
-                write!(f, "({} . {})", car, cdr)
-            }
-            (_, TAG_POINTER) => write!(f, "{}", unsafe { self.deref() }),
-            (_, _) => write!(f, "*invalid*"),
-        }
-    }
-}
-
-impl std::fmt::Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Value::Symbol(s) => write!(f, "{}", s),
-            Value::String(s) => write!(f, "\"{}\"", s),
-            Value::Primitive(p) => write!(f, "<primitive {}>", p.name),
-            Value::Frame(af) => write!(f, "{:?}", af),
-            Value::Closure(c) => write!(f, "{:?}", c),
-            Value::Escape(e) => write!(f, "{:?}", e),
-            Value::Pointer(p) => write!(f, "{:p}", p),
-        }
-    }
-}
-
-#[cfg(not(feature = "batch-alloc"))]
-mod allocator {
-    use std::marker::PhantomData;
-
-    pub type Allocator<T> = BoxAllocator<T>;
-
-    pub struct BoxAllocator<T: Copy>(PhantomData<T>);
-
-    impl<T: Copy> BoxAllocator<T> {
-        pub fn new() -> Self {
-            BoxAllocator(PhantomData)
-        }
-
-        pub fn alloc(&self, value: T) -> &'static mut T {
-            Box::leak(Box::new(value))
-        }
-    }
-}
-
-#[cfg(feature = "batch-alloc")]
-mod allocator {
-    use std::cell::UnsafeCell;
-    use std::os::raw::c_void;
-
-    #[link(name = "gc", kind = "static")]
-    extern "C" {
-        fn GC_malloc_many(n_bytes: usize) -> *mut c_void;
-    }
-
-    pub type Allocator<T> = BatchAllocator<T>;
-
-    pub struct BatchAllocator<T: Copy> {
-        free_list: UnsafeCell<*mut T>,
-    }
-
-    impl<T: Copy> BatchAllocator<T> {
-        pub fn new() -> Self {
-            assert!(std::mem::size_of::<T>() >= std::mem::size_of::<usize>());
-            BatchAllocator {
-                free_list: UnsafeCell::new(0 as *mut _),
-            }
-        }
-
-        pub fn alloc(&self, value: T) -> &'static mut T {
-            unsafe {
-                let x = self.alloc_uninit();
-                std::ptr::write(x, value);
-                &mut *x
-            }
-        }
-
-        unsafe fn alloc_uninit(&self) -> *mut T {
-            self.ensure_list();
-            self.next_item()
-        }
-
-        unsafe fn ensure_list(&self) {
-            if *self.free_list.get() == std::mem::transmute(0_usize) {
-                let memory = GC_malloc_many(std::mem::size_of::<T>());
-                *self.free_list.get() = std::mem::transmute(memory);
-                assert_ne!(*self.free_list.get(), std::mem::transmute(0_usize));
-            }
-        }
-
-        unsafe fn next_item(&self) -> *mut T {
-            // C macro: #define GC_NEXT(p) (*(void * *)(p))
-            let head = self.free_list.get();
-            let item = *head;
-            let next_item = *(item as *mut *mut T);
-            *head = next_item;
-            item
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn value_alignment_is_large_enough_for_tags() {
-        let value_alignment = std::mem::align_of::<Value>();
+        let value_alignment = std::mem::align_of::<ScmBoxedValue>();
         assert_eq!(
             value_alignment % (1 << N_TAG_BITS),
             0,
@@ -586,9 +413,9 @@ mod tests {
     #[test]
     fn successive_values_are_aligned_correctly() {
         let values = vec![
-            Value::Symbol("foo"),
-            Value::String(Box::leak(Box::new("bar".to_string()))),
-            Value::Pointer(&42),
+            ScmBoxedValue::Symbol("foo"),
+            ScmBoxedValue::String(Box::leak(Box::new("bar".to_string()))),
+            ScmBoxedValue::Escape(Escape::allocate(42)),
         ];
 
         assert_eq!(ref_to_int(&values[0]) & TAG_MASK, TAG_POINTER);

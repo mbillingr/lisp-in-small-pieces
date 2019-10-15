@@ -1,4 +1,8 @@
-use crate::{CodePointer, VirtualMachine, Scm, Op, ActivationFrame};
+use crate::{
+    types::{ActivationFrame, CodePointer, Scm},
+    vm::VirtualMachine,
+    Op,
+};
 
 fn init_machine() -> VirtualMachine {
     VirtualMachine {

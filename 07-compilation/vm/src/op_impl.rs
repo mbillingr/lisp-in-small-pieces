@@ -1,8 +1,6 @@
-use crate::ActivationFrame;
-use crate::Scm;
-use crate::Value;
-use crate::VirtualMachine;
-use crate::value::ESCAPE_TAG;
+use crate::types::scm::ESCAPE_TAG;
+use crate::types::{ActivationFrame, Scm, ScmBoxedValue};
+use crate::vm::VirtualMachine;
 
 impl VirtualMachine {
     #[inline(always)]
@@ -164,7 +162,10 @@ impl VirtualMachine {
     pub unsafe fn pop_cons_frame(&mut self, arity: u8) {
         let arity = arity as usize;
         let frame = self.val.as_frame().unwrap();
-        frame.set_argument(arity, Scm::cons(self.stack_pop_into(), *frame.argument(arity)))
+        frame.set_argument(
+            arity,
+            Scm::cons(self.stack_pop_into(), *frame.argument(arity)),
+        )
     }
 
     #[inline(always)]
@@ -177,7 +178,7 @@ impl VirtualMachine {
         let size = size as usize;
         let frame = ActivationFrame::allocate(size);
         frame.set_argument(size - 1, Scm::null());
-        self.val = Scm::from_value(Value::Frame(frame));
+        self.val = Scm::from_value(ScmBoxedValue::Frame(frame));
     }
 
     #[inline(always)]
@@ -377,10 +378,8 @@ impl VirtualMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CodePointer;
+    use crate::types::{CodePointer, OpaqueCast, Primitive};
     use crate::Op;
-    use crate::OpaqueCast;
-    use crate::Primitive;
 
     fn init_machine() -> VirtualMachine {
         VirtualMachine {
@@ -757,7 +756,7 @@ mod tests {
         env.set_argument(0, Scm::int(1));
         env.set_argument(1, Scm::int(2));
 
-        vm.val = Scm::from_value(Value::Frame(env));
+        vm.val = Scm::from_value(ScmBoxedValue::Frame(env));
         vm.extend_env();
         vm.val = Scm::uninitialized();
         assert_eq!(vm, reference);
@@ -868,7 +867,7 @@ mod tests {
         }
         assert!(vm.val.is_closure());
         assert_eq!(
-            vm.val.as_closure().unwrap().code,
+            *vm.val.as_closure().unwrap().code(),
             CodePointer::new(&code[3])
         );
     }
@@ -913,11 +912,28 @@ mod tests {
         frame.set_argument(4, Scm::int(5));
 
         vm.pack_frame(3);
-        assert_eq!(vm.val.as_frame().unwrap().slots[0], ref_frame.slots[0]);
-        assert_eq!(vm.val.as_frame().unwrap().slots[1], ref_frame.slots[1]);
-        assert_eq!(vm.val.as_frame().unwrap().slots[2], ref_frame.slots[2]);
-        assert!(vm.val.as_frame().unwrap().slots[3].equal(&ref_frame.slots[3]));
-        assert_eq!(vm.val.as_frame().unwrap().slots[4], ref_frame.slots[4]);
+        assert_eq!(
+            vm.val.as_frame().unwrap().argument(0),
+            ref_frame.argument(0)
+        );
+        assert_eq!(
+            vm.val.as_frame().unwrap().argument(1),
+            ref_frame.argument(1)
+        );
+        assert_eq!(
+            vm.val.as_frame().unwrap().argument(2),
+            ref_frame.argument(2)
+        );
+        assert!(vm
+            .val
+            .as_frame()
+            .unwrap()
+            .argument(3)
+            .equal(&ref_frame.argument(3)));
+        assert_eq!(
+            vm.val.as_frame().unwrap().argument(4),
+            ref_frame.argument(4)
+        );
     }
 
     #[test]
@@ -954,7 +970,12 @@ mod tests {
             vm.pop_cons_frame(0);
             vm.pop_cons_frame(0);
         }
-        assert!(vm.val.as_frame().unwrap().slots[0].equal(&ref_frame.slots[0]));
+        assert!(vm
+            .val
+            .as_frame()
+            .unwrap()
+            .argument(0)
+            .equal(&ref_frame.argument(0)));
     }
 
     #[test]
@@ -962,7 +983,7 @@ mod tests {
         let mut vm = init_machine();
 
         vm.allocate_frame(10);
-        assert_eq!(vm.val.as_frame().map(|frame| frame.slots.len()), Some(10));
+        assert_eq!(vm.val.as_frame().map(|frame| frame.len()), Some(10));
     }
 
     #[test]
@@ -970,8 +991,8 @@ mod tests {
         let mut vm = init_machine();
 
         vm.allocate_dotted_frame(10);
-        assert_eq!(vm.val.as_frame().map(|frame| frame.slots.len()), Some(10));
-        assert_eq!(vm.val.as_frame().unwrap().slots[9], Scm::null());
+        assert_eq!(vm.val.as_frame().map(|frame| frame.len()), Some(10));
+        assert_eq!(*vm.val.as_frame().unwrap().argument(9), Scm::null());
     }
 
     #[test]
@@ -988,7 +1009,15 @@ mod tests {
             vm.pop_frame(1);
             vm.pop_frame(0);
         }
-        assert_eq!(vm.val.as_frame().unwrap().slots, ref_frame.slots);
+        assert_eq!(vm.val.as_frame().unwrap().len(), ref_frame.len());
+        assert_eq!(
+            vm.val.as_frame().unwrap().argument(0),
+            ref_frame.argument(0)
+        );
+        assert_eq!(
+            vm.val.as_frame().unwrap().argument(1),
+            ref_frame.argument(1)
+        );
     }
 
     #[test]
@@ -1335,12 +1364,9 @@ mod tests {
 
         static HANDLED: Scm = Scm::int(123456789);
 
-        vm.val = Scm::primitive(Primitive{
-            name: "my handler",
-            behavior: |vm| {
-                vm.val = HANDLED;
-            }
-        });
+        vm.val = Scm::primitive(Primitive::new("my handler", |vm| {
+            vm.val = HANDLED;
+        }));
         unsafe {
             vm.push_handler();
         }
@@ -1360,12 +1386,9 @@ mod tests {
 
         static HANDLED: Scm = Scm::int(123456789);
 
-        vm.val = Scm::primitive(Primitive{
-            name: "my handler",
-            behavior: |vm| {
-                vm.val = HANDLED;
-            }
-        });
+        vm.val = Scm::primitive(Primitive::new("my handler", |vm| {
+            vm.val = HANDLED;
+        }));
         unsafe {
             vm.push_handler();
         }
