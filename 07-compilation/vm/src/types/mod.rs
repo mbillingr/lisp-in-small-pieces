@@ -7,6 +7,7 @@ pub mod opaque;
 pub mod primitive;
 pub mod scm;
 pub mod scm_boxed_value;
+pub mod symbol;
 
 pub use activation_frame::ActivationFrame;
 pub use closure::Closure;
@@ -16,3 +17,4 @@ pub use opaque::{OpaqueCast, OpaquePointer};
 pub use primitive::Primitive;
 pub use scm::Scm;
 pub use scm_boxed_value::ScmBoxedValue;
+pub use symbol::Symbol;

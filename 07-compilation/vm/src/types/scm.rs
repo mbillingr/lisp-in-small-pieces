@@ -121,6 +121,10 @@ impl Scm {
         &*self.as_ptr()
     }
 
+    pub fn is_atom(&self) -> bool {
+        !self.is_pair()
+    }
+
     /*fn is_immediate(&self) -> bool {
         self.ptr & MASK_IMMEDIATE != 0
     }*/
@@ -339,11 +343,11 @@ impl Scm {
         *(r as *mut Scm).offset(1) = cdr;
     }
 
-    pub fn car(&self) -> Option<Self> {
+    pub fn car(self) -> Option<Self> {
         self.as_pair().map(|(x, _)| *x)
     }
 
-    pub fn cdr(&self) -> Option<Self> {
+    pub fn cdr(self) -> Option<Self> {
         self.as_pair().map(|(_, x)| *x)
     }
 
@@ -354,6 +358,10 @@ impl Scm {
     pub unsafe fn cdr_unchecked(&self) -> Self {
         *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>() as isize)
     }*/
+
+    pub fn cadr(self) -> Option<Self> {
+        self.cdr().and_then(Scm::car)
+    }
 }
 
 impl OpaqueCast for Scm {
@@ -376,6 +384,20 @@ impl From<&lexpr::Value> for Scm {
             Number(n) if n.is_i64() => Scm::int(n.as_i64().unwrap()),
             Cons(pair) => Scm::cons(pair.car().into(), pair.cdr().into()),
             Symbol(s) => Scm::symbol(s),
+            String(s) => Scm::string(s),
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl From<lexpr::Value> for Scm {
+    fn from(exp: lexpr::Value) -> Self {
+        use lexpr::Value::*;
+        match exp {
+            Null => Scm::null(),
+            Number(ref n) if n.is_i64() => Scm::int(n.as_i64().unwrap()),
+            Cons(pair) => Scm::cons(pair.car().into(), pair.cdr().into()),
+            Symbol(s) => Scm::symbol(&s),
             String(s) => Scm::string(s),
             _ => unimplemented!(),
         }

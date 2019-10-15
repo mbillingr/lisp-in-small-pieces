@@ -1,8 +1,8 @@
-use crate::types::{ActivationFrame, Closure, Escape, Primitive};
+use crate::types::{ActivationFrame, Closure, Escape, Primitive, Symbol};
 
 #[derive(Copy, Clone)]
 pub enum ScmBoxedValue {
-    Symbol(&'static str),
+    Symbol(Symbol),
     String(&'static String),
 
     Primitive(&'static Primitive),
@@ -12,7 +12,7 @@ pub enum ScmBoxedValue {
 }
 
 impl ScmBoxedValue {
-    pub fn as_symbol(&self) -> Option<&'static str> {
+    pub fn as_symbol(&self) -> Option<Symbol> {
         match self {
             ScmBoxedValue::Symbol(s) => Some(s),
             _ => None,

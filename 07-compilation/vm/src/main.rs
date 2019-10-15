@@ -1,3 +1,4 @@
+mod compiler;
 mod environments;
 mod error;
 mod memory;
