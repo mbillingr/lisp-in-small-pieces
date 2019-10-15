@@ -1,5 +1,8 @@
+use crate::environments::init_predefined;
 use crate::error::{Error, Result};
-use crate::types::Scm;
+use crate::opcode::Op;
+use crate::types::{ActivationFrame, CodePointer, OpaqueCast, Scm};
+use crate::vm::VirtualMachine;
 use lisp_core::lexpr;
 use std::fs::File;
 use std::io::Read;
@@ -34,6 +37,30 @@ impl SchemeObjectFile {
             bytecode: Box::leak(bytecode.into_boxed_slice()),
             entry_points,
         })
+    }
+
+    pub fn into_vm(self) -> VirtualMachine {
+        let mut init_stack = unsafe { vec![CodePointer::new_unchecked(&self.bytecode[1]).as_op()] }; // pc for FINISH
+        for e in self.entry_points.into_iter().rev() {
+            unsafe {
+                init_stack.push(CodePointer::new_unchecked(&self.bytecode[e]).as_op());
+            }
+        }
+        VirtualMachine {
+            val: Scm::uninitialized(),
+            fun: Scm::uninitialized(),
+            arg1: Scm::uninitialized(),
+            arg2: Scm::uninitialized(),
+            env: ActivationFrame::allocate(0),
+            constants: self.constants,
+            mut_globals: vec![Scm::uninitialized(); self.global_vars.len()],
+            globals: init_predefined(),
+            stack: Vec::with_capacity(1024),
+            init_stack,
+            pc: CodePointer::new(&Op::Finish),
+            statistics: vec![Default::default(); 256],
+            max_stack: 0,
+        }
     }
 }
 

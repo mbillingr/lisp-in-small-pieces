@@ -1,3 +1,4 @@
+mod environments;
 mod error;
 mod memory;
 mod op_impl;
@@ -33,7 +34,7 @@ fn main() -> Result<()> {
 
     println!("{:#?}", sco);
 
-    let mut vm = VirtualMachine::from_sco(sco);
+    let mut vm = sco.into_vm();
 
     unsafe {
         println!("Result: {}", vm.run());
