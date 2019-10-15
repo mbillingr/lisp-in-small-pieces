@@ -200,6 +200,14 @@ impl Scm {
         }
     }
 
+    pub fn as_string(&self) -> Option<&'static String> {
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_string() }
+        } else {
+            None
+        }
+    }
+
     pub fn as_primitive(&self) -> Option<&'static Primitive> {
         if self.ptr & TAG_MASK == TAG_POINTER {
             unsafe { self.deref().as_primitive() }
@@ -359,8 +367,42 @@ impl Scm {
         *int_to_ref(self.ptr - TAG_PAIR + std::mem::size_of::<Scm>() as isize)
     }*/
 
+    // ===== EXTRA STUFF ====
+
     pub fn cadr(self) -> Option<Self> {
         self.cdr().and_then(Scm::car)
+    }
+
+    pub fn cddr(self) -> Option<Self> {
+        self.cdr().and_then(Scm::cdr)
+    }
+
+    pub fn caddr(self) -> Option<Self> {
+        self.cddr().and_then(Scm::car)
+    }
+
+    pub fn cadddr(self) -> Option<Self> {
+        self.cddr().and_then(Scm::cadr)
+    }
+
+    pub fn len(self) -> Option<usize> {
+        if self.is_null() {
+            Some(0)
+        } else if let Some(rest) = self.cdr() {
+            Some(1 + rest.len()?)
+        } else {
+            None
+        }
+    }
+
+    pub fn reverse(self) -> Option<Self> {
+        if self.is_null() {
+            Some(Scm::null())
+        } else if let Some((car, cdr)) = self.as_pair() {
+            Some(Scm::cons(*car, cdr.reverse()?))
+        } else {
+            None
+        }
     }
 }
 
@@ -381,11 +423,12 @@ impl From<&lexpr::Value> for Scm {
         use lexpr::Value::*;
         match exp {
             Null => Scm::null(),
+            Bool(b) => Scm::bool(*b),
             Number(n) if n.is_i64() => Scm::int(n.as_i64().unwrap()),
             Cons(pair) => Scm::cons(pair.car().into(), pair.cdr().into()),
             Symbol(s) => Scm::symbol(s),
             String(s) => Scm::string(s),
-            _ => unimplemented!(),
+            _ => unimplemented!("{:?}", exp),
         }
     }
 }
@@ -395,6 +438,7 @@ impl From<lexpr::Value> for Scm {
         use lexpr::Value::*;
         match exp {
             Null => Scm::null(),
+            Bool(b) => Scm::bool(b),
             Number(ref n) if n.is_i64() => Scm::int(n.as_i64().unwrap()),
             Cons(pair) => Scm::cons(pair.car().into(), pair.cdr().into()),
             Symbol(s) => Scm::symbol(&s),

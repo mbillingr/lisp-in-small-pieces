@@ -18,6 +18,12 @@ impl ScmBoxedValue {
             _ => None,
         }
     }
+    pub fn as_string(&self) -> Option<&'static String> {
+        match self {
+            ScmBoxedValue::String(s) => Some(s),
+            _ => None,
+        }
+    }
 
     pub fn as_primitive(&self) -> Option<&'static Primitive> {
         match self {
