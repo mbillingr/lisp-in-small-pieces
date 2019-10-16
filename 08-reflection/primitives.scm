@@ -131,3 +131,42 @@
               (set! *fun* proc)       ; useful for debug
               (invoke proc #t))
             (signal-exception #t (list "Incorrect arity" 'apply)))))))
+
+(definitial 'enrich
+  (let* ((arity 1)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (>= (activation-frame-argument-length *val*) arity+1)
+            (let ((env (activation-frame-argument *val* 0)))
+              (listify! *val* 1)
+              (if (reified-environment? env)
+                  (let* ((names (activation-frame-argument *val* 1))
+                         (len (- (activation-frame-argument-length *val*)
+                                 2))
+                         (r (reified-environment-r env))
+                         (sr (reified-environment-sr env))
+                         (frame (allocate-activation-frame (length names))))
+                    (set-activation-frame-next! frame sr)
+                    (define (init-frame i)
+                      (if (>= i 0)
+                          (begin (set-activation-frame-argument!
+                                   frame i undefined-value)
+                                 (init-frame (- i 1)))))
+                    (init-frame (- len 1))
+                    (if (not (every? symbol? names))
+                        (signal-exception #f (list "Incorrect variable names" names)))
+                    (set! *val* (make-reified-environment
+                                  frame
+                                  (checked-r-extend* r names)))
+                    (set! *pc* stack-pop))
+                  (signal-exception #t (list "Not an environment" env))))
+            (signal-exception #t (list "Incorrect arity" 'enrich)))))))
+
+(define (checked-r-extend* r n*)
+  (let ((old-r (bury-r r 1)))
+    (define (scan n* i)
+      (cond ((pair? n*) (cons (list (car n*) `(checked-local 0 . ,i))
+                              (scan (cdr n*) (+ i 1))))
+            ((null? n*) (old-r))))
+    (scan n* 0)))

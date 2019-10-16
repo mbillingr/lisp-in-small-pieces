@@ -11,6 +11,55 @@
 (define sg.current.names '())
 
 ; ============================================================================
+;  Chapter 8 additions
+
+(define (make-reified-environment sr r)
+  (list 'reified-environment sr r))
+
+(define (reified-environment? obj)
+  (and (pair? obj) (eq? (car obj) 'reified-environment)))
+
+(define (reified-environment-sr obj)
+  (cadr obj))
+
+(define (reified-environment-r obj)
+  (caddr obj))
+
+
+(define (r-extend* r n*)
+  (let ((old-r (bury-r r 1)))
+    (define (scan n* i)
+      (cond ((pair? n*) (cons (list (car n*) `(local 0 . ,i))
+                              (scan (cdr n*) (+ i 1))))
+            ((null? n*) old-r)
+            (else (cons (list n* `(local 0 . ,i)) old-r))))
+    (scan n* 0)))
+
+(define (bury-r r offset)
+  (map (lambda (d)
+         (let ((name (car d))
+               (type (caadr d)))
+           (case type
+             ((local checked-local)
+              (let* ((addr (cadr d))
+                     (i (cadr addr))
+                     (j (cddr addr)))
+                `(,name (,type ,(+ i offset) . ,j) . ,(cddr d))))
+             (else d))))
+       r))
+
+(define (extract-addresses n* r)
+  (if (null? n*)
+      r
+      (begin (define (scan n*)
+               (if (pair? n*)
+                   (cons (list (car n*) (compute-kind r (car n*)))
+                         (scan (cdr n*)))
+                   '()))
+             (scan n*))))
+
+
+; ============================================================================
 
 (define (definitial name value)
   (g.init-initialize! name value))
@@ -36,9 +85,6 @@
   (if (= i 0)
       (set-activation-frame-argument! sr j v)
       (deep-update! (environment-next sr) (- i 1) j v)))
-
-(define (r-extend* r n*)
-  (cons n* r))
 
 (define (sr-extend* sr v*)
   (set-environment-next! v* sr)

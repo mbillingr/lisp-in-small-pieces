@@ -18,6 +18,16 @@
         (else          (meaning-application (car e) (cdr e) r tail?)))))
 
 
+; ========================
+; chapter 8 stuff
+
+(define (meaning-export n* r tail?)
+  (if (not (every? symbol? n*))
+      (static-wrong "Incorrect variables" n*))
+  (append (CONSTANT (extract-addresses n* r))
+          (CREATE-1ST-CLAS-ENV)))
+; ========================
+
 (define (meaning-quotation v r tail?)
   (CONSTANT v))
 
@@ -26,6 +36,9 @@
   (let ((kind (compute-kind r n)))
     (if kind
         (case (car kind)
+          ((checked-local) (let ((i (cadr kind))
+                                 (j (cddr kind)))
+                             (CHECKED-DEEP-REF i j)))
           ((local) (let ((i (cadr kind))
                          (j (cddr kind)))
                      (if (= i 0)
@@ -50,11 +63,12 @@
         (kind (compute-kind r n)))
     (if kind
         (case (car kind)
-          ((local) (let ((i (cadr kind))
-                         (j (cddr kind)))
-                     (if (= i 0)
-                         (SHALLOW-ARGUMENT-SET! j m)
-                         (DEEP-ARGUMENT-SET! i j m))))
+          ((local checked-local)
+           (let ((i (cadr kind))
+                 (j (cddr kind)))
+             (if (= i 0)
+                 (SHALLOW-ARGUMENT-SET! j m)
+                 (DEEP-ARGUMENT-SET! i j m))))
           ((global) (let ((i (cdr kind)))
                       (GLOBAL-SET! i m)))
           ((predefined) (static-wrong "Immutable predefined variable" n)))
@@ -227,4 +241,4 @@
   (append m (SET-DEEP-ARGUMENT! i j)))
 
 (define (GLOBAL-SET! i m)
-  (append m (SET-GLOBAL! i))) 
+  (append m (SET-GLOBAL! i)))

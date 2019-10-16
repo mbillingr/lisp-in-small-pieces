@@ -29,12 +29,20 @@
                        (length (code-prologue)))))
 
 ; ===========================================================================
+; chapter 8 stuff
+
+(define (CREATE-1ST-CLASS-ENV) (list 254))
 
 (define (compute-kind r n)
-  (or (local-variable? r 0 n)
+  (or (let ((var (assq n r)))
+        (and (pair? var) (cadr var)))
       (global-variable? g.current n)
       (global-variable? g.init n)
       (adjoin-global-variable! n)))
+
+; ===========================================================================
+
+
 
 (define (adjoin-global-variable! name)
   (let ((index (g.current-extend! name)))
