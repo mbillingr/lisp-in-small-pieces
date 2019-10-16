@@ -1,7 +1,7 @@
 use crate::types::{OpaqueCast, OpaquePointer, Scm};
 use std::cell::Cell;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ActivationFrame {
     next: Cell<Option<&'static ActivationFrame>>,
     slots: Vec<Scm>,
