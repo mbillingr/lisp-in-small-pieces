@@ -339,6 +339,40 @@ trait Context: Sized {
         Ok(self.allocate_frame(size))
     }
 
+    fn meaning_dynamic_reference(&mut self, name: Symbol, r: &'static Environment,
+                                 is_tail: bool,
+    ) -> Result<Self::Meaning> {
+        unimplemented!()
+    }
+
+    fn meaning_dynamic_let(&mut self,
+                           name: Symbol,
+                           value: Scm,
+                           body: Scm,
+                           r: &'static Environment,
+                           is_tail: bool,
+    ) -> Result<Self::Meaning> {
+        unimplemented!()
+    }
+
+    fn meaning_bind_exit(&mut self,
+                         name: Symbol,
+                         body: Scm,
+                         r: &'static Environment,
+                         is_tail: bool,
+    ) -> Result<Self::Meaning> {
+        unimplemented!()
+    }
+
+    fn meaning_monitor(&mut self,
+                       handler: Scm,
+                       body: Scm,
+                       r: &'static Environment,
+                       is_tail: bool,
+    ) -> Result<Self::Meaning> {
+        unimplemented!()
+    }
+
     fn find_variable(&self, r: &Environment, n: Symbol) -> Address {
         r.find(n)
             .map(|(i, j)| Address::Local(i, j))
@@ -785,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn application() {
+    fn regular_application() {
         let mut ctx = MockContext::new();
         ctx.g_current.names.push("foo".into());
 
@@ -795,6 +829,34 @@ mod tests {
         let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
 
         let vm = &mut VirtualMachine::default();
+        vm.mut_globals.push(Scm::uninitialized());
+
+        m(vm);
+        assert_eq!(vm.val, Scm::int(2));
+    }
+
+    #[test]
+    fn application_mutable_closure() {
+        let mut ctx = MockContext::new();
+        ctx.g_current.names.push("make_counter".into());
+        ctx.g_current.names.push("counter".into());
+
+        let expr = lexpr::from_str("
+            (begin
+                (set! make_counter
+                      (lambda (n)
+                         (lambda () (set! n (+ n 1)))))
+                (set! counter (make_counter 5))
+                (counter)
+                (counter)
+                (counter)
+                )")
+            .unwrap()
+            .into();
+        let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
+
+        let vm = &mut VirtualMachine::default();
+        vm.mut_globals.push(Scm::uninitialized());
         vm.mut_globals.push(Scm::uninitialized());
 
         m(vm);
