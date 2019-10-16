@@ -72,7 +72,6 @@ where
     pub unsafe fn collect_garbage(&mut self, roots: &[T], extend: usize) -> &[T] {
         collect_garbage(&mut self.heap, &mut self.inactive_heap, roots, extend)
     }
-
 }
 
 /// Collect garbage.
@@ -80,8 +79,14 @@ where
 /// Objects reachable by the roots are preserved and their pointers updated. It
 /// is the responsibility of the caller to pass the roots required to reach all
 /// live objects. Otherwise there will be dangling pointers!
-pub unsafe fn collect_garbage<'a, T>(from_space: &'a mut Vec<T>, to_space: &'a mut Vec<T>, roots: &[T], extend: usize) -> &'a [T]
-where T: Managable
+pub unsafe fn collect_garbage<'a, T>(
+    from_space: &'a mut Vec<T>,
+    to_space: &'a mut Vec<T>,
+    roots: &[T],
+    extend: usize,
+) -> &'a [T]
+where
+    T: Managable,
 {
     let mem_used_before = from_space.len();
 

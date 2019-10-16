@@ -3,6 +3,7 @@ use super::{
     ScmBoxedValue,
 };
 use crate::memory::{PAIR_ALLOCATOR, VALUE_ALLOCATOR};
+use crate::types::scm_boxed_value::UserValue;
 use lisp_core::lexpr;
 
 //pub const DYNENV_TAG: Value = Value::Symbol("*dynenv*");
@@ -29,6 +30,12 @@ pub const SCM_MIN_INT: i64 = i64::min_value() / 4;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Scm {
     pub(crate) ptr: isize,
+}
+
+impl Default for Scm {
+    fn default() -> Self {
+        Scm::uninitialized()
+    }
 }
 
 impl Scm {
@@ -153,6 +160,10 @@ impl Scm {
         self.as_symbol().is_some()
     }
 
+    pub fn is_primitive(&self) -> bool {
+        self.as_primitive().is_some()
+    }
+
     pub fn is_closure(&self) -> bool {
         self.as_closure().is_some()
     }
@@ -235,6 +246,14 @@ impl Scm {
     pub fn as_escape(&self) -> Option<&'static Escape> {
         if self.ptr & TAG_MASK == TAG_POINTER {
             unsafe { self.deref().as_escape() }
+        } else {
+            None
+        }
+    }
+
+    pub fn as_user_value<T: UserValue>(&self) -> Option<&'static T> {
+        if self.ptr & TAG_MASK == TAG_POINTER {
+            unsafe { self.deref().as_user_value() }
         } else {
             None
         }

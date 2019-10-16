@@ -33,7 +33,7 @@ impl std::fmt::Display for ScmBoxedValue {
             ScmBoxedValue::Frame(af) => write!(f, "{:?}", af),
             ScmBoxedValue::Closure(c) => write!(f, "{:?}", c),
             ScmBoxedValue::Escape(e) => write!(f, "{:?}", e),
-            //Value::Pointer(p) => write!(f, "{:p}", p),
+            ScmBoxedValue::UserValue(v) => write!(f, "{}", v),
         }
     }
 }

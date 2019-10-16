@@ -6,6 +6,12 @@ pub struct CodePointer {
     ptr: *const u8,
 }
 
+impl Default for CodePointer {
+    fn default() -> Self {
+        CodePointer::new(&Op::Finish)
+    }
+}
+
 impl CodePointer {
     pub fn new(code: &Op) -> Self {
         CodePointer {

@@ -31,6 +31,27 @@ pub struct VirtualMachine {
     pub max_stack: usize,
 }
 
+impl Default for VirtualMachine {
+    fn default() -> Self {
+        VirtualMachine {
+            pc: Default::default(),
+            val: Default::default(),
+            fun: Default::default(),
+            arg1: Default::default(),
+            arg2: Default::default(),
+            env: ActivationFrame::allocate(0),
+            constants: Default::default(),
+            mut_globals: Default::default(),
+            globals: Default::default(),
+            stack: Default::default(),
+            init_stack: Default::default(),
+
+            statistics: vec![Default::default(); 256],
+            max_stack: 0,
+        }
+    }
+}
+
 macro_rules! dispatch {
     ($s:ident.$code:ident) => {
         $s.$code();
