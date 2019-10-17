@@ -332,7 +332,7 @@ impl Scm {
         }
     }
 
-    pub fn add(&self, rhs: &Self) -> Self {
+    pub fn add(self, rhs: Self) -> Self {
         match (self.as_int(), rhs.as_int()) {
             (Some(a), Some(b)) => Self::int(a + b),
             _ => panic!("Type Error"),

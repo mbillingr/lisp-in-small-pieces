@@ -307,7 +307,7 @@ impl VirtualMachine {
 
     #[inline(always)]
     pub fn call2_add(&mut self) {
-        self.val = self.arg1.add(&self.val);
+        self.val = self.arg1.add(self.val);
     }
 
     #[inline(always)]

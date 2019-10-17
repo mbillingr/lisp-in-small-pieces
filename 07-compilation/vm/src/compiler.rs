@@ -40,9 +40,25 @@ trait Context: Sized {
     fn allocate_frame(&mut self, size: usize) -> Self::Meaning;
     fn tr_regular_call(&mut self, func: Self::Meaning, args: Self::Meaning) -> Self::Meaning;
     fn regular_call(&mut self, func: Self::Meaning, args: Self::Meaning) -> Self::Meaning;
+    fn call0(&mut self, address: fn() -> Scm) -> Self::Meaning;
+    fn call1(&mut self, address: fn(Scm) -> Scm, m1: Self::Meaning) -> Self::Meaning;
+    fn call2(
+        &mut self,
+        address: fn(Scm, Scm) -> Scm,
+        m1: Self::Meaning,
+        m2: Self::Meaning,
+    ) -> Self::Meaning;
+    fn call3(
+        &mut self,
+        address: fn(Scm, Scm, Scm) -> Scm,
+        m1: Self::Meaning,
+        m2: Self::Meaning,
+        m3: Self::Meaning,
+    ) -> Self::Meaning;
 
     fn g_init(&self) -> &Environment;
     fn g_current(&self) -> &Environment;
+    fn get_description(&self, n: Symbol) -> Description;
 
     fn meaning(&mut self, e: Scm, r: &'static Environment, is_tail: bool) -> Result<Self::Meaning> {
         if e.is_atom() {
@@ -243,8 +259,8 @@ trait Context: Sized {
                 let desc = self.get_description(name);
                 if desc.is_function() {
                     let arity = args.len().ok_or_else(|| Error::ExpectedList(args))?;
-                    if desc.check_arity(arity) {
-                        return self.meaning_primitive_application(name, args, r, is_tail);
+                    if desc.arity() == arity {
+                        return self.meaning_primitive_application(func, args, r, is_tail);
                     } else {
                         return Err(Error::IncorrectArity(func, arity));
                     }
@@ -294,12 +310,39 @@ trait Context: Sized {
 
     fn meaning_primitive_application(
         &mut self,
-        name: Symbol,
+        func: Scm,
         args: Scm,
         r: &'static Environment,
         is_tail: bool,
     ) -> Result<Self::Meaning> {
-        unimplemented!()
+        let name = func.as_symbol().unwrap();
+        let desc = self.get_description(name);
+        let size = args.len().ok_or_else(|| Error::ExpectedList(args))?;
+
+        if size > 3 {
+            return self.meaning_regular_application(func, args, r, is_tail);
+        }
+
+        if let Description::Primitive0(_, addr) = desc {
+            return Ok(self.call0(addr));
+        }
+        let m1 = self.meaning(args.car().unwrap(), r, false)?;
+
+        if let Description::Primitive1(_, addr) = desc {
+            return Ok(self.call1(addr, m1));
+        }
+        let m2 = self.meaning(args.cadr().unwrap(), r, false)?;
+
+        if let Description::Primitive2(_, addr) = desc {
+            return Ok(self.call2(addr, m1, m2));
+        }
+        let m3 = self.meaning(args.caddr().unwrap(), r, false)?;
+
+        if let Description::Primitive3(_, addr) = desc {
+            Ok(self.call3(addr, m1, m2, m3))
+        } else {
+            panic!("Invalid primitive application")
+        }
     }
 
     fn meaning_arguments(
@@ -339,36 +382,42 @@ trait Context: Sized {
         Ok(self.allocate_frame(size))
     }
 
-    fn meaning_dynamic_reference(&mut self, name: Symbol, r: &'static Environment,
-                                 is_tail: bool,
+    fn meaning_dynamic_reference(
+        &mut self,
+        name: Symbol,
+        r: &'static Environment,
+        is_tail: bool,
     ) -> Result<Self::Meaning> {
         unimplemented!()
     }
 
-    fn meaning_dynamic_let(&mut self,
-                           name: Symbol,
-                           value: Scm,
-                           body: Scm,
-                           r: &'static Environment,
-                           is_tail: bool,
+    fn meaning_dynamic_let(
+        &mut self,
+        name: Symbol,
+        value: Scm,
+        body: Scm,
+        r: &'static Environment,
+        is_tail: bool,
     ) -> Result<Self::Meaning> {
         unimplemented!()
     }
 
-    fn meaning_bind_exit(&mut self,
-                         name: Symbol,
-                         body: Scm,
-                         r: &'static Environment,
-                         is_tail: bool,
+    fn meaning_bind_exit(
+        &mut self,
+        name: Symbol,
+        body: Scm,
+        r: &'static Environment,
+        is_tail: bool,
     ) -> Result<Self::Meaning> {
         unimplemented!()
     }
 
-    fn meaning_monitor(&mut self,
-                       handler: Scm,
-                       body: Scm,
-                       r: &'static Environment,
-                       is_tail: bool,
+    fn meaning_monitor(
+        &mut self,
+        handler: Scm,
+        body: Scm,
+        r: &'static Environment,
+        is_tail: bool,
     ) -> Result<Self::Meaning> {
         unimplemented!()
     }
@@ -380,10 +429,6 @@ trait Context: Sized {
             .or_else(|| self.g_init().find(n).map(|(_, i)| Address::Static(i)))
             .unwrap_or(Address::None)
     }
-
-    fn get_description(&self, n: Symbol) -> Description {
-        unimplemented!()
-    }
 }
 
 enum Address {
@@ -393,15 +438,32 @@ enum Address {
     Static(usize),
 }
 
-enum Description {}
+#[derive(Debug, Copy, Clone)]
+enum Description {
+    Primitive0(Symbol, fn() -> Scm),
+    Primitive1(Symbol, fn(Scm) -> Scm),
+    Primitive2(Symbol, fn(Scm, Scm) -> Scm),
+    Primitive3(Symbol, fn(Scm, Scm, Scm) -> Scm),
+}
 
 impl Description {
     fn is_function(&self) -> bool {
-        unimplemented!()
+        match self {
+            Description::Primitive0(_, _) => true,
+            Description::Primitive1(_, _) => true,
+            Description::Primitive2(_, _) => true,
+            Description::Primitive3(_, _) => true,
+            _ => false,
+        }
     }
 
-    fn check_arity(&self, arity: usize) -> bool {
-        unimplemented!()
+    fn arity(&self) -> usize {
+        match self {
+            Description::Primitive0(_, _) => 0,
+            Description::Primitive1(_, _) => 1,
+            Description::Primitive2(_, _) => 2,
+            Description::Primitive3(_, _) => 3,
+        }
     }
 }
 
@@ -460,6 +522,7 @@ mod tests {
     use crate::types::{ActivationFrame, Primitive, ScmBoxedValue};
     use crate::vm::VirtualMachine;
     use lisp_core::lexpr;
+    use std::collections::HashMap;
 
     fn make_static<T>(value: T) -> &'static T {
         Box::leak(Box::new(value))
@@ -492,6 +555,7 @@ mod tests {
     struct MockContext {
         g_init: Environment,
         g_current: Environment,
+        desc_init: HashMap<Symbol, Description>,
     }
 
     impl MockContext {
@@ -499,6 +563,7 @@ mod tests {
             let mut mc = MockContext {
                 g_init: Environment::new(),
                 g_current: Environment::new(),
+                desc_init: HashMap::new(),
             };
             mc.g_init.names = vec!["foo".into(), "bar".into()];
             mc
@@ -514,6 +579,10 @@ mod tests {
 
         fn g_init(&self) -> &Environment {
             &self.g_init
+        }
+
+        fn get_description(&self, n: Symbol) -> Description {
+            self.desc_init[n]
         }
 
         fn constant(&mut self, value: Scm) -> Self::Meaning {
@@ -638,6 +707,49 @@ mod tests {
         }
 
         fn regular_call(&mut self, func: Self::Meaning, args: Self::Meaning) -> Self::Meaning {
+            make_static(move |state| {
+                func(state);
+                state.stack_push(state.val);
+                args(state);
+                state.fun = unsafe { state.stack_pop_into() };
+                state.preserve_env();
+                state.fun.as_user_value::<Closure>().unwrap().invoke(state);
+                unsafe {
+                    state.restore_env();
+                }
+            })
+        }
+
+        fn call0(&mut self, address: fn() -> Scm) -> Self::Meaning {
+            unimplemented!()
+        }
+
+        fn call1(&mut self, address: fn(Scm) -> Scm, m1: Self::Meaning) -> Self::Meaning {
+            unimplemented!()
+        }
+
+        fn call2(
+            &mut self,
+            address: fn(Scm, Scm) -> Scm,
+            m1: Self::Meaning,
+            m2: Self::Meaning,
+        ) -> Self::Meaning {
+            make_static(move |state| {
+                m1(state);
+                state.stack_push(state.val);
+                m2(state);
+                state.arg1 = unsafe { state.stack_pop_into() };
+                state.val = address(state.arg1, state.val);
+            })
+        }
+
+        fn call3(
+            &mut self,
+            address: fn(Scm, Scm, Scm) -> Scm,
+            m1: Self::Meaning,
+            m2: Self::Meaning,
+            m3: Self::Meaning,
+        ) -> Self::Meaning {
             unimplemented!()
         }
     }
@@ -838,10 +950,14 @@ mod tests {
     #[test]
     fn application_mutable_closure() {
         let mut ctx = MockContext::new();
+        ctx.g_init.names.push("+".into());
+        ctx.desc_init
+            .insert("+".into(), Description::Primitive2("+".into(), Scm::add));
         ctx.g_current.names.push("make_counter".into());
         ctx.g_current.names.push("counter".into());
 
-        let expr = lexpr::from_str("
+        let expr = lexpr::from_str(
+            "
             (begin
                 (set! make_counter
                       (lambda (n)
@@ -850,9 +966,10 @@ mod tests {
                 (counter)
                 (counter)
                 (counter)
-                )")
-            .unwrap()
-            .into();
+                )",
+        )
+        .unwrap()
+        .into();
         let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
 
         let vm = &mut VirtualMachine::default();
@@ -860,6 +977,6 @@ mod tests {
         vm.mut_globals.push(Scm::uninitialized());
 
         m(vm);
-        assert_eq!(vm.val, Scm::int(2));
+        assert_eq!(vm.val, Scm::int(8));
     }
 }
