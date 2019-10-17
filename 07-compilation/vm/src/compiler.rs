@@ -1142,6 +1142,22 @@ mod tests {
         let mut ctx = MockContext::new();
         ctx.g_current.names.push("foo".into());
 
+        let expr = lexpr::from_str("((lambda (x y z) y) 1 2)")
+            .unwrap()
+            .into();
+        if let Err(Error::TooFewArguments(_)) = ctx.meaning(expr, Environment::allocate(), true) {
+        } else {
+            panic!("Expected Error: too few arguments")
+        }
+
+        let expr = lexpr::from_str("((lambda (x y z) y) 1 2 3 4)")
+            .unwrap()
+            .into();
+        if let Err(Error::TooManyArguments(_)) = ctx.meaning(expr, Environment::allocate(), true) {
+        } else {
+            panic!("Expected Error: too many arguments")
+        }
+
         let expr = lexpr::from_str("((lambda (x y z) y) 1 2 3)")
             .unwrap()
             .into();
