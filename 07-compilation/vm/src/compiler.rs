@@ -10,6 +10,8 @@ pub enum Error {
     NoSuchVariable(Symbol),
     ImmutableVariable(Symbol),
     IncorrectArity(Scm, usize),
+    TooFewArguments(Scm),
+    TooManyArguments(Scm),
 }
 
 trait Context: Sized {
@@ -309,7 +311,57 @@ trait Context: Sized {
         r: &'static Environment,
         is_tail: bool,
     ) -> Result<Self::Meaning> {
-        unimplemented!()
+        fn parse<T: Context>(
+            ctx: &mut T,
+            params: Scm,
+            args: Scm,
+            regular: Scm,
+            func: Scm,
+            all_args: Scm,
+            r: &'static Environment,
+            is_tail: bool,
+        ) -> Result<T::Meaning> {
+            if params.is_pair() {
+                if args.is_pair() {
+                    parse(
+                        ctx,
+                        params.cdr().unwrap(),
+                        args.cdr().unwrap(),
+                        Scm::cons(params.car().unwrap(), regular),
+                        func,
+                        all_args,
+                        r,
+                        is_tail,
+                    )
+                } else {
+                    Err(Error::TooFewArguments(Scm::cons(func, all_args)))
+                }
+            } else if params.is_null() {
+                if args.is_null() {
+                    ctx.meaning_fix_closed_application(
+                        func.cadr().unwrap(),
+                        func.cddr().ok_or_else(|| Error::InvalidForm(func))?,
+                        all_args,
+                        r,
+                        is_tail,
+                    )
+                } else {
+                    Err(Error::TooManyArguments(Scm::cons(func, all_args)))
+                }
+            } else {
+                ctx.meaning_dotted_closed_application(
+                    regular.reverse().unwrap(),
+                    params,
+                    func.cddr().ok_or_else(|| Error::InvalidForm(func))?,
+                    all_args,
+                    r,
+                    is_tail,
+                )
+            }
+        }
+
+        let params = func.cadr().ok_or_else(|| Error::InvalidForm(func))?;
+        parse(self, params, args, Scm::null(), func, args, r, is_tail)
     }
 
     fn meaning_primitive_application(
@@ -384,6 +436,29 @@ trait Context: Sized {
         is_tail: bool,
     ) -> Result<Self::Meaning> {
         Ok(self.allocate_frame(size))
+    }
+
+    fn meaning_fix_closed_application(
+        &mut self,
+        params: Scm,
+        body: Scm,
+        args: Scm,
+        r: &'static Environment,
+        is_tail: bool,
+    ) -> Result<Self::Meaning> {
+        unimplemented!()
+    }
+
+    fn meaning_dotted_closed_application(
+        &mut self,
+        params: Scm,
+        extra: Scm,
+        body: Scm,
+        args: Scm,
+        r: &'static Environment,
+        is_tail: bool,
+    ) -> Result<Self::Meaning> {
+        unimplemented!()
     }
 
     fn meaning_dynamic_reference(
@@ -698,7 +773,6 @@ mod tests {
                 let closure: &dyn UserValue = Box::leak(Box::new(closure));
                 state.val = closure.as_scm();
             })
-
         }
 
         fn store_argument(
@@ -1010,15 +1084,11 @@ mod tests {
         let vm = &mut VirtualMachine::default();
         vm.mut_globals.push(Scm::uninitialized());
 
-        let expr = lexpr::from_str("(set! foo (lambda x x))")
-            .unwrap()
-            .into();
+        let expr = lexpr::from_str("(set! foo (lambda x x))").unwrap().into();
         let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
         m(vm);
 
-        let expr = lexpr::from_str("(foo 1 2 3)")
-            .unwrap()
-            .into();
+        let expr = lexpr::from_str("(foo 1 2 3)").unwrap().into();
         let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
 
         m(vm);
@@ -1027,9 +1097,7 @@ mod tests {
         assert_eq!(vm.val.caddr(), Some(Scm::int(3)));
         assert_eq!(vm.val.cdddr(), Some(Scm::null()));
 
-        let expr = lexpr::from_str("(foo)")
-            .unwrap()
-            .into();
+        let expr = lexpr::from_str("(foo)").unwrap().into();
         let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
 
         m(vm);
@@ -1067,5 +1135,22 @@ mod tests {
 
         m(vm);
         assert_eq!(vm.val, Scm::int(8));
+    }
+
+    #[test]
+    fn closed_application() {
+        let mut ctx = MockContext::new();
+        ctx.g_current.names.push("foo".into());
+
+        let expr = lexpr::from_str("((lambda (x y z) y) 1 2 3)")
+            .unwrap()
+            .into();
+        let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
+
+        let vm = &mut VirtualMachine::default();
+        vm.mut_globals.push(Scm::uninitialized());
+
+        m(vm);
+        assert_eq!(vm.val, Scm::int(2));
     }
 }

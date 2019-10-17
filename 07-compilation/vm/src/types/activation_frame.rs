@@ -59,7 +59,7 @@ impl ActivationFrame {
     /// Put excess arguments as a list after the last argument
     pub fn listify(&self, arity: usize) {
         let mut list = Scm::null();
-        for x in self.slots[arity..self.len()-1].iter().rev().copied() {
+        for x in self.slots[arity..self.len() - 1].iter().rev().copied() {
             list = Scm::cons(x, list);
         }
         self.set_argument(arity, list);

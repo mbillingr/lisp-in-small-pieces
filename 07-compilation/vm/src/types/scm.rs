@@ -589,7 +589,6 @@ mod tests {
         assert_eq!(rev.cadr(), Some(Scm::int(2)));
         assert_eq!(rev.caddr(), Some(Scm::int(1)));
         assert_eq!(rev.cdddr(), Some(Scm::null()));
-
     }
 
     #[test]
@@ -602,6 +601,5 @@ mod tests {
         assert_eq!(list.car(), Some(Scm::int(1)));
         assert_eq!(list.cadr(), Some(Scm::int(2)));
         assert_eq!(list.cddr(), Some(Scm::null()));
-
     }
 }
