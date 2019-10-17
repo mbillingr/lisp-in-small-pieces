@@ -31,6 +31,7 @@ trait Context: Sized {
     ) -> Self::Meaning;
     fn sequence(&mut self, first: Self::Meaning, next: Self::Meaning) -> Self::Meaning;
     fn fix_closure(&mut self, body: Self::Meaning, arity: usize) -> Self::Meaning;
+    fn nary_closure(&mut self, body: Self::Meaning, arity: usize) -> Self::Meaning;
     fn store_argument(
         &mut self,
         arg: Self::Meaning,
@@ -241,10 +242,13 @@ trait Context: Sized {
         names: Scm,
         extra: Scm,
         body: Scm,
-        r: &Environment,
+        r: &'static Environment,
         is_tail: bool,
     ) -> Result<Self::Meaning> {
-        unimplemented!()
+        let arity = names.len().ok_or_else(|| Error::ExpectedList(names))?;
+        let r2 = r.extend(names.append(Scm::cons(extra, Scm::null())).unwrap());
+        let m_body = self.meaning_sequence(body, &r2, true)?;
+        Ok(self.nary_closure(m_body, arity))
     }
 
     fn meaning_application(
@@ -672,6 +676,31 @@ mod tests {
             })
         }
 
+        fn nary_closure(&mut self, body: Self::Meaning, arity: usize) -> Self::Meaning {
+            let arityp1 = arity + 1;
+            make_static(move |state| {
+                let the_function =
+                    move |state: &mut VirtualMachine, env: &'static ActivationFrame| {
+                        let frame = state.val.as_frame().expect("Expected Activation Frame");
+                        if frame.len() >= arityp1 {
+                            frame.listify(arity);
+                            state.env = frame.extends(env);
+                            body(state);
+                        } else {
+                            panic!("Incorrect arity")
+                        }
+                    };
+                //state.val = Self::make_closure(make_static(the_function), state.env);
+                let closure = Closure {
+                    code: Box::leak(Box::new(the_function)),
+                    closed_env: state.env,
+                };
+                let closure: &dyn UserValue = Box::leak(Box::new(closure));
+                state.val = closure.as_scm();
+            })
+
+        }
+
         fn store_argument(
             &mut self,
             mut arg: Self::Meaning,
@@ -721,11 +750,16 @@ mod tests {
         }
 
         fn call0(&mut self, address: fn() -> Scm) -> Self::Meaning {
-            unimplemented!()
+            make_static(move |state| {
+                state.val = address();
+            })
         }
 
         fn call1(&mut self, address: fn(Scm) -> Scm, m1: Self::Meaning) -> Self::Meaning {
-            unimplemented!()
+            make_static(move |state| {
+                m1(state);
+                state.val = address(state.val);
+            })
         }
 
         fn call2(
@@ -750,7 +784,16 @@ mod tests {
             m2: Self::Meaning,
             m3: Self::Meaning,
         ) -> Self::Meaning {
-            unimplemented!()
+            make_static(move |state| {
+                m1(state);
+                state.stack_push(state.val);
+                m2(state);
+                state.stack_push(state.val);
+                m3(state);
+                state.arg2 = unsafe { state.stack_pop_into() };
+                state.arg1 = unsafe { state.stack_pop_into() };
+                state.val = address(state.arg1, state.arg2, state.val);
+            })
         }
     }
 
@@ -927,7 +970,19 @@ mod tests {
 
         let vm = &mut VirtualMachine::default();
         m(vm);
-        assert!(vm.val.is_primitive());
+        assert!(vm.val.as_user_value::<Closure>().is_some());
+    }
+
+    #[test]
+    fn dotted_abstraction() {
+        let mut ctx = MockContext::new();
+
+        let expr = lexpr::from_str("(lambda x x)").unwrap().into();
+        let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
+
+        let vm = &mut VirtualMachine::default();
+        m(vm);
+        assert!(vm.val.as_user_value::<Closure>().is_some());
     }
 
     #[test]
@@ -945,6 +1000,40 @@ mod tests {
 
         m(vm);
         assert_eq!(vm.val, Scm::int(2));
+    }
+
+    #[test]
+    fn dotted_application() {
+        let mut ctx = MockContext::new();
+        ctx.g_current.names.push("foo".into());
+
+        let vm = &mut VirtualMachine::default();
+        vm.mut_globals.push(Scm::uninitialized());
+
+        let expr = lexpr::from_str("(set! foo (lambda x x))")
+            .unwrap()
+            .into();
+        let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
+        m(vm);
+
+        let expr = lexpr::from_str("(foo 1 2 3)")
+            .unwrap()
+            .into();
+        let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
+
+        m(vm);
+        assert_eq!(vm.val.car(), Some(Scm::int(1)));
+        assert_eq!(vm.val.cadr(), Some(Scm::int(2)));
+        assert_eq!(vm.val.caddr(), Some(Scm::int(3)));
+        assert_eq!(vm.val.cdddr(), Some(Scm::null()));
+
+        let expr = lexpr::from_str("(foo)")
+            .unwrap()
+            .into();
+        let mut m = ctx.meaning(expr, Environment::allocate(), true).unwrap();
+
+        m(vm);
+        assert_eq!(vm.val, Scm::null());
     }
 
     #[test]

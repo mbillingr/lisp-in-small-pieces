@@ -400,6 +400,10 @@ impl Scm {
         self.cddr().and_then(Scm::car)
     }
 
+    pub fn cdddr(self) -> Option<Self> {
+        self.cddr().and_then(Scm::cdr)
+    }
+
     pub fn cadddr(self) -> Option<Self> {
         self.cddr().and_then(Scm::cadr)
     }
@@ -415,10 +419,24 @@ impl Scm {
     }
 
     pub fn reverse(self) -> Option<Self> {
+        fn iterate(rest: Scm, result: Scm) -> Option<Scm> {
+            if rest.is_null() {
+                Some(result)
+            } else if let Some(&(car, cdr)) = rest.as_pair() {
+                iterate(cdr, Scm::cons(car, result))
+            } else {
+                None
+            }
+        }
+
+        iterate(self, Scm::null())
+    }
+
+    pub fn append(self, new_tail: Scm) -> Option<Self> {
         if self.is_null() {
-            Some(Scm::null())
-        } else if let Some((car, cdr)) = self.as_pair() {
-            Some(Scm::cons(*car, cdr.reverse()?))
+            Some(new_tail)
+        } else if let Some(&(car, cdr)) = self.as_pair() {
+            Some(Scm::cons(car, cdr.append(new_tail)?))
         } else {
             None
         }
@@ -554,5 +572,36 @@ mod tests {
         check_int(SCM_MAX_INT);
         check_int(-1);
         check_int(SCM_MIN_INT);
+    }
+
+    #[test]
+    fn reverse() {
+        let list = Scm::cons(Scm::int(3), Scm::null());
+        let list = Scm::cons(Scm::int(2), list);
+        let list = Scm::cons(Scm::int(1), list);
+
+        let rev = list.reverse().unwrap();
+
+        println!("{}", list);
+        println!("{}", rev);
+
+        assert_eq!(rev.car(), Some(Scm::int(3)));
+        assert_eq!(rev.cadr(), Some(Scm::int(2)));
+        assert_eq!(rev.caddr(), Some(Scm::int(1)));
+        assert_eq!(rev.cdddr(), Some(Scm::null()));
+
+    }
+
+    #[test]
+    fn append() {
+        let list1 = Scm::cons(Scm::int(1), Scm::null());
+        let list2 = Scm::cons(Scm::int(2), Scm::null());
+
+        let list = list1.append(list2).unwrap();
+
+        assert_eq!(list.car(), Some(Scm::int(1)));
+        assert_eq!(list.cadr(), Some(Scm::int(2)));
+        assert_eq!(list.cddr(), Some(Scm::null()));
+
     }
 }
