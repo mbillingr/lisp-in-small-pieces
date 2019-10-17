@@ -7,7 +7,7 @@
           cadddr cddddr
           cons-stream cube
           debug-eval debug-print dec delay
-          enumerate even?
+          enumerate even? every?
           false fixed-point force for-each
           gcd get get-coercion
           inc iterative-improve
@@ -198,6 +198,9 @@
           initial
           (op (car sequence)
               (accumulate op initial (cdr sequence)))))
+
+    (define (every? p sequence)
+      (accumulate (lambda (x y) (and x y)) #t (map p sequence)))
 
     (define (map1 p sequence)
       (accumulate (lambda (x y) (cons (p x) y)) nil sequence))

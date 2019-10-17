@@ -97,22 +97,47 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
-        (set! *val* (activation-frame-argument *val* 0))))))
+        (println "entering list")
+        (set! *val* (activation-frame-argument *val* 0))
+        (set! *pc* (stack-pop))))))
 
 (definitial 'read
   (let* ((arity 0)
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering read")
         (if (= arity+1 (activation-frame-argument-length *val*))
-            (set! *val* (read))
+            (begin (set! *val* (read))
+                   (set! *pc* (stack-pop)))
             (signal-exception #t (list "Incorrect arity" 'read)))))))
+
+
+(definitial 'eof-object?
+  (let* ((arity 0)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (println "entering eof-object?")
+        (set! *val* #f)
+        (set! *pc* (stack-pop))))))
+
+;(definitial 'the-environment
+;  (let* ((arity 0)
+;         (arity+1 (+ arity 1)))))
+;    (make-primitive
+;      (lambda ()
+;        (if (= arity+1 (activation-frame-argument-length *val*))
+;            (begin (set! *val* (export))
+;                   (set! *pc* stack-pop)
+;            (signal-exception #t (list "Incorrect arity" 'the-environment)))))))
 
 (definitial 'call/cc
   (let* ((arity 1)
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering call/cc")
         (if (= arity+1 (activation-frame-argument-length *val*))
             (let ((f (activation-frame-argument *val* 0))
                   (frame (allocate-activation-frame (+ 1 1))))
@@ -128,6 +153,7 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering apply")
         (if (>= (activation-frame-argument-length *val*) arity+1)
             (let* ((proc (activation-frame-argument *val* 0))
                    (last-arg-index (- (activation-frame-argument-length *val*) 2))
@@ -148,6 +174,8 @@
               (copy-args2 (- last-arg-index 1) last-arg)
               (set! *val* frame)
               (set! *fun* proc)       ; useful for debug
+              (println *fun*)
+              (println *val*)
               (invoke proc #t))
             (signal-exception #t (list "Incorrect arity" 'apply)))))))
 
@@ -156,6 +184,7 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering enrich")
         (if (>= (activation-frame-argument-length *val*) arity+1)
             (let ((env (activation-frame-argument *val* 0)))
               (listify! *val* 1)
@@ -195,18 +224,19 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering variable-value")
         (if (= (activation-frame-argument-length *val*) arity+1)
             (let ((name (activation-frame-argument *val* 0))
                   (env (activation-frame-argument *val* 1)))
               (if (reified-environment? env)
                   (if (symbol? name)
-                      (let ((r (reified-environment-r env))
-                            (sr (reified-environment-sr env))
-                            (kind
-                              (or (let ((var (assq name r)))
-                                    (and (pair? var) (cadr var)))
-                                  (global-variable? g.current name)
-                                  (global-variable? g.init name))))
+                      (let* ((r (reified-environment-r env))
+                             (sr (reified-environment-sr env))
+                             (kind
+                               (or (let ((var (assq name r)))
+                                     (and (pair? var) (cadr var)))
+                                   (global-variable? g.current name)
+                                   (global-variable? g.init name))))
                         (variable-value-lookup kind sr)
                         (set! *pc* (stack-pop)))
                       (signal-exception #f (list "Not a variable name" name)))
@@ -218,20 +248,21 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering set-variable-value!")
         (if (= (activation-frame-argument-length *val*) arity+1)
             (let ((name (activation-frame-argument *val* 0))
                   (env (activation-frame-argument *val* 1))
                   (v (activation-frame-argument *val* 2)))
               (if (reified-environment? env)
                   (if (symbol? name)
-                      (let ((r (reified-environment-r env))
-                            (sr (reified-environment-sr env))
-                            (kind
-                              (or (let ((var (assq name r)))
-                                    (and (pair? var) (cadr var)))
-                                  (global-variable? g.current name)
-                                  (global-variable? g.init name))))
-                        (variable-value-update! kind sr *val*)
+                      (let* ((r (reified-environment-r env))
+                             (sr (reified-environment-sr env))
+                             (kind
+                               (or (let ((var (assq name r)))
+                                     (and (pair? var) (cadr var)))
+                                   (global-variable? g.current name)
+                                   (global-variable? g.init name))))
+                        (variable-value-update! kind sr v)
                         (set! *pc* (stack-pop)))
                       (signal-exception #f (list "Not a variable name" name)))
                   (signal-exception #t (list "Not an environment" env))))
@@ -242,6 +273,7 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
+        (println "entering variable-defined?")
         (if (= (activation-frame-argument-length *val*) arity+1)
             (let ((name (activation-frame-argument *val* 0))
                   (env (activation-frame-argument *val* 1)))

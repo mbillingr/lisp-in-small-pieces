@@ -15,6 +15,8 @@
                                             (cddr e) r tail?))
         ((bind-exit)   (meaning-bind-exit (caadr e) (cddr e) r tail?))
         ((monitor)     (meaning-monitor (cadr e) (cddr e) r tail?))
+        ((export)      (meaning-export (cdr e) r tail?))
+        ((the-environment) (meaning-export '() r tail?))
         (else          (meaning-application (car e) (cdr e) r tail?)))))
 
 
@@ -25,7 +27,7 @@
   (if (not (every? symbol? n*))
       (static-wrong "Incorrect variables" n*))
   (append (CONSTANT (extract-addresses n* r))
-          (CREATE-1ST-CLAS-ENV)))
+          (CREATE-1ST-CLASS-ENV)))
 ; ========================
 
 (define (meaning-quotation v r tail?)
