@@ -89,6 +89,25 @@
 (defprimitive '* * 2)
 (defprimitive '/ / 2)
 
+(defprimitive 'display display 1)
+(defprimitive 'newline newline 0)
+
+(definitial 'list
+  (let* ((arity 0)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (set! *val* (activation-frame-argument *val* 0))))))
+
+(definitial 'read
+  (let* ((arity 0)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (= arity+1 (activation-frame-argument-length *val*))
+            (set! *val* (read))
+            (signal-exception #t (list "Incorrect arity" 'read)))))))
+
 (definitial 'call/cc
   (let* ((arity 1)
          (arity+1 (+ arity 1)))
@@ -170,3 +189,73 @@
                               (scan (cdr n*) (+ i 1))))
             ((null? n*) (old-r))))
     (scan n* 0)))
+
+(definitial 'variable-value
+  (let* ((arity 2)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (= (activation-frame-argument-length *val*) arity+1)
+            (let ((name (activation-frame-argument *val* 0))
+                  (env (activation-frame-argument *val* 1)))
+              (if (reified-environment? env)
+                  (if (symbol? name)
+                      (let ((r (reified-environment-r env))
+                            (sr (reified-environment-sr env))
+                            (kind
+                              (or (let ((var (assq name r)))
+                                    (and (pair? var) (cadr var)))
+                                  (global-variable? g.current name)
+                                  (global-variable? g.init name))))
+                        (variable-value-lookup kind sr)
+                        (set! *pc* (stack-pop)))
+                      (signal-exception #f (list "Not a variable name" name)))
+                  (signal-exception #t (list "Not an environment" env))))
+            (signal-exception #t (list "Incorrect arity" 'variable-value)))))))
+
+(definitial 'set-variable-value!
+  (let* ((arity 3)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (= (activation-frame-argument-length *val*) arity+1)
+            (let ((name (activation-frame-argument *val* 0))
+                  (env (activation-frame-argument *val* 1))
+                  (v (activation-frame-argument *val* 2)))
+              (if (reified-environment? env)
+                  (if (symbol? name)
+                      (let ((r (reified-environment-r env))
+                            (sr (reified-environment-sr env))
+                            (kind
+                              (or (let ((var (assq name r)))
+                                    (and (pair? var) (cadr var)))
+                                  (global-variable? g.current name)
+                                  (global-variable? g.init name))))
+                        (variable-value-update! kind sr *val*)
+                        (set! *pc* (stack-pop)))
+                      (signal-exception #f (list "Not a variable name" name)))
+                  (signal-exception #t (list "Not an environment" env))))
+            (signal-exception #t (list "Incorrect arity" 'set-variable-value!)))))))
+
+(definitial 'variable-defined?
+  (let* ((arity 2)
+         (arity+1 (+ arity 1)))
+    (make-primitive
+      (lambda ()
+        (if (= (activation-frame-argument-length *val*) arity+1)
+            (let ((name (activation-frame-argument *val* 0))
+                  (env (activation-frame-argument *val* 1)))
+              (if (reified-environment? env)
+                  (if (symbol? name)
+                      (let ((r (reified-environment-r env))
+                            (sr (reified-environment-sr env)))
+                        (set! *val*
+                              (if (or (let ((var (assq name r)
+                                              (and (pair? var) (cadr var))))
+                                        (global-variable? g.current name)
+                                        (global-variable? g.init name)))
+                                  #t #f))
+                        (set! *pc* (stack-pop)))
+                      (signal-exception #f (list "Not a variable name" name)))
+                  (signal-exception #t (list "Not an environment" env))))
+            (signal-exception #t (list "Incorrect arity" 'variable-defined?)))))))

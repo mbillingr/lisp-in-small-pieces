@@ -211,6 +211,9 @@
 (define-instruction (CONSTANT2) 83 (set! *val* 2))
 (define-instruction (CONSTANT4) 84 (set! *val* 4))
 
+(define-instruction (CALL0-newline) 90
+  (newline))
+
 (define-instruction (CALL1-car) 90
   (set! *val* (car *val*)))
 (define-instruction (CALL1-cdr) 91
@@ -220,7 +223,7 @@
 (define-instruction (CALL1-symbol?) 93
   (set! *val* (symbol? *val*)))
 (define-instruction (CALL1-display) 94
-  (set! *val* (display *val*)))
+  (display *val*))
 (define-instruction (CALL1-null?) 95
   (set! *val* (null? *val*)))
 

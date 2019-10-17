@@ -247,6 +247,7 @@
 
 (define (INVOKE0 address)
   (case address
+    ((newline)  (list 89))
     (else (static-wrong "Cannot integrate" address))))
 
 (define (INVOKE1 address)
@@ -286,6 +287,12 @@
 
 (define (POP-ESCAPER)         (list 250))
 (define (PUSH-ESCAPER offset) (list 251 offset))
+
+
+; ===========================================================================
+
+;(definitial 'list)
+;  (NARY-CLOSURE (SHALLOW-ARGUMENT-REF 0) 0))
 
 ; ===========================================================================
 
