@@ -11,7 +11,7 @@
             (lambda ()
               (if (= arity+1 (activation-frame-argument-length *val*))
                   (begin
-                    (set! *val* (value arg1))
+                    (set! *val* (value))
                     (set! *pc* (stack-pop)))
                   (signal-exception #t (list "Incorrect arity" name))))))
       (description-extend! name `(function ,name))
@@ -97,7 +97,7 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
-        (println "entering list")
+        (listify! *val* 0)
         (set! *val* (activation-frame-argument *val* 0))
         (set! *pc* (stack-pop))))))
 
@@ -154,6 +154,7 @@
     (make-primitive
       (lambda ()
         (println "entering apply")
+        (println *val*)
         (if (>= (activation-frame-argument-length *val*) arity+1)
             (let* ((proc (activation-frame-argument *val* 0))
                    (last-arg-index (- (activation-frame-argument-length *val*) 2))
