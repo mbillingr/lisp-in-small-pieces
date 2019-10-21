@@ -285,4 +285,3 @@
 (compile-file "07-compilation/test2")
 (compile-file "07-compilation/test3")
 (compile-file "07-compilation/test4")
-(compile-file "08-reflection/reflective-interpreter")
