@@ -70,17 +70,17 @@
         (else (signal-exception #f (list "Not a function" f)))))
 
 (define (make-closure code closed-environment)
-  (list 'closure code closed-environment))
+  (vector 'closure code closed-environment))
 
 (define (closure? obj)
-  (and (pair? obj)
-       (eq? (car obj) 'closure)))
+  (and (vector? obj)
+       (eq? (vector-ref obj 0) 'closure)))
 
 (define (closure-code obj)
-  (cadr obj))
+  (vector-ref obj 1))
 
 (define (closure-closed-environment obj)
-  (caddr obj))
+  (vector-ref obj 2))
 
 (define (make-continuation stack)
   `(continuation ,stack))
