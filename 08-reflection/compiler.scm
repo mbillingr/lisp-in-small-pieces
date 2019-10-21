@@ -117,25 +117,25 @@
           (INVOKE3 address)))
 
 (define (FIX-CLOSURE m+ arity)
-  (define the-function
-    (append (ARITY=? (+ arity 1))
-            (EXTEND-ENV)
-            m+
-            (RETURN)))
-  (append (CREATE-CLOSURE 2)
-          (GOTO (length the-function))
-          the-function))
+  (let* ((the-function (append (ARITY=? (+ arity 1))
+                               (EXTEND-ENV)
+                               m+
+                               (RETURN)))
+         (skip-function (GOTO (length the-function))))
+    (append (CREATE-CLOSURE (length skip-function))
+            skip-function
+            the-function)))
 
 (define (NARY-CLOSURE m+ arity)
-  (define the-function
-    (append (ARITY>=? (+ arity 1))
-            (PACK-FRAME! arity)
-            (EXTEND-ENV)
-            m+
-            (RETURN)))
-  (append (CREATE-CLOSURE 2)
-          (GOTO (length the-function))
-          the-function))
+  (let* ((the-function (append (ARITY>=? (+ arity 1))
+                               (PACK-FRAME! arity)
+                               (EXTEND-ENV)
+                               m+
+                               (RETURN)))
+         (skip-function (GOTO (length the-function))))
+    (append (CREATE-CLOSURE (length skip-function))
+            skip-function
+            the-function)))
 
 (define (FIX-LET m* m+)
   (append m* (EXTEND-ENV) m+ (UNLINK-ENV)))
