@@ -70,7 +70,7 @@
         (else (signal-exception #f (list "Not a function" f)))))
 
 (define (make-closure code closed-environment)
-  (vector 'closure code closed-environment))
+  (opaque-vector 'closure code closed-environment))
 
 (define (closure? obj)
   (and (vector? obj)

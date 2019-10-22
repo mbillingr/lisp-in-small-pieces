@@ -14,6 +14,7 @@
           length list-ref list-tail
           map map1 memo-proc memq modulo
           nil
+          opaque-vector
           power println printn put put-coercion
           reverse
           stream-car stream-cdr stream-null? sqr sqrt symbol<?
@@ -288,6 +289,15 @@
 
     (define (vector . args)
       (let ((vec (make-vector (length args))))
+        (define (init idx rest-args)
+          (if (pair? rest-args)
+              (begin (vector-set! vec idx (car rest-args))
+                     (init (+ idx 1) (cdr rest-args)))
+              vec))
+        (init 0 args)))
+
+    (define (opaque-vector . args)
+      (let ((vec (make-opaque-vector (length args))))
         (define (init idx rest-args)
           (if (pair? rest-args)
               (begin (vector-set! vec idx (car rest-args))

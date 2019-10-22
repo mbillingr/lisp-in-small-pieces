@@ -14,16 +14,17 @@
 ;  Chapter 8 additions
 
 (define (make-reified-environment sr r)
-  (list 'reified-environment sr r))
+  (println "reifying environment:" r)
+  (opaque-vector 'reified-environment sr r))
 
 (define (reified-environment? obj)
-  (and (pair? obj) (eq? (car obj) 'reified-environment)))
+  (and (vector? obj) (eq? (vector-ref obj 0) 'reified-environment)))
 
 (define (reified-environment-sr obj)
-  (cadr obj))
+  (vector-ref obj 1))
 
 (define (reified-environment-r obj)
-  (caddr obj))
+  (vector-ref obj 2))
 
 
 (define (r-extend* r n*)
@@ -60,6 +61,7 @@
 
 
 (define (variable-value-lookup kind sr)
+  (println "entering variable-value-lookup")
   (if (pair? kind)
       (case (car kind)
         ((checked-local)
@@ -283,6 +285,9 @@
 
 (define (activation-frame-next frame)
   (car frame))
+
+(define (set-activation-frame-next! frame sr)
+  (set-car! frame sr))
 
 ; ============================================================================
 

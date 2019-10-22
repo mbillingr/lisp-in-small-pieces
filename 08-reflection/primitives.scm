@@ -106,7 +106,6 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
-        (println "entering read")
         (if (= arity+1 (activation-frame-argument-length *val*))
             (begin (set! *val* (read))
                    (set! *pc* (stack-pop)))
@@ -118,7 +117,6 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
-        (println "entering eof-object?")
         (set! *val* #f)
         (set! *pc* (stack-pop))))))
 
@@ -137,7 +135,6 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
-        (println "entering call/cc")
         (if (= arity+1 (activation-frame-argument-length *val*))
             (let ((f (activation-frame-argument *val* 0))
                   (frame (allocate-activation-frame (+ 1 1))))
@@ -153,8 +150,6 @@
          (arity+1 (+ arity 1)))
     (make-primitive
       (lambda ()
-        (println "entering apply")
-        (println *val*)
         (if (>= (activation-frame-argument-length *val*) arity+1)
             (let* ((proc (activation-frame-argument *val* 0))
                    (last-arg-index (- (activation-frame-argument-length *val*) 2))
@@ -283,10 +278,10 @@
                       (let ((r (reified-environment-r env))
                             (sr (reified-environment-sr env)))
                         (set! *val*
-                              (if (or (let ((var (assq name r)
-                                              (and (pair? var) (cadr var))))
-                                        (global-variable? g.current name)
-                                        (global-variable? g.init name)))
+                              (if (or (let ((var (assq name r)))
+                                        (and (pair? var) (cadr var)))
+                                      (global-variable? g.current name)
+                                      (global-variable? g.init name))
                                   #t #f))
                         (set! *pc* (stack-pop)))
                       (signal-exception #f (list "Not a variable name" name)))

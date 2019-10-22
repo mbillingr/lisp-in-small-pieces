@@ -1,6 +1,6 @@
 
 (define (run)
-  (println "->" *pc* "  OP:" (instruction-decode *code* *pc*))
+  ;(println "->" *pc* "  OP:" (instruction-decode *code* *pc*))
   (let ((instruction (fetch-byte)))
     ((vector-ref instruction-body-table instruction)))
   (if (not *exit*)  ; workaround for interpreter without call/cc
