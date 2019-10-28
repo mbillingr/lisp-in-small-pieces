@@ -1,7 +1,6 @@
 (import (libs book)
         (libs utils))
 
-
 (define-class Program Object ())
 
 (define-class Reference Program (variable))
@@ -30,6 +29,9 @@
 (define-class Local-Variable Variable (mutable? dotted?))
 
 (define-class Magic-Keyword Object (name handler))
+
+
+(include "visualize.scm")
 
 
 (define (objectify e r)
