@@ -1,0 +1,10 @@
+
+(define (update-walk! g o . args)
+  (for-each (lambda (field)
+              (let ((vf field-value o field))
+                (if (Program? vf)
+                    (let ((v (if (null? args)
+                                 (g vf)
+                                 (apply g vf args))))
+                      (set-field-value! o v field)))))
+            (Class-fields (object->class o))))
