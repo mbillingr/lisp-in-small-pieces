@@ -1,5 +1,3 @@
-(import (libs book)
-        (libs utils))
 
 (define-class Program Object ())
 
@@ -8,8 +6,9 @@
 (define-class Global-Reference Reference ())
 (define-class Predefined-Reference Reference ())
 
-(define-class Global-Assignment Program (variable form))
-(define-class Local-Assignment Program (variable form))
+(define-class Assignment Program (variable form))
+(define-class Global-Assignment Assignment ())
+(define-class Local-Assignment Assignment ())
 
 (define-class Function Program (variables body))
 (define-class Alternative Program (condition consequent alternant))
@@ -29,6 +28,12 @@
 (define-class Local-Variable Variable (mutable? dotted?))
 
 (define-class Magic-Keyword Object (name handler))
+
+(define-class Environment Object (next))
+(define-class Full-Environment Environment (variable))
+
+(define-class Functional-Description Object (comparator arity text))
+
 
 
 (include "visualize.scm")
@@ -112,9 +117,9 @@
                                 (Arguments-first e*)
                                 (make-Arguments
                                   (pack (Arguments-others e*))
-                                  (make-No-Arguments))))
+                                  (make-No-Argument))))
                             (make-Constant '())))
-                      (make-No-Arguments))
+                      (make-No-Argument))
                     (if (Arguments? e*)
                         (make-Arguments (Arguments-first e*)
                                         (gather (Arguments-others e*)
@@ -150,10 +155,6 @@
     (insert-global! v r)
     (make-Global-Reference v)))
 
-
-(define-class Environment Object (next))
-(define-class Full-Environment Environment (variable))
-
 (define (r-extend* r vars)
   (if (pair? vars)
       (r-extend (r-extend* r (cdr vars)) (car vars))
@@ -187,7 +188,7 @@
       (find-global-environment (Full-Environment-next r))
       r))
 
-(define (objectify-assignment e r)
+(define (objectify-assignment variable e r)
   (let ((ov (objectify variable r))
         (of (objectify e r)))
     (cond ((Local-Reference? ov)
