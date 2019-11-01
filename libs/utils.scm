@@ -2,7 +2,7 @@
 (define-library (libs utils)
 
   (export <= >=
-          abs accumulate append assoc assq assv average
+          abs accumulate append assert-eq assert-equal assert-instance assoc assq assv average
           caar cadr cdar cddr caaar caadr caddr cadar cdadr cddar cdddr caaddr
           cadddr cddddr
           cons-stream cube
@@ -55,6 +55,19 @@
                     (+ sqsum (sqr time))
                     end))))
       (iter 0 0 0 (+ (runtime) 1e6)))
+
+    (define (assert-instance class object)
+      (assert-eq class (object->class object)))
+
+    (define (assert-eq expected actual)
+      (if (eq? actual expected)
+          #t
+          (error "Got" actual "but expected" expected)))
+
+    (define (assert-equal expected actual)
+      (if (equal? actual expected)
+          #t
+          (error "Got" actual "but expected" expected)))
 
     (define (make-traced proc name)
       (let ((level 0))

@@ -6,9 +6,8 @@
 (define-class Global-Reference Reference ())
 (define-class Predefined-Reference Reference ())
 
-(define-class Assignment Program (variable form))
-(define-class Global-Assignment Assignment ())
-(define-class Local-Assignment Assignment ())
+(define-class Global-Assignment Object (variable form))
+(define-class Local-Assignment Object (reference form))
 
 (define-class Function Program (variables body))
 (define-class Alternative Program (condition consequent alternant))
@@ -219,13 +218,48 @@
   (make-Magic-Keyword 'lambda
     (lambda (e r) (objectify-function (cadr e) (cddr e) r))))
 
+;;; Backquote forms are supposed to be correct.  This is very ugly and
+;;; only approximate. Backquoting should be better interleaved with
+;;; objectification. What if unquote shadows lexically a comma ?
+;;; QUICK and DIRTY!
+
+(define special-quasiquote
+  (make-Magic-Keyword
+   'quasiquote
+   (lambda (e r)
+     (define (walk e)
+       (if (pair? e)
+           (if (eq? (car e) 'unquote)
+               (cadr e)
+               (if (eq? (car e) 'quasiquote)
+                   (objectify-error "No embedded quasiquotation" e)
+                   (walk-pair e)))
+           (list special-quote e)))
+     (define (walk-pair e)
+       (if (pair? (car e))
+           (if (eq? (car (car e)) 'unquote-splicing)
+               (list (make-Predefined-Reference
+                      (find-variable? 'append g.predef))
+                     (cadr (car e))
+                     (walk (cdr e)))
+               (list (make-Predefined-Reference
+                      (find-variable? 'cons g.predef))
+                     (walk (car e))
+                     (walk (cdr e))))
+           (list (make-Predefined-Reference
+                  (find-variable? 'cons g.predef))
+                 (list special-quote (car e))
+                 (walk (cdr e)))))
+     (objectify (walk (cadr e)) r))))
+
 (define *special-form-keywords*
   (list special-quote
         special-if
         special-begin
         special-set!
-        special-lambda))
+        special-lambda
         ; ...
+        special-quasiquote))
 
 
 (define-class Evaluator Object (mother
@@ -289,6 +323,8 @@
       (let ((expander ((Evaluator-eval (force level))
                        `(,special-lambda ,variables . ,body))))
         (define (handler e r)
+          (println "| expanding macro" e)
+          (println "|              =>" (invoke expander (cdr e)))
           (objectify (invoke expander (cdr e)) r))
         (insert-global! (make-Magic-Keyword name handler) r)
         (objectify #t r)))))
