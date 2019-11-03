@@ -58,6 +58,9 @@
 (define-generic (evaluate (o) sr)
   (error "not implemented:" 'evaluate (object->class o)))
 
+(define-method (evaluate (o Magic-Keyword) sr)
+  (error "evaluating unexpanded Magic-Keyword" (Magic-Keyword-name o)))
+
 (define-method (evaluate (o Constant) sr)
   (Constant-value o))
 
@@ -234,6 +237,11 @@
 (define ast ((Evaluator-expand root)
              '(lambda (x) x)))
 
+
+;((Evaluator-eval root)
+; '(define-abbreviation (lambda params . body)
+;    (cons 'lambda (cons params body)))
+
 (assert-eq 42 ((Evaluator-eval root) 42))
 
 (assert-eq undefined-value ((Evaluator-eval root) 'x))
@@ -304,3 +312,43 @@
             '(let ((x 42)
                    (y 10))
                (- x y))))
+
+;((Evaluator-eval root)
+; '(define-abbreviation (define var . body)
+;    (if (pair? var)
+;        `(set! ,(car var) ,(cons 'lambda (cons (cdr var) body)))
+;        (cons `set! (cons var body)))
+
+((Evaluator-eval root)
+ '(define baba (+ 7 5)))
+(assert-eq 12 ((Evaluator-eval root) 'baba))
+
+((Evaluator-eval root)
+ '(define (baba alpha beta) (+ alpha beta)))
+(assert-eq 123 ((Evaluator-eval root) '(baba 100 23)))
+
+(assert-eq 720 ((Evaluator-eval root)
+                '((lambda (inner-factorial)
+                     (set! inner-factorial (lambda (i acc)
+                                             (if (< i 2) acc
+                                                 (inner-factorial (- i 1) (* acc i)))))
+                     (inner-factorial 6 1))
+                  (quote *unassigned*))))
+
+((Evaluator-eval root)
+ '(define (factorial n)
+    (define (inner-factorial i acc)
+      (if (< i 2)
+          acc
+          (inner-factorial (- i 1) (* acc i))))
+    (inner-factorial n 1)))
+(assert-eq 120 ((Evaluator-eval root) '(factorial 5)))
+;(assert-eq 120 ((Evaluator-eval root) '(inner-factorial 5 1)))
+
+(assert-eq 42 ((Evaluator-eval root)
+               '(begin (define (outer)
+                         (define my-answer 42)
+                         (define (inner)
+                           my-answer)
+                         (inner))
+                       (outer))))

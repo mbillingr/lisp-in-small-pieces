@@ -1,7 +1,7 @@
 
 (define (update-walk! g o . args)
   (for-each (lambda (field)
-              (let ((vf field-value o field))
+              (let ((vf (field-value o field)))
                 (if (Program? vf)
                     (let ((v (if (null? args)
                                  (g vf)

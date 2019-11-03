@@ -6,8 +6,8 @@
 (define-class Global-Reference Reference ())
 (define-class Predefined-Reference Reference ())
 
-(define-class Global-Assignment Object (variable form))
-(define-class Local-Assignment Object (reference form))
+(define-class Global-Assignment Program (variable form))
+(define-class Local-Assignment Program (reference form))
 
 (define-class Function Program (variables body))
 (define-class Alternative Program (condition consequent alternant))
@@ -34,11 +34,12 @@
 (define-class Functional-Description Object (comparator arity text))
 
 
-
 (include "visualize.scm")
+(include "scan-out-defines.scm")
 
 
 (define (objectify e r)
+  ;(println "objectify" e)
   (if (atom? e)
       (cond ((Magic-Keyword? e) e)
             ((Program? e) e)
@@ -198,6 +199,18 @@
           (else (objectify-error "Illegal mutated reference" variable)))))
 
 
+(define (objectify-definition var body r)
+  (if (pair? var)
+      (objectify-assignment (car var)
+                            (cons 'lambda (cons (cdr var) body))
+                            r)
+      ;(make-Definition (objectify (car var) r)
+      ;                 (objectify (cons 'lambda (cons (cdr var) body)) r))
+      (objectify-assignment var (car body) r)))
+      ;(make-Definition (objectify var r)
+      ;                 (objectify (car body) r))))
+
+
 (define special-if
   (make-Magic-Keyword 'if
     (lambda (e r) (objectify-alternative (cadr e) (caddr e) (cadddr e) r))))
@@ -216,7 +229,11 @@
 
 (define special-lambda
   (make-Magic-Keyword 'lambda
-    (lambda (e r) (objectify-function (cadr e) (cddr e) r))))
+    (lambda (e r) (objectify-function (cadr e) (scan-out-defines (cddr e)) r))))
+
+(define special-define
+  (make-Magic-Keyword 'define
+    (lambda (e r) (objectify-definition (cadr e) (cddr e) r))))
 
 ;;; Backquote forms are supposed to be correct.  This is very ugly and
 ;;; only approximate. Backquoting should be better interleaved with
@@ -259,6 +276,7 @@
         special-set!
         special-lambda
         ; ...
+        special-define
         special-quasiquote))
 
 
