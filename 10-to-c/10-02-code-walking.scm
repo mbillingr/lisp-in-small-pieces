@@ -7,4 +7,5 @@
                                  (g vf)
                                  (apply g vf args))))
                       (set-field-value! o v field)))))
-            (Class-fields (object->class o))))
+            (Class-fields (object->class o)))
+  o)
