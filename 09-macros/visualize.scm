@@ -3,8 +3,8 @@
 (define-generic (visualize (o) indent)
   (error "not implemented:" 'visualize (object->class o)))
 
-(define-method (visualize (o Program) indent)
-  (print-indented indent "Program"))
+;(define-method (visualize (o Program) indent))
+;  (print-indented indent "Program"))
 
 (define-method (visualize (o Reference) indent)
   (print-indented indent "ref" (visualize (Reference-variable o) 0)))
@@ -24,23 +24,24 @@
   (visualize (Global-Assignment-form o) (more indent)))
 
 (define-method (visualize (o Local-Assignment) indent)
-  (print-indented indent "local-set")
-  (print-indented (more indent) (visualize (Local-Assignment-variable o) 0))
+  (print-indented indent "local-set" (visualize (Reference-variable (Local-Assignment-reference o)) 0))
   (visualize (Local-Assignment-form o) (more indent)))
 
 (define-method (visualize (o Function) indent)
-  (print-indented indent "lambda" (Function-variables o))
-  (visualize (more indent) (Function-body o)))
+  (print-indented indent
+    "lambda" (map (lambda (v) (visualize v 0))
+                  (Function-variables o)))
+  (visualize (Function-body o) (more indent)))
 
 (define-method (visualize (o Alternative) indent)
   (print-indented indent "if" (Alternative-condition o))
-  (visualize (+ 3 indent) (Alternative-consequent o))
-  (visualize (+ 3 indent) (Alternative-alternant o)))
+  (visualize (Alternative-consequent o) (+ 3 indent))
+  (visualize (Alternative-alternant o) (+ 3 indent)))
 
 (define-method (visualize (o Sequence) indent)
   (print-indented indent "sequence")
-  (visualize (more indent) (Sequence-first o))
-  (visualize (more) indent) (Sequence-last o))
+  (visualize (Sequence-first o) (more indent))
+  (visualize (Sequence-last o) (more indent)))
 
 (define-method (visualize (o Constant) indent)
   (print-indented indent "const" (Constant-value o)))
@@ -56,7 +57,7 @@
 
 (define-method (visualize (o Predefined-Application) indent)
   (print-indented indent "predef-application")
-  (visualize (Predefined-Application-variable o) (more indent))
+  (print-indented (more indent) (visualize (Predefined-Application-variable o) 0))
   (print-indented (more indent) "arguments")
   (visualize (Predefined-Application-arguments o) (more (more indent))))
 
@@ -75,6 +76,9 @@
 
 (define-method (visualize (o Variable) indent)
   (string-append "var " (symbol->string (Variable-name o))))
+
+(define-method (visualize (o Variable) indent)
+  (symbol->string (Variable-name o)))
 
 (define-method (visualize (o Magic-Keyword) indent)
   (string-append "keyword " (symbol->string (Magic-Keyword-name o))))
