@@ -45,5 +45,24 @@
       newfun (lift-procedures! body newfun localvars))
     (let ((free* (Flat-Function-free newfun)))
       (set-Flat-Function-free!
-        newfun (lift-proceduces! free* flatfun vars))
+        newfun (lift-procedures! free* flatfun vars))
       newfun)))
+
+
+(define-method (visualize (o Free-Reference) indent)
+  (string-append "free-ref " (visualize (Free-Reference-variable o) 0)))
+
+(define-method (visualize (o Flat-Function) indent)
+  (print-indented indent
+    "flat-lambda" (map (lambda (v) (visualize v 0))
+                       (Function-variables o)))
+  (print-indented (more indent) "free-variables:" (map (lambda (ref) (visualize (Reference-variable ref) 0))
+                                                       (list-of-free-vars (Flat-Function-free o))))
+  (visualize (Function-body o) (more indent)))
+  ;(print-indented indent "free-ref" (visualize (Free-Reference-variable o) 0)))
+
+(define (list-of-free-vars env)
+  (if (No-Free? env)
+      '()
+      (cons (Free-Environment-first env)
+            (list-of-free-vars (Free-Environment-others env)))))

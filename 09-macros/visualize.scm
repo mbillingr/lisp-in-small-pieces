@@ -6,17 +6,17 @@
 ;(define-method (visualize (o Program) indent))
 ;  (print-indented indent "Program"))
 
-(define-method (visualize (o Reference) indent)
-  (print-indented indent "ref" (visualize (Reference-variable o) 0)))
+;(define-method (visualize (o Reference) indent)
+;  (print-indented indent "ref" (visualize (Reference-variable o) 0)))
 
 (define-method (visualize (o Local-Reference) indent)
-  (print-indented indent "local-ref" (visualize (Local-Reference-variable o) 0)))
+  (string-append "local-ref " (visualize (Local-Reference-variable o) 0)))
 
 (define-method (visualize (o Global-Reference) indent)
-  (print-indented indent "global-ref" (visualize (Global-Reference-variable o) 0)))
+  (string-append "global-ref " (visualize (Global-Reference-variable o) 0)))
 
 (define-method (visualize (o Predefined-Reference) indent)
-  (print-indented indent "predef-ref" (visualize (Predefined-Reference-variable o) 0)))
+  (string-append "predef-ref " (visualize (Predefined-Reference-variable o) 0)))
 
 (define-method (visualize (o Global-Assignment) indent)
   (print-indented indent "global-set")
@@ -62,7 +62,8 @@
   (visualize (Predefined-Application-arguments o) (more (more indent))))
 
 (define-method (visualize (o Fix-Let) indent)
-  (print-indented indent "fix-let" (Fix-Let-variables))
+  (print-indented indent "fix-let" (map (lambda (v) (visualize v 0))
+                                        (Fix-Let-variables o)))
   (print-indented (more indent) "arguments")
   (visualize (Fix-Let-arguments o) (more (more indent)))
   (visualize (Fix-Let-body o) (more indent)))

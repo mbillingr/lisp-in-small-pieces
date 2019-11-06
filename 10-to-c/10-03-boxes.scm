@@ -43,8 +43,8 @@
   (print-indented indent "boxify" (visualize (Box-Creation-variable o) 0)))
 
 (define-method (visualize (o Box-Write) indent)
-  (print-indented indent "box-set" (visualize (Reference-variable (Box-Write-reference o)) 0))
-  (visualize (Box-Write-form o) (more indent)))
+  (print-indented indent "box-set" (visualize (Box-Write-reference o) 0))
+  (visualize (Box-Write-form o) (+ indent 8)))
 
 (define-method (visualize (o Box-Read) indent)
-  (print-indented indent "box-get" (visualize (Reference-variable (Box-Read-reference o)) 0)))
+  (print-indented indent "box-get" (visualize (Box-Read-reference o) 0)))
