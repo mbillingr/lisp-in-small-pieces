@@ -13,4 +13,4 @@
   ((Evaluator-expand root) exp))
 
 
-(visualize (insert-box! (Sexp->object '(lambda (x y) (set! y x) x))) 0)
+(visualize (insert-box! (Sexp->object '(lambda (x y) (set! y x) y))) 0)
