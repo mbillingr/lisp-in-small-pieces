@@ -42,7 +42,7 @@
 (define (closurize-main! o)
   (let ((index (length (Flattened-Program-definitions o))))
     (set-Flattened-Program-definitions!
-      o (cons (make-Function-definition
+      o (cons (make-Function-Definition
                 '() (Flattened-Program-form o) '() index)
               (Flattened-Program-definitions o)))
     (set-Flattened-Program-form!
