@@ -66,3 +66,7 @@
       '()
       (cons (Free-Environment-first env)
             (list-of-free-vars (Free-Environment-others env)))))
+
+(define-method (number-of (o Free-Environment))
+  (+ 1 (number-of (Free-Environment-others o))))
+(define-method (number-of (o No-Free)) 0)

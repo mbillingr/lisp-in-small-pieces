@@ -96,7 +96,8 @@
       (make-Arguments (car e*) (convert2arguments (cdr e*)))
       (make-No-Argument)))
 
-(define-generic (number-of (o)) '*not-implemented*)
+(define-generic (number-of (o))
+  (error "no implementation of number-of" o))
 (define-method (number-of (o Arguments))
   (+ 1 (number-of (Arguments-others o))))
 (define-method (number-of (o No-Argument)) 0)
