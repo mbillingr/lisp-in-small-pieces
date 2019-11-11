@@ -8,7 +8,8 @@
                 'name (make-Functional-Description
                         = arity
                         (make-predefined-application-generator 'Cname)))))
-       (set! g.init (cons v g.init))
+       ;(set! g.init (cons v g.init))
+       (set! g.init (make-Full-Environment g.init v))
        'name))))
 
 (define (make-predefined-application-generator Cname)
@@ -22,4 +23,5 @@
 (defprimitive cons "SCM_cons" 2)
 (defprimitive car "SCM_car" 1)
 (defprimitive + "SCM_Plus" 2)
+(defprimitive - "SCM_Minus" 2)
 (defprimitive = "SCM_EqnP" 2)

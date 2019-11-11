@@ -13,7 +13,7 @@
     (if (pair? variables)
         (if (Local-Variable-dotted? (car variables))
             (- (+ arity 1))
-            (count (cdr variables (+ 1 arity))))
+            (count (cdr variables) (+ 1 arity)))
         arity)))
 
 (define-method (->C (e No-Free) out)

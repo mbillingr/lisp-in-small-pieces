@@ -25,10 +25,10 @@
     ;; Enrich environment with eval
     (set! g (r-extend* g *special-form-keywords*))
     (set! g (r-extend* g (make-macro-environment level)))
-    (let ((eval-var (make-Predefined-Variable
-                      'eval (make-Functional-Description = 1 "")))
-          (eval-fn (make-RunTime-Primitive eval = 1)))
-      (set! g (r-extend g eval-var)))
+    ;(let ((eval-var (make-Predefined-Variable
+    ;                  'eval (make-Functional-Description = 1 ""))
+    ;      (eval-fn (make-RunTime-Primitive eval = 1))
+    ;  (set! g (r-extend g eval-var)))
       ;(set! sg (sr-extend sg eval-var eval-fn)))
     ;; Mark the beginning of the global environment
     (set-Evaluator-Preparation-Environment!
@@ -92,8 +92,12 @@
   0)
 
 (compile->C
-  '(begin
-    (+ (a! b-b bb) 2)
-    'xyz
-    (append '(1 2 3) '(4 2 3)))
+  ;'(begin (set! foo (lambda x x))
+  ;        (foo 1 2 3)
+
+  '(let ((x 10)
+         (y 20))
+    (- x y))
+
+  ;'(cons 1 2)
   #t)
