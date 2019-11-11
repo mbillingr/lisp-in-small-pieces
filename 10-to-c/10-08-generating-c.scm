@@ -1,6 +1,11 @@
 
 (include "10-08-01-globals.scm")
 (include "10-08-02-quotations.scm")
+(include "10-08-04-expressions.scm")
+(include "10-08-05-apply.scm")
+(include "10-08-06-predefined.scm")
+(include "10-08-07-functions.scm")
+(include "10-08-08-main.scm")
 
 (define (compile->C e out)
   ;(set! g.current '())
@@ -13,8 +18,8 @@
   ;(generate-global-environment out (g.current))
   (generate-global-environment out (get-globals root))
   (generate-quotations out (Flattened-Program-quotations prg))
-  ;(generate-functions out (Flattened-Program-definitions prg))
-  ;(generate-main out (Flattened-Program-form prg))
+  (generate-functions out (Flattened-Program-definitions prg))
+  (generate-main out (Flattened-Program-form prg))
   (generate-trailer out)
   prg)
 

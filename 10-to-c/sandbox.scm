@@ -10,11 +10,38 @@
 (include "10-06-gather-vars.scm")
 (include "10-08-generating-c.scm")
 
-; prepare root evaluator
+(define (create-compiler old-level)
+  (let ((level 'wait)
+        (g g.init))
+        ;(sg sg.predef))
+    (define (expand e)
+      (let ((prg (objectify e (Evaluator-Preparation-Environment level))))
+        ;(enrich-with-new-global-variables! level)
+        prg))
+    (define (eval e)
+      (error "This compiler does not evaluate"))
+    ;; Create resulting evaluator instance
+    (set! level (make-Evaluator old-level 'wait 'wait eval expand))
+    ;; Enrich environment with eval
+    (set! g (r-extend* g *special-form-keywords*))
+    (set! g (r-extend* g (make-macro-environment level)))
+    (let ((eval-var (make-Predefined-Variable
+                      'eval (make-Functional-Description = 1 "")))
+          (eval-fn (make-RunTime-Primitive eval = 1)))
+      (set! g (r-extend g eval-var)))
+      ;(set! sg (sr-extend sg eval-var eval-fn)))
+    ;; Mark the beginning of the global environment
+    (set-Evaluator-Preparation-Environment!
+      level (mark-global-preparation-environment g))
+    ;(set-Evaluator-RunTime-Environment!
+    ;  level (mark-global-runtime-environment sg))
+    level))
 
-(define root (create-evaluator #f))
+; prepare root compiler/evaluator
 
-((Evaluator-eval root)
+(define root (create-compiler #f))
+
+((Evaluator-expand root)
  '(define-abbreviation (let defs . body)
     ((lambda (names)
        (set! names
