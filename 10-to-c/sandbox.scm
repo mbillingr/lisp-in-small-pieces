@@ -95,9 +95,10 @@
   ;'(begin (set! foo (lambda x x))
   ;        (foo 1 2 3)
 
-  '(let ((x 10)
+  '(let ((list (lambda x x))
+         (x 10)
          (y 20))
-    (- x y))
+    (list (- x y) '() 'result))
 
   ;'(cons 1 2)
   #t)
