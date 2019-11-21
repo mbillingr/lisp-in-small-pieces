@@ -6,6 +6,7 @@ mod sexpr;
 mod source;
 mod symbol;
 mod value;
+mod parsing;
 
 use crate::ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
 use crate::env::EnvChain;
