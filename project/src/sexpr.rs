@@ -1,34 +1,100 @@
+use crate::source::{Source, SourceLocation};
+use crate::symbol::Symbol;
 use std::rc::Rc;
 
-pub enum Sexpr {
-    Symbol(Rc<String>),
-
-    List(RcSlice<Sexpr>)
-
+#[derive(Debug, Clone)]
+pub struct TrackedSexpr {
+    sexpr: Sexpr,
+    src: SourceLocation,
 }
 
-impl Sexpr {
+#[derive(Debug, Clone)]
+pub enum Sexpr {
+    Nil,
+    Symbol(Symbol),
+    Int(i64),
+
+    List(RcSlice<TrackedSexpr>, Option<Box<TrackedSexpr>>),
+}
+
+impl TrackedSexpr {
+    pub fn into_sexpr(self) -> Sexpr {
+        self.sexpr
+    }
+
+    pub fn source(&self) -> &SourceLocation {
+        &self.src
+    }
+
+    pub fn nil(src: SourceLocation) -> Self {
+        TrackedSexpr {
+            sexpr: Sexpr::Nil,
+            src,
+        }
+    }
+
     pub fn first(&self) -> Option<&Self> {
-        match self {
-            Sexpr::List(l) => Some(&l[0]),
+        match &self.sexpr {
+            Sexpr::List(l, _) if l.len() == 0 => panic!("invalid list"),
+            Sexpr::List(l, _) => Some(&l[0]),
             _ => None,
         }
     }
 
     pub fn tail(&self) -> Option<Self> {
-        match self {
-            Sexpr::List(l) if l.len() > 0 => {
-                Some(Sexpr::List(l.slice_from(1)))
-            },
+        match &self.sexpr {
+            Sexpr::List(l, _) if l.len() == 0 => panic!("invalid list"),
+            Sexpr::List(l, None) if l.len() == 1 => Some(Self::nil(self.src.last_char())),
+            Sexpr::List(l, Some(dot)) if l.len() == 1 => Some((**dot).clone()),
+            Sexpr::List(l, d) => Some(TrackedSexpr {
+                sexpr: Sexpr::List(l.clone().slice_from(1), d.clone()),
+                src: self.src.clone().start_at(&l[0].src),
+            }),
             _ => None,
         }
     }
 
     pub fn at(&self, idx: usize) -> Option<&Self> {
-        match self {
-            Sexpr::List(l) if l.len() > idx => {
-                Some(&l[idx])
-            },
+        match &self.sexpr {
+            Sexpr::List(l, _) if l.len() > idx => Some(&l[idx]),
+            _ => None,
+        }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        match &self.sexpr {
+            Sexpr::List(_, _) => false,
+            _ => true,
+        }
+    }
+
+    pub fn is_symbol(&self) -> bool {
+        self.as_symbol().is_some()
+    }
+
+    pub fn as_symbol(&self) -> Option<&Symbol> {
+        match &self.sexpr {
+            Sexpr::Symbol(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_pair(&self) -> Option<(Self, Self)> {
+        let car = self.first().cloned();
+        let cdr = self.tail();
+        car.into_iter().zip(cdr).next()
+    }
+
+    pub fn as_list(&self) -> Option<(&RcSlice<Self>, Option<Self>)> {
+        match &self.sexpr {
+            Sexpr::List(l, dotted) => Some((l, dotted.as_ref().map(|s| (**s).clone()))),
+            _ => None,
+        }
+    }
+
+    pub fn as_proper_list(&self) -> Option<&RcSlice<Self>> {
+        match &self.sexpr {
+            Sexpr::List(l, None) => Some(l),
             _ => None,
         }
     }
@@ -36,17 +102,46 @@ impl Sexpr {
 
 impl From<lexpr::Value> for Sexpr {
     fn from(x: lexpr::Value) -> Self {
-        unimplemented!()
+        use lexpr::Value::*;
+        match x {
+            Null => Sexpr::Nil,
+            Number(ref n) if n.is_i64() => Sexpr::Int(n.as_i64().unwrap()),
+            Symbol(s) => Sexpr::Symbol(s.into()),
+            Cons(_) => {
+                let mut list: Vec<TrackedSexpr> = vec![];
+
+                let mut item = &x;
+                while let Cons(c) = item {
+                    list.push(c.car().clone().into());
+                    item = c.cdr();
+                }
+
+                if item.is_null() {
+                    Sexpr::List(list.into(), None)
+                } else {
+                    Sexpr::List(list.into(), Some(Box::new(item.clone().into())))
+                }
+            }
+            _ => unimplemented!("{:?}", x),
+        }
     }
 }
 
+impl From<lexpr::Value> for TrackedSexpr {
+    fn from(x: lexpr::Value) -> Self {
+        TrackedSexpr {
+            sexpr: x.into(),
+            src: SourceLocation::NoSource,
+        }
+    }
+}
 
-struct RcSlice<T> {
+pub struct RcSlice<T> {
     base: Rc<[T]>,
     slice: *const [T],
 }
 
-impl<T:std::fmt::Debug> std::fmt::Debug for RcSlice<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for RcSlice<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?}", &**self)
     }
@@ -69,13 +164,12 @@ impl<T> From<Vec<T>> for RcSlice<T> {
             base: src,
         }
     }
-
 }
 
 impl<T> std::ops::Deref for RcSlice<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
-        unsafe{&*self.slice}
+        unsafe { &*self.slice }
     }
 }
 
@@ -94,5 +188,18 @@ impl<T> RcSlice<T> {
     pub fn slice_from(self, from: usize) -> Self {
         let n = self.len();
         self.slice(from, n)
+    }
+
+    pub fn pop(&mut self) -> Option<&T> {
+        let mut n = self.len();
+        if n == 0 {
+            return None;
+        }
+        n -= 1;
+
+        let item = &self[n] as *const _;
+        *self = self.clone().slice_to(n);
+
+        unsafe { Some(&*item) }
     }
 }

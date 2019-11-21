@@ -1,7 +1,13 @@
-use crate::ast::{AstNode, Constant, FixLet, Function, GlobalReference, LocalReference, MagicKeyword, PredefinedApplication, PredefinedReference, RegularApplication, Sequence, Variable, LocalAssignment, GlobalAssignment};
+use crate::ast::{
+    AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference, LocalAssignment,
+    LocalReference, MagicKeyword, PredefinedApplication, PredefinedReference, Ref,
+    RegularApplication, Sequence, Variable,
+};
 use crate::env::{Env, EnvAccess};
-use crate::sexpr::Sexpr;
-use crate::value::{Symbol, Value};
+use crate::sexpr::TrackedSexpr as Sexpr;
+use crate::source::SourceLocation;
+use crate::symbol::Symbol;
+use crate::value::Value;
 
 pub type Result<T> = std::result::Result<T, ObjectifyError>;
 
@@ -10,6 +16,8 @@ pub enum ObjectifyError {
     NoPair,
     IncorrectArity,
     ImmutableAssignment,
+    ExpectedList,
+    ExpectedSymbol,
 }
 
 pub struct Translate {
@@ -42,86 +50,95 @@ impl Translate {
             if let Some(MagicKeyword { name: _, handler }) = m.downcast_ref() {
                 handler(self, expr, env)
             } else {
-                self.objectify_application(m, cdr(expr)?, env)
+                self.objectify_application(m, &cdr(expr)?, env, expr.source().clone())
             }
         }
     }
 
     fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<AstNode> {
-        Ok(Constant::new(expr.clone()))
+        Ok(Constant::new(expr.clone(), expr.source().clone()))
     }
 
     pub fn objectify_sequence(&mut self, exprs: &Sexpr, env: &Env) -> Result<AstNode> {
-        if let Some((first, rest)) = exprs.as_pair() {
-            let a = self.objectify(first, env)?;
-            if rest.is_pair() {
-                Ok(Sequence::new(a, self.objectify_sequence(rest, env)?))
-            } else {
-                Ok(a)
-            }
+        let mut sequence = exprs
+            .as_proper_list()
+            .ok_or(ObjectifyError::ExpectedList)?
+            .clone();
+
+        let last = if let Some(x) = sequence.pop() {
+            x
         } else {
             unimplemented!("empty sequence")
+        };
+
+        let mut result: AstNode = self.objectify(last, env)?;
+
+        for e in sequence.iter().rev() {
+            result = Sequence::new(self.objectify(e, env)?, result, exprs.source().clone());
         }
+
+        Ok(result)
     }
 
     fn objectify_symbol(&mut self, expr: &Sexpr, env: &Env) -> Result<AstNode> {
         let var_name = Sexpr::as_symbol(expr).unwrap();
-        match env.find_variable(&var_name) {
-            Some(v @ Variable::Local(_, _, _)) => Ok(LocalReference::new(v)),
-            Some(v @ Variable::Global(_)) => Ok(GlobalReference::new(v)),
-            Some(v @ Variable::Predefined(_, _)) => Ok(PredefinedReference::new(v)),
-            Some(Variable::Macro(mkw)) => Ok(mkw),
-            None => self.objectify_free_reference(var_name, env),
+        match env.find_variable(var_name) {
+            Some(v @ Variable::Local(_)) => Ok(LocalReference::new(v, expr.source().clone())),
+            Some(v @ Variable::Global(_)) => Ok(GlobalReference::new(v, expr.source().clone())),
+            Some(v @ Variable::Predefined(_)) => {
+                Ok(PredefinedReference::new(v, expr.source().clone()))
+            }
+            Some(Variable::Macro(mkw)) => Ok(Ref::new((*mkw).clone())),
+            None => self.objectify_free_reference(var_name.clone(), env, expr.source().clone()),
         }
     }
 
-    fn objectify_free_reference(&mut self, name: Symbol, env: &Env) -> Result<AstNode> {
+    fn objectify_free_reference(
+        &mut self,
+        name: Symbol,
+        env: &Env,
+        span: SourceLocation,
+    ) -> Result<AstNode> {
         let v = Variable::Global(name);
         env.insert_global(v.clone());
-        Ok(GlobalReference::new(v))
+        Ok(GlobalReference::new(v, span))
     }
 
     fn objectify_application(
         &mut self,
         mut func: AstNode,
-        args: &Value,
+        args: &Sexpr,
         env: &Env,
+        span: SourceLocation,
     ) -> Result<AstNode> {
-        let args = map(args, |e| self.objectify(e, env))?;
+        let args = args.as_proper_list().ok_or(ObjectifyError::ExpectedList)?;
+        let args: Vec<_> = args
+            .iter()
+            .map(|e| self.objectify(e, env))
+            .collect::<Result<_>>()?;
 
-        match func.downcast::<Function>() {
-            Ok(f) => return self.process_closed_application(*f, args),
-            Err(f) => func = f,
+        if let Some(f) = func.downcast_ref::<Function>() {
+            return self.process_closed_application(f.clone(), args, span);
         }
 
         if let Some(p) = func.downcast_ref::<PredefinedReference>() {
             let fvf = p.variable().clone();
             let desc = fvf.description();
             if desc.arity.check(args.len()) {
-                Ok(PredefinedApplication::new(fvf, args))
+                Ok(PredefinedApplication::new(fvf, args, span))
             } else {
                 Err(ObjectifyError::IncorrectArity)
             }
         } else {
-            Ok(RegularApplication::new(func, args))
+            Ok(RegularApplication::new(func, args, span))
         }
     }
-
-    /*fn convert2arguments<I>(args: impl IntoIterator<Item = AstNode, IntoIter = I>) -> AstNode
-    where
-        I: DoubleEndedIterator<Item = AstNode>,
-    {
-        let mut result: AstNode = NoMoreArguments::new();
-        for a in args.into_iter().rev() {
-            result = Arguments::new(a, result);
-        }
-        result
-    }*/
 
     fn process_closed_application(
         &mut self,
         func: Function,
         args: Vec<AstNode>,
+        span: SourceLocation,
     ) -> Result<AstNode> {
         if func
             .variables
@@ -129,10 +146,10 @@ impl Translate {
             .map(Variable::is_dotted)
             .unwrap_or(false)
         {
-            self.process_nary_closed_application(func, args)
+            self.process_nary_closed_application(func, args, span)
         } else {
             if args.len() == func.variables.len() {
-                Ok(FixLet::new(func.variables, args, func.body))
+                Ok(FixLet::new(func.variables, args, func.body, span))
             } else {
                 Err(ObjectifyError::IncorrectArity)
             }
@@ -143,6 +160,7 @@ impl Translate {
         &mut self,
         func: Function,
         mut args: Vec<AstNode>,
+        span: SourceLocation,
     ) -> Result<AstNode> {
         let variables = func.variables;
         let body = func.body;
@@ -156,20 +174,22 @@ impl Translate {
             .find_variable("cons")
             .expect("The cons pritimive must be available in the predefined environment");
 
-        let mut dotted: AstNode = Constant::new(Value::nil());
+        let mut dotted: AstNode = Constant::new(Value::nil(), span.last_char());
 
         while args.len() >= variables.len() {
             let x = args.pop().unwrap();
 
+            let partial_span = span.clone().start_at(x.source());
+
             // todo: generate list construction by chaining applications of predefined 'cons
-            dotted = PredefinedApplication::new(cons_var.clone(), vec![x, dotted]);
+            dotted = PredefinedApplication::new(cons_var.clone(), vec![x, dotted], partial_span);
         }
 
         args.push(dotted);
 
         variables.last().unwrap().set_dotted(false);
 
-        Ok(FixLet::new(variables, args, body))
+        Ok(FixLet::new(variables, args, body, span))
     }
 
     pub fn objectify_function(
@@ -177,64 +197,58 @@ impl Translate {
         names: &Sexpr,
         body: &Sexpr,
         env: &Env,
+        span: SourceLocation,
     ) -> Result<AstNode> {
-        let vars = self.objectify_variables_list(names);
+        let vars = self.objectify_variables_list(names)?;
         let bdy = self.objectify_sequence(body, &env.clone().extend_frame(vars.iter().cloned()))?;
-        Ok(Function::new(vars, bdy))
+        Ok(Function::new(vars, bdy, span))
     }
 
-    fn objectify_variables_list(&mut self, mut names: &Sexpr) -> Vec<Variable> {
-        let mut list = vec![];
-        while let Some((car, cdr)) = names.as_pair() {
-            list.push(Variable::local(
-                Sexpr::as_symbol(car).expect("Not a symbol in variables list"),
-                false,
-                false,
-            ));
-            names = cdr;
+    fn objectify_variables_list(&mut self, mut names: &Sexpr) -> Result<Vec<Variable>> {
+        if let Some((l, dotted)) = names.as_list() {
+            let mut list: Vec<_> = (**l)
+                .iter()
+                .map(|x| x.as_symbol().ok_or(ObjectifyError::ExpectedSymbol))
+                .map(|s| Ok(s?.clone()))
+                .map(|s| Ok(Variable::local(s?, false, false)))
+                .collect::<Result<_>>()?;
+            if let Some(x) = dotted {
+                let s = x.as_symbol().ok_or(ObjectifyError::ExpectedSymbol)?;
+                list.push(Variable::local(s.clone(), false, true))
+            }
+            Ok(list)
+        } else if let Some(s) = names.as_symbol() {
+            Ok(vec![Variable::local(s.clone(), false, true)])
+        } else {
+            Err(ObjectifyError::ExpectedList)
         }
-        if let Some(name) = Sexpr::as_symbol(names) {
-            list.push(Variable::local(name, false, true));
-        }
-        list
     }
 
-    pub fn objectify_assignment(&mut self, variable: &Sexpr, expr: &Sexpr, env: &Env) -> Result<AstNode> {
+    pub fn objectify_assignment(
+        &mut self,
+        variable: &Sexpr,
+        expr: &Sexpr,
+        env: &Env,
+        span: SourceLocation,
+    ) -> Result<AstNode> {
         let ov = self.objectify(variable, env)?;
         let of = self.objectify(expr, env)?;
 
-        let ov = match ov.downcast::<LocalReference>() {
-            Ok(r) => {
-                r.variable().set_mutable(true);
-                return Ok(LocalAssignment::new(*r, of))
-            }
-            Err(ov) => ov,
-        };
-
-        let ov = match ov.downcast::<GlobalReference>() {
-            Ok(r) => {
-                return Ok(GlobalAssignment::new(r.variable().clone(), of))
-            }
-            Err(ov) => ov,
-        };
-
-        Err(ObjectifyError::ImmutableAssignment)
+        if let Some(r) = ov.downcast_ref::<LocalReference>() {
+            r.variable().set_mutable(true);
+            Ok(LocalAssignment::new(r.clone(), of, span))
+        } else if let Some(r) = ov.downcast_ref::<GlobalReference>() {
+            Ok(GlobalAssignment::new(r.variable().clone(), of, span))
+        } else {
+            Err(ObjectifyError::ImmutableAssignment)
+        }
     }
-}
-
-pub fn map<T>(mut sequence: &Value, mut f: impl FnMut(&Value) -> Result<T>) -> Result<Vec<T>> {
-    let mut result = vec![];
-    while let Some((car, cdr)) = sequence.as_pair() {
-        result.push(f(car)?);
-        sequence = cdr;
-    }
-    Ok(result)
 }
 
 pub fn car(e: &Sexpr) -> Result<&Sexpr> {
-    //e.car().ok_or(ObjectifyError::NoPair)
+    e.first().ok_or(ObjectifyError::NoPair)
 }
 
-pub fn cdr(e: &Sexpr) -> Result<&Sexpr> {
-    //e.cdr().ok_or(ObjectifyError::NoPair)
+pub fn cdr(e: &Sexpr) -> Result<Sexpr> {
+    e.tail().ok_or(ObjectifyError::NoPair)
 }

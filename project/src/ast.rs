@@ -1,18 +1,27 @@
-use crate::env::{Env, LexicalRuntimeEnv, GlobalRuntimeEnv};
+use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::objectify::{Result, Translate};
-use crate::value::{Symbol, Value};
+use crate::sexpr::TrackedSexpr as Sexpr;
+use crate::source::{Source, SourceLocation};
+use crate::symbol::Symbol;
+use crate::value::Value;
 use downcast_rs::{impl_downcast, Downcast};
 use std::cell::Cell;
-use crate::sexpr::Sexpr;
+use std::rc::Rc;
 
-type Ref<T> = Box<T>;
+pub type Ref<T> = Box<T>;
 
 pub type AstNode = Ref<dyn Ast>;
 
 pub trait Ast: std::fmt::Debug + Downcast {
+    fn source(&self) -> &SourceLocation;
+
     fn default_transform(self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode;
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn deep_clone(&self) -> AstNode {
+        unimplemented!("deep clone {:?}", self)
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
         unimplemented!("eval {:?}", self)
     }
 }
@@ -25,6 +34,12 @@ impl dyn Ast {
             Visited::Transformed(node) => node,
             Visited::Identity => self.default_transform(visitor),
         }
+    }
+}
+
+impl Clone for Ref<dyn Ast> {
+    fn clone(&self) -> Self {
+        self.deep_clone()
     }
 }
 
@@ -52,288 +67,423 @@ impl std::fmt::Debug for MagicKeyword {
 }
 
 impl MagicKeyword {
-    pub fn new(name: Symbol, handler: MagicKeywordHandler) -> Ref<Self> {
-        Ref::new(MagicKeyword { name, handler })
+    pub fn new(name: impl Into<Symbol>, handler: MagicKeywordHandler) -> Rc<Self> {
+        Rc::new(MagicKeyword {
+            name: name.into(),
+            handler,
+        })
     }
 
-    pub fn name(&self) -> Symbol {
-        self.name
+    pub fn name(&self) -> &Symbol {
+        &self.name
     }
 }
 
 impl Ast for MagicKeyword {
+    fn source(&self) -> &SourceLocation {
+        &SourceLocation::NoSource
+    }
+
     fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
         unreachable!()
+    }
+
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum Variable {
-    Local(Symbol, Cell<bool>, Cell<bool>),
+    Local(Rc<(Symbol, Cell<bool>, Cell<bool>)>),
     Global(Symbol),
-    Predefined(Symbol, FunctionDescription),
-    Macro(Ref<MagicKeyword>),
+    Predefined(Rc<(Symbol, FunctionDescription)>),
+    Macro(Rc<MagicKeyword>),
 }
 
 impl Variable {
-    pub fn local(name: Symbol, mutable: bool, dotted: bool) -> Self {
-        Variable::Local(name, Cell::new(mutable), Cell::new(dotted))
+    pub fn local(name: impl Into<Symbol>, mutable: bool, dotted: bool) -> Self {
+        Variable::Local(Rc::new((
+            name.into(),
+            Cell::new(mutable),
+            Cell::new(dotted),
+        )))
     }
 
-    pub fn name(&self) -> Symbol {
+    pub fn global(name: impl Into<Symbol>) -> Self {
+        Variable::Global(name.into())
+    }
+
+    pub fn predefined(name: impl Into<Symbol>, func: FunctionDescription) -> Self {
+        Variable::Predefined(Rc::new((name.into(), func)))
+    }
+
+    pub fn name(&self) -> &Symbol {
         match self {
-            Variable::Local(n, _, _) | Variable::Global(n) | Variable::Predefined(n, _) => n,
+            Variable::Local(v) => &v.0,
+            Variable::Global(v) => &*v,
+            Variable::Predefined(v) => &v.0,
             Variable::Macro(mkw) => mkw.name(),
         }
     }
 
     pub fn is_dotted(&self) -> bool {
         match self {
-            Variable::Local(_, _, dotted) => dotted.get(),
+            Variable::Local(v) => v.2.get(),
             _ => panic!("invalid check for dotted variable"),
         }
     }
 
     pub fn set_dotted(&self, d: bool) {
         match self {
-            Variable::Local(_, _, dotted) => dotted.set(d),
+            Variable::Local(v) => v.2.set(d),
             _ => panic!("attempt to set dotted on non-local variable"),
         }
     }
 
     pub fn is_mutable(&self) -> bool {
         match self {
-            Variable::Local(_, mutable, _) => mutable.get(),
+            Variable::Local(v) => v.1.get(),
             _ => panic!("invalid check for mutable variable"),
         }
     }
 
     pub fn set_mutable(&self, d: bool) {
         match self {
-            Variable::Local(_, mutable, _) => mutable.set(d),
+            Variable::Local(v) => v.1.set(d),
             _ => panic!("attempt to set mutable on non-local variable"),
         }
     }
 
     pub fn description(&self) -> &FunctionDescription {
         match self {
-            Variable::Predefined(_, descr) => descr,
+            Variable::Predefined(v) => &v.1,
             _ => panic!("attempt to get description of non-predefined variable"),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct LocalReference(Variable);
+#[derive(Debug, Clone)]
+pub struct LocalReference {
+    var: Variable,
+    span: SourceLocation,
+}
 
 impl LocalReference {
-    pub fn new(var: Variable) -> Ref<Self> {
-        Ref::new(LocalReference(var))
+    pub fn new(var: Variable, span: SourceLocation) -> Ref<Self> {
+        Ref::new(LocalReference { var, span })
     }
 
     pub fn variable(&self) -> &Variable {
-        &self.0
+        &self.var
     }
 }
 
 impl Ast for LocalReference {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        sr.get_lexical(self.0.name())
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        sr.get_lexical(self.var.name())
     }
 }
 
-#[derive(Debug)]
-pub struct GlobalReference(Variable);
+#[derive(Debug, Clone)]
+pub struct GlobalReference {
+    var: Variable,
+    span: SourceLocation,
+}
 
 impl GlobalReference {
-    pub fn new(var: Variable) -> Ref<Self> {
-        Ref::new(GlobalReference(var))
+    pub fn new(var: Variable, span: SourceLocation) -> Ref<Self> {
+        Ref::new(GlobalReference { var, span })
     }
 
     pub fn variable(&self) -> &Variable {
-        &self.0
+        &self.var
     }
 }
 
 impl Ast for GlobalReference {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        sg.get_global(self.0.name())
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        sg.get_global(self.var.name())
     }
 }
 
-#[derive(Debug)]
-pub struct PredefinedReference(Variable);
+#[derive(Debug, Clone)]
+pub struct PredefinedReference {
+    var: Variable,
+    span: SourceLocation,
+}
 
 impl PredefinedReference {
-    pub fn new(var: Variable) -> Ref<Self> {
-        Ref::new(PredefinedReference(var))
+    pub fn new(var: Variable, span: SourceLocation) -> Ref<Self> {
+        Ref::new(PredefinedReference { var, span })
     }
 
     pub fn variable(&self) -> &Variable {
-        &self.0
+        &self.var
     }
 }
 
 impl Ast for PredefinedReference {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
         self
     }
+
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalAssignment {
     reference: LocalReference,
     form: AstNode,
+    span: SourceLocation,
 }
 
 impl LocalAssignment {
-    pub fn new(reference: LocalReference, form: AstNode) -> Ref<Self> {
-        Ref::new(LocalAssignment{
-            reference, form
+    pub fn new(reference: LocalReference, form: AstNode, span: SourceLocation) -> Ref<Self> {
+        Ref::new(LocalAssignment {
+            reference,
+            form,
+            span,
         })
     }
 }
 
 impl Ast for LocalAssignment {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.form = self.form.transform(visitor);
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
         unimplemented!()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GlobalAssignment {
     variable: Variable,
     form: AstNode,
+    span: SourceLocation,
 }
 
 impl GlobalAssignment {
-    pub fn new(variable: Variable, form: AstNode) -> Ref<Self> {
-        Ref::new(GlobalAssignment{
-            variable, form
+    pub fn new(variable: Variable, form: AstNode, span: SourceLocation) -> Ref<Self> {
+        Ref::new(GlobalAssignment {
+            variable,
+            form,
+            span,
         })
     }
 }
 
 impl Ast for GlobalAssignment {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.form = self.form.transform(visitor);
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
         let val = self.form.eval(sr, sg);
         sg.set_global(self.variable.name(), val);
         Value::Undefined
     }
 }
 
-#[derive(Debug)]
-pub struct Constant(Value);
+#[derive(Debug, Clone)]
+pub struct Constant {
+    value: Value,
+    span: SourceLocation,
+}
 
 impl Constant {
-    pub fn new(value: impl Into<Value>) -> Ref<Self> {
-        Ref::new(Constant(value.into()))
+    pub fn new(value: impl Into<Value>, span: SourceLocation) -> Ref<Self> {
+        Ref::new(Constant {
+            value: value.into(),
+            span,
+        })
     }
 
     pub fn value(&self) -> &Value {
-        &self.0
+        &self.value
     }
 }
 
 impl Ast for Constant {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        self.0.clone()
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        self.value.clone()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sequence {
     first: AstNode,
     next: AstNode,
+    span: SourceLocation,
 }
 
 impl Sequence {
-    pub fn new(first: AstNode, next: AstNode) -> Ref<Self> {
-        Box::new(Sequence { first, next })
+    pub fn new(first: AstNode, next: AstNode, span: SourceLocation) -> Ref<Self> {
+        Ref::new(Sequence { first, next, span })
     }
 }
 
 impl Ast for Sequence {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.first = self.first.transform(visitor);
         self.next = self.next.transform(visitor);
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
         self.first.eval(sr, sg);
         self.next.eval(sr, sg)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Alternative {
     condition: AstNode,
     consequence: AstNode,
     alternative: AstNode,
+    span: SourceLocation,
 }
 
 impl Alternative {
-    pub fn new(condition: AstNode, consequence: AstNode, alternative: AstNode) -> Ref<Self> {
-        Box::new(Alternative {
+    pub fn new(
+        condition: AstNode,
+        consequence: AstNode,
+        alternative: AstNode,
+        span: SourceLocation,
+    ) -> Ref<Self> {
+        Ref::new(Alternative {
             condition,
             consequence,
             alternative,
+            span,
         })
     }
 }
 
 impl Ast for Alternative {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.condition = self.condition.transform(visitor);
         self.consequence = self.consequence.transform(visitor);
         self.alternative = self.alternative.transform(visitor);
         self
     }
+
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub variables: Vec<Variable>,
     pub body: AstNode,
+    span: SourceLocation,
 }
 
 impl Function {
-    pub fn new(variables: Vec<Variable>, body: AstNode) -> Ref<Self> {
-        Box::new(Function { variables, body })
+    pub fn new(variables: Vec<Variable>, body: AstNode, span: SourceLocation) -> Ref<Self> {
+        Ref::new(Function {
+            variables,
+            body,
+            span,
+        })
     }
 }
 
 impl Ast for Function {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.body = self.body.transform(visitor);
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        Value::Procedure(RuntimeProcedure::new(self.body, self.variables, sr.clone()))
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        Value::Procedure(RuntimeProcedure::new(
+            self.body.clone(),
+            self.variables.clone(),
+            sr.clone(),
+        ))
     }
 }
 
@@ -341,18 +491,24 @@ impl Ast for Function {
 pub struct RegularApplication {
     function: AstNode,
     arguments: Vec<AstNode>,
+    span: SourceLocation,
 }
 
 impl RegularApplication {
-    pub fn new(function: AstNode, arguments: Vec<AstNode>) -> Ref<Self> {
-        Box::new(RegularApplication {
+    pub fn new(function: AstNode, arguments: Vec<AstNode>, span: SourceLocation) -> Ref<Self> {
+        Ref::new(RegularApplication {
             function,
             arguments,
+            span,
         })
     }
 }
 
 impl Ast for RegularApplication {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.function = self.function.transform(visitor);
         self.arguments = self
@@ -364,22 +520,28 @@ impl Ast for RegularApplication {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PredefinedApplication {
     variable: Variable,
     arguments: Vec<AstNode>,
+    span: SourceLocation,
 }
 
 impl PredefinedApplication {
-    pub fn new(variable: Variable, arguments: Vec<AstNode>) -> Ref<Self> {
-        Box::new(PredefinedApplication {
+    pub fn new(variable: Variable, arguments: Vec<AstNode>, span: SourceLocation) -> Ref<Self> {
+        Ref::new(PredefinedApplication {
             variable,
             arguments,
+            span,
         })
     }
 }
 
 impl Ast for PredefinedApplication {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.arguments = self
             .arguments
@@ -389,7 +551,11 @@ impl Ast for PredefinedApplication {
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
         let name = self.variable.name();
         let args: Vec<_> = self.arguments.iter().map(|a| a.eval(sr, sg)).collect();
         let func = sg.get_predefined(name);
@@ -397,24 +563,35 @@ impl Ast for PredefinedApplication {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FixLet {
     variables: Vec<Variable>,
     arguments: Vec<AstNode>,
     body: AstNode,
+    span: SourceLocation,
 }
 
 impl FixLet {
-    pub fn new(variables: Vec<Variable>, arguments: Vec<AstNode>, body: AstNode) -> Ref<Self> {
-        Box::new(FixLet {
+    pub fn new(
+        variables: Vec<Variable>,
+        arguments: Vec<AstNode>,
+        body: AstNode,
+        span: SourceLocation,
+    ) -> Ref<Self> {
+        Ref::new(FixLet {
             variables,
             arguments,
             body,
+            span,
         })
     }
 }
 
 impl Ast for FixLet {
+    fn source(&self) -> &SourceLocation {
+        &self.span
+    }
+
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.arguments = self
             .arguments
@@ -425,21 +602,20 @@ impl Ast for FixLet {
         self
     }
 
-    fn eval(&self, sr: &mut LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        let args: Vec<_> = self.arguments
-            .iter()
-            .map(|x| x.eval(sr, sg))
-            .collect();
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        let args: Vec<_> = self.arguments.iter().map(|x| x.eval(sr, sg)).collect();
+
+        let mut sr = sr.clone();
 
         for (var, val) in self.variables.iter().zip(args) {
-            sr.push_lexical(var.name(), val);
+            sr = sr.extend(var.name().clone(), val);
         }
 
-        let result = self.body.eval(sr, sg);
-
-        for _ in 0..self.variables.len() {
-            sr.pop_lexical();
-        }
+        let result = self.body.eval(&sr, sg);
 
         result
     }
@@ -468,23 +644,19 @@ pub struct FunctionDescription {
 
 impl FunctionDescription {
     pub fn new(arity: Arity, text: &'static str) -> Self {
-        FunctionDescription {
-            arity, text
-        }
+        FunctionDescription { arity, text }
     }
 }
 
 #[derive(Debug)]
 pub struct RuntimePrimitive {
-    pub func: fn(args: Vec<Value>)->Value,
+    pub func: fn(args: Vec<Value>) -> Value,
     pub arity: Arity,
 }
 
 impl RuntimePrimitive {
-    pub fn new(arity: Arity, func: fn(args: Vec<Value>)->Value) -> Self {
-        RuntimePrimitive {
-            arity, func
-        }
+    pub fn new(arity: Arity, func: fn(args: Vec<Value>) -> Value) -> Self {
+        RuntimePrimitive { arity, func }
     }
 
     pub fn invoke(&self, args: Vec<Value>) -> Value {
@@ -496,7 +668,7 @@ impl RuntimePrimitive {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RuntimeProcedure {
     pub body: AstNode,
     pub variables: Vec<Variable>,
@@ -506,7 +678,9 @@ pub struct RuntimeProcedure {
 impl RuntimeProcedure {
     pub fn new(body: AstNode, variables: Vec<Variable>, env: LexicalRuntimeEnv) -> Self {
         RuntimeProcedure {
-            body, variables, env
+            body,
+            variables,
+            env,
         }
     }
 

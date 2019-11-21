@@ -1,8 +1,9 @@
-use crate::ast::{Variable, RuntimePrimitive};
-use crate::value::{Symbol, Value};
+use crate::ast::{RuntimePrimitive, Variable};
+use crate::symbol::Symbol;
+use crate::value::Value;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub type Env = Rc<Environment>;
 
@@ -20,24 +21,24 @@ impl EnvAccess for Env {
 
     fn update_runtime_globals(&self, sg: &mut GlobalRuntimeEnv) {
         match &**self {
-            Environment::GlobalMarker(next) => next.borrow().update_runtime_env(sg),
+            Environment::GlobalMarker(next) => next.borrow().update_runtime_globals(sg),
             Environment::Entry(next, var) => {
                 match var {
-                    Variable::Global(name) => sg.ensure_global(name),
+                    Variable::Global(name) => sg.ensure_global(var.name().clone()),
                     _ => {}
                 }
-                next.update_runtime_env(sg)
+                next.update_runtime_globals(sg)
             }
-            Environment::Empty => {},
+            Environment::Empty => {}
         }
     }
 
-    fn find_variable(&self, name: Symbol) -> Option<Variable> {
+    fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
         match &**self {
             Environment::Empty => None,
             Environment::GlobalMarker(env) => env.borrow().find_variable(name),
             Environment::Entry(env, var) => {
-                if var.name() == name {
+                if name.eq(var.name()) {
                     Some(var.clone())
                 } else {
                     env.find_variable(name)
@@ -82,7 +83,7 @@ impl EnvAccess for Env {
 pub trait EnvAccess {
     fn new_empty() -> Self;
     fn update_runtime_globals(&self, sr: &mut GlobalRuntimeEnv);
-    fn find_variable(&self, name: Symbol) -> Option<Variable>;
+    fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable>;
     fn find_global_environment(&self) -> &Self;
     fn extend(self, var: Variable) -> Self;
     fn extend_frame(self, vars: impl Iterator<Item = Variable>) -> Self;
@@ -92,43 +93,40 @@ pub trait EnvAccess {
 
 pub type LexicalRuntimeEnv = Rc<EnvChain>;
 
+#[derive(Debug)]
 pub struct EnvChain {
     var: Symbol,
-    val: RefCell<Value>,
+    val: Value,
     next: Option<LexicalRuntimeEnv>,
 }
 
 impl EnvChain {
     pub fn new() -> Rc<Self> {
         Rc::new(EnvChain {
-            var: ".",
-            val: Rc::new(Value::Null),
+            var: ".".into(),
+            val: Value::Undefined,
             next: None,
         })
     }
 
-    pub fn extend(self: Rc<Self>, var: Symbol, val: Value) -> Rc<Self>{
+    pub fn extend(self: Rc<Self>, var: Symbol, val: Value) -> Rc<Self> {
         Rc::new(EnvChain {
             var,
-            val: RefCell::new(val),
-            next: Some(self)
+            val: val,
+            next: Some(self),
         })
     }
 
-    pub fn get_lexical(&self, name: Symbol) -> Value {
+    pub fn get_lexical(&self, name: &Symbol) -> Value {
         let current = self;
-        if self.var == name {
-            self.val.borrow().clone()
+        if self.var == *name {
+            self.val.clone()
         } else {
             match self.next {
                 Some(ref env) => env.get_lexical(name),
                 None => panic!("Unbound lexical variable: {}", name),
             }
         }
-    }
-
-    pub fn pop_lexical(&mut self) {
-        self.lexical.pop().unwrap();
     }
 }
 
@@ -145,19 +143,21 @@ impl GlobalRuntimeEnv {
         }
     }
 
-    pub fn get_predefined(&self, name: Symbol) -> &RuntimePrimitive {
+    pub fn get_predefined(&self, name: &Symbol) -> &RuntimePrimitive {
         &self.predef[name]
     }
 
-    pub fn get_global(&self, name: Symbol) -> Value {
+    pub fn get_global(&self, name: &Symbol) -> Value {
         self.globals[name].borrow().clone()
     }
 
-    pub fn set_global(&self, name: Symbol, val: Value) {
+    pub fn set_global(&self, name: &Symbol, val: Value) {
         *self.globals[name].borrow_mut() = val;
     }
 
     pub fn ensure_global(&mut self, name: Symbol) {
-        self.globals.entry(name).or_insert_with(|| RefCell::new(Value::symbol("*uninit*")));
+        self.globals
+            .entry(name)
+            .or_insert_with(|| RefCell::new(Value::Uninitialized));
     }
 }
