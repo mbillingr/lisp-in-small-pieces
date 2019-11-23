@@ -1,5 +1,6 @@
 use crate::sexpr::TrackedSexpr;
 use crate::source::Source;
+use nom::combinator::all_consuming;
 use nom::multi::{many0, separated_list};
 use nom::number::complete::{double, recognize_float};
 use nom::sequence::pair;
@@ -29,17 +30,16 @@ pub fn parse_source(src: Source) -> TrackedSexpr {
     unimplemented!()
 }
 
-type Span<'a> = LocatedSpan<&'a str>;
+pub type Span<'a> = LocatedSpan<&'a str>;
 
 #[derive(Debug, PartialEq)]
-struct SpannedSexpr<'a> {
+pub struct SpannedSexpr<'a> {
     pub span: Span<'a>,
     pub expr: Sexpr<'a>,
 }
 
 #[derive(Debug, PartialEq)]
-enum Sexpr<'a> {
-    Nil,
+pub enum Sexpr<'a> {
     True,
     False,
     Symbol(&'a str),
@@ -50,6 +50,11 @@ enum Sexpr<'a> {
     Vector(Vec<SpannedSexpr<'a>>),
 
     Dot,
+}
+
+pub fn parse(src: &str) -> SpannedSexpr {
+    let (_, expr) = all_consuming(parse_sexpr)(Span::new(src)).unwrap();
+    expr
 }
 
 fn parse_sexpr(src: Span) -> IResult<Span, SpannedSexpr> {
@@ -394,6 +399,6 @@ mod tests {
     #[test]
     fn sexpr_parsing() {
         let x = Span::new("(abc 123 (4.5 \"y\" . z))");
-        parse_sexpr(x);
+        parse_sexpr(x).unwrap();
     }
 }

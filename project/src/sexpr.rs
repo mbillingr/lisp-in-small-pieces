@@ -1,3 +1,4 @@
+use crate::parsing::{parse, Sexpr as PS, Span, SpannedSexpr};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
 use std::rc::Rc;
@@ -18,6 +19,49 @@ pub enum Sexpr {
 }
 
 impl TrackedSexpr {
+    pub fn from_source(source: Source) -> Self {
+        let expr = parse(&source.content);
+        Self::from_spanned(expr, source.clone())
+    }
+
+    pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
+        match se.expr {
+            PS::Symbol(s) => TrackedSexpr::new(
+                Sexpr::Symbol(s.into()),
+                SourceLocation::from_spanned(se.span, source),
+            ),
+            PS::Integer(i) => {
+                TrackedSexpr::new(Sexpr::Int(i), SourceLocation::from_spanned(se.span, source))
+            }
+            PS::List(l) if l.is_empty() => {
+                TrackedSexpr::new(Sexpr::Nil, SourceLocation::from_spanned(se.span, source))
+            }
+            PS::List(l) => {
+                let mut l = l.into_iter();
+                let mut items = vec![];
+                let mut dotted = None;
+                while let Some(x) = l.next() {
+                    if let PS::Dot = x.expr {
+                        dotted = l
+                            .next()
+                            .map(|s| Box::new(Self::from_spanned(s, source.clone())));
+                        break;
+                    }
+                    items.push(Self::from_spanned(x, source.clone()));
+                }
+                TrackedSexpr::new(
+                    Sexpr::List(items.into(), dotted),
+                    SourceLocation::from_spanned(se.span, source),
+                )
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn new(sexpr: Sexpr, src: SourceLocation) -> Self {
+        TrackedSexpr { sexpr, src }
+    }
+
     pub fn into_sexpr(self) -> Sexpr {
         self.sexpr
     }
@@ -201,5 +245,16 @@ impl<T> RcSlice<T> {
         *self = self.clone().slice_to(n);
 
         unsafe { Some(&*item) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn try_it() {
+        let src = Source::from("(x y)");
+        println!("{:?}", TrackedSexpr::from_source(src));
     }
 }

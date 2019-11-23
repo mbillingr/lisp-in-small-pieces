@@ -1,3 +1,5 @@
+use crate::parsing;
+use nom::InputLength;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -18,8 +20,8 @@ pub struct Span {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Source {
-    content: Rc<String>,
-    file: Option<PathBuf>,
+    pub content: Rc<String>,
+    pub file: Option<PathBuf>,
 }
 
 impl Span {
@@ -46,6 +48,14 @@ impl Span {
 }
 
 impl SourceLocation {
+    pub fn from_spanned(span: parsing::Span, src: Source) -> Self {
+        SourceLocation::Span(Span {
+            src,
+            start: span.offset,
+            end: span.offset + span.input_len(),
+        })
+    }
+
     pub fn last_char(&self) -> Self {
         match self {
             SourceLocation::NoSource => SourceLocation::NoSource,
