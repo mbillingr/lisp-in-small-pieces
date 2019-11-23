@@ -2,11 +2,11 @@ mod ast;
 mod env;
 mod eval;
 mod objectify;
+mod parsing;
 mod sexpr;
 mod source;
 mod symbol;
 mod value;
-mod parsing;
 
 use crate::ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
 use crate::env::EnvChain;

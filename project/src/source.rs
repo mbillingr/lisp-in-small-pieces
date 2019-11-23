@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::rc::Rc;
 use std::fs::File;
 use std::io::Read;
+use std::path::PathBuf;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum SourceLocation {
@@ -57,7 +57,7 @@ impl SourceLocation {
         use SourceLocation::*;
         match (self, other) {
             (Span(s1), Span(s2)) if !s1.is_compatible(s2) => {}
-            (Span(s1), Span(s2))  => return Span(self::Span::unite(s2, s1)),
+            (Span(s1), Span(s2)) => return Span(self::Span::unite(s2, s1)),
             (NoSource, NoSource) => return NoSource,
             _ => {}
         }
@@ -87,7 +87,7 @@ impl Source {
     }
 }
 
-
+/*
 impl nom::InputLength for Span {
     fn input_len(&self) -> usize {
         self.end - self.start
@@ -118,3 +118,4 @@ impl nom::InputIter for Span {
         unimplemented!()
     }
 }
+*/
