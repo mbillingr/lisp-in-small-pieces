@@ -1,5 +1,4 @@
 use crate::parsing;
-use nom::InputLength;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -49,11 +48,12 @@ impl Span {
 
 impl SourceLocation {
     pub fn from_spanned(span: parsing::Span, src: Source) -> Self {
-        SourceLocation::Span(Span {
+        /*SourceLocation::Span(Span {
             src,
             start: span.offset,
             end: span.offset + span.input_len(),
-        })
+        })*/
+        unimplemented!()
     }
 
     pub fn last_char(&self) -> Self {
@@ -96,36 +96,3 @@ impl Source {
         })
     }
 }
-
-/*
-impl nom::InputLength for Span {
-    fn input_len(&self) -> usize {
-        self.end - self.start
-    }
-}
-
-impl nom::InputIter for Span {
-    type Item = char;
-    type Iter = std::str::CharIndices<'static>;
-    type IterElem = std::str::Chars<'static>;
-
-    fn iter_indices(&self) -> Self::Iter {
-        self.src.content[self.start..self.end].char_indices()
-    }
-
-    fn iter_elements(&self) -> Self::IterElem {
-        self.src.content[self.start..self.end].chars()
-    }
-
-    fn position<P>(&self, predicate: P) -> Option<usize>
-        where
-            P: Fn(Self::Item) -> bool
-    {
-        self.src.content[self.start..self.end].position()
-    }
-
-    fn slice_index(&self, count: usize) -> Option<usize> {
-        unimplemented!()
-    }
-}
-*/

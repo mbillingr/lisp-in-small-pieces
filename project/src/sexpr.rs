@@ -20,8 +20,12 @@ pub enum Sexpr {
 
 impl TrackedSexpr {
     pub fn from_source(source: Source) -> Self {
-        let expr = parse(&source.content);
-        Self::from_spanned(expr, source.clone())
+        /*let (_, expr) = match parse(&source.content) {
+            Ok(x) => x,
+            Err(e) => panic!("{:#?}", e),
+        };
+        Self::from_spanned( expr, source.clone())*/
+        unimplemented!()
     }
 
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
@@ -254,7 +258,7 @@ mod tests {
 
     #[test]
     fn try_it() {
-        let src = Source::from("(x y)");
+        let src = Source::from("( x )");
         println!("{:?}", TrackedSexpr::from_source(src));
     }
 }

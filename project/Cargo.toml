@@ -9,5 +9,3 @@ edition = "2018"
 [dependencies]
 downcast-rs = "1.1"
 lexpr = "0.2"
-nom = "5"
-nom_locate = "1"
