@@ -121,6 +121,7 @@ impl<'a> PartialEq for SpannedSexpr<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum Sexpr<'a> {
+    Nil,
     True,
     False,
     Symbol(&'a str),
@@ -278,6 +279,7 @@ fn parse_string(input: Span) -> ParseResult<SpannedSexpr> {
 
 fn parse_abbreviation(input: Span) -> ParseResult<SpannedSexpr> {
     any((
+        map(tag("'()"), |span| span.into_spanned(Sexpr::Nil)),
         expand("'", "quote"),
         expand("`", "quasiquote"),
         expand(",@", "unquote-splicing"),

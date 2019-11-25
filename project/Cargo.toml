@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 downcast-rs = "1.1"
 lexpr = "0.2"
+rustyline = "5"

@@ -1,8 +1,10 @@
 mod ast;
 mod env;
 mod eval;
+mod language;
 mod objectify;
 mod parsing;
+mod repl;
 mod sexpr;
 mod source;
 mod symbol;
@@ -10,6 +12,7 @@ mod value;
 
 use crate::ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
 use crate::env::EnvChain;
+use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
 use crate::objectify::{car, cdr, ObjectifyError, Result, Translate};
 use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation::NoSource;
@@ -17,6 +20,7 @@ use crate::value::Value;
 use ast::{Alternative, AstNode, Constant, Transformer, Visited};
 use env::{Env, EnvAccess, Environment, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use lexpr::sexp;
+use repl::repl;
 use std::collections::HashMap;
 
 fn main() {
@@ -97,22 +101,8 @@ fn main() {
     );
 
     //println!("{:?}", trans.objectify_toplevel(&sexp!((begin (#"set!" foo (lambda (x) x)) (foo 10))).into()).unwrap().eval(sr, sg));
-}
 
-fn expand_lambda(trans: &mut Translate, expr: &Sexpr, env: &Env) -> Result<AstNode> {
-    let def = &cdr(expr)?;
-    let names = car(def)?;
-    let body = cdr(def)?;
-    trans.objectify_function(names, &body, env, expr.source().clone())
-}
-
-fn expand_begin(trans: &mut Translate, expr: &Sexpr, env: &Env) -> Result<AstNode> {
-    trans.objectify_sequence(&cdr(expr)?, env)
-}
-
-fn expand_assign(trans: &mut Translate, expr: &Sexpr, env: &Env) -> Result<AstNode> {
-    let parts = expr.as_proper_list().ok_or(ObjectifyError::ExpectedList)?;
-    trans.objectify_assignment(&parts[1], &parts[2], env, expr.source().clone())
+    repl()
 }
 
 struct AllConstZero;
@@ -125,10 +115,4 @@ impl Transformer for AllConstZero {
             Visited::Identity
         }
     }
-}
-
-fn cons(mut args: Vec<Value>) -> Value {
-    let cdr = args.pop().unwrap();
-    let car = args.pop().unwrap();
-    Value::cons(car, cdr)
 }

@@ -1,6 +1,7 @@
 use crate::parsing::{parse, Sexpr as PS, Span, SpannedSexpr};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
+use std::fmt::Debug;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -18,6 +19,33 @@ pub enum Sexpr {
     List(RcSlice<TrackedSexpr>, Option<Box<TrackedSexpr>>),
 }
 
+impl std::fmt::Display for TrackedSexpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.sexpr, f)
+    }
+}
+
+impl std::fmt::Display for Sexpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Sexpr::Nil => write!(f, "'()"),
+            Sexpr::Symbol(s) => write!(f, "{}", s),
+            Sexpr::Int(i) => write!(f, "{}", i),
+            Sexpr::List(items, dot) => {
+                write!(f, "(")?;
+                write!(f, "{}", items[0])?;
+                for i in &items[1..] {
+                    write!(f, " {}", i)?;
+                }
+                if let Some(d) = dot {
+                    write!(f, " . {}", d)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
+}
+
 impl TrackedSexpr {
     pub fn from_source(source: Source) -> Self {
         let expr = match parse(&source.content) {
@@ -29,6 +57,7 @@ impl TrackedSexpr {
 
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
         match se.expr {
+            PS::Nil => TrackedSexpr::new(Sexpr::Nil, SourceLocation::from_spanned(se.span, source)),
             PS::Symbol(s) => TrackedSexpr::new(
                 Sexpr::Symbol(s.into()),
                 SourceLocation::from_spanned(se.span, source),
