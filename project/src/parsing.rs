@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::parsing::basic_parsers::char_that;
-use basic_parsers::{char, eof, tag, whitespace};
-use combinators::{all, any, followed, map, peek, repeat_0_or_more};
+use crate::parsing::combinators::repeat_1_or_more;
+use basic_parsers::{any_char, char, eof, tag, whitespace};
+use combinators::{all, any, followed, map, not, opt, peek, repeat_0_or_more};
 use std::io::SeekFrom::Current;
 
 type Result<'a, T> = std::result::Result<T, ParseError<'a>>;
@@ -27,6 +28,7 @@ pub enum ParseErrorKind {
     Whitespace,
     Eof,
     Repeat(Box<ParseErrorKind>),
+    Not,
 }
 
 pub trait Spanned<'a> {
@@ -72,6 +74,15 @@ impl<'a> Span<'a> {
             text,
             start: 0,
             end: text.len(),
+        }
+    }
+
+    pub fn range(from: Span<'a>, to: Span<'a>) -> Self {
+        assert_eq!(from.text, to.text);
+        Span {
+            text: from.text,
+            start: from.start,
+            end: to.end,
         }
     }
 
@@ -126,6 +137,51 @@ pub fn parse(src: &str) -> Result<SpannedSexpr> {
     //Ok((rest, expr))
 }
 
+fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
+    not(char(')'))(src)?;
+    any((
+        //parse_abbreviation,
+        //parse_dot,
+        parse_boolean,
+        parse_symbol,
+        parse_number,
+        parse_list,
+        parse_vector,
+    ))(src)
+}
+
+fn parse_list(input: Span) -> ParseResult<SpannedSexpr> {
+    let (open, rest) = char('(')(input)?;
+    let (list, rest) = parse_sequence(rest)?;
+    let (close, rest) = char(')')(rest)?;
+
+    let final_span = Span::range(open, close);
+    Ok((final_span.into_spanned(Sexpr::List(list)), rest))
+}
+
+fn parse_vector(input: Span) -> ParseResult<SpannedSexpr> {
+    let (open, rest) = tag("#(")(input)?;
+    let (list, rest) = parse_sequence(rest)?;
+    let (close, rest) = char(')')(rest)?;
+
+    let final_span = Span::range(open, close);
+    Ok((final_span.into_spanned(Sexpr::Vector(list)), rest))
+}
+
+fn parse_sequence(input: Span) -> ParseResult<Vec<SpannedSexpr>> {
+    let (_, mut rest) = opt(whitespace)(input);
+
+    let mut seq = vec![];
+
+    while let Ok((item, r)) = parse_sexpr(rest) {
+        seq.push(item);
+        let (_, r) = opt(whitespace)(r);
+        rest = r;
+    }
+
+    Ok((seq, rest))
+}
+
 fn parse_boolean(input: Span) -> ParseResult<SpannedSexpr> {
     followed(any((parse_true, parse_false)), peek(parse_delimiter))(input).map_err(|pe| {
         ParseError {
@@ -142,6 +198,23 @@ fn parse_true(input: Span) -> ParseResult<SpannedSexpr> {
 fn parse_false(input: Span) -> ParseResult<SpannedSexpr> {
     any((tag("#false"), tag("#f")))(input)
         .map(|(span, rest)| (span.into_spanned(Sexpr::False), rest))
+}
+
+fn parse_number(input: Span) -> ParseResult<SpannedSexpr> {
+    let (num, rest) = repeat_1_or_more(all((not(parse_delimiter), any_char)))(input)?;
+
+    if let Ok(i) = num.parse() {
+        return Ok((num.into_spanned(Sexpr::Integer(i)), rest));
+    }
+
+    if let Ok(f) = num.parse() {
+        return Ok((num.into_spanned(Sexpr::Float(f)), rest));
+    }
+
+    Err(ParseError {
+        kind: ParseErrorKind::Context("Expected number"),
+        location: input,
+    })
 }
 
 fn parse_symbol(input: Span) -> ParseResult<SpannedSexpr> {
@@ -185,54 +258,7 @@ fn parse_delimiter(input: Span) -> ParseResult<Span> {
     })
 }
 
-/*fn parse_sexpr<'a, E: ParseError<Span<'a>>>(src: Span<'a>) -> IResult<Span<'a>, SpannedSexpr<'a>, E> {
-    not(tag(")"))(src)?;
-    alt((
-        parse_list,
-        parse_abbreviation,
-        parse_dot,
-        parse_boolean,
-        parse_number,
-        parse_symbol,
-    ))(src)
-}
-
-fn parse_list<'a, E: ParseError<Span<'a>>>(src: Span<'a>) -> IResult<Span, SpannedSexpr, E> {
-    let (rest, open) = tag("(")(src)?;
-    let (rest, list) = context("list", separated_list(parse_whitespace, parse_sexpr))(rest)?;
-    let (rest, close) = context(")", tag(")"))(rest)?;
-    Ok((
-        rest,
-        SpannedSexpr {
-            span: Span {
-                extra: (),
-                fragment: &src.fragment[..1 + close.offset - open.offset],
-                line: open.line,
-                offset: open.offset,
-            },
-            expr: Sexpr::List(list),
-        },
-    ))
-}
-
-fn parse_vector<'a, E: ParseError<Span<'a>>>(src: Span<'a>) -> IResult<Span, SpannedSexpr, E> {
-    let (rest, open) = tag("#(")(src)?;
-    let (rest, list) = separated_list(parse_whitespace, parse_sexpr)(rest)?;
-    let (rest, close) = tag(")")(rest)?;
-    Ok((
-        rest,
-        SpannedSexpr {
-            span: Span {
-                extra: (),
-                fragment: &src.fragment[..1 + close.offset - open.offset],
-                line: open.line,
-                offset: open.offset,
-            },
-            expr: Sexpr::Vector(list),
-        },
-    ))
-}
-
+/*
 fn parse_abbreviation<'a, E: ParseError<Span<'a>>>(rest: Span<'a>) -> IResult<Span, SpannedSexpr, E> {
     alt((
         parse_quote,
@@ -401,7 +427,7 @@ fn is_valid_symbol_char(item: char) -> bool {
         '.' => true,
         ch => ch.is_ascii_alphanumeric(),
     }
-}
+}*/
 
 impl<'a> PartialEq<Sexpr<'a>> for SpannedSexpr<'a> {
     fn eq(&self, rhs: &Sexpr<'a>) -> bool {
@@ -423,7 +449,7 @@ impl<'a> PartialEq<Sexpr<'a>> for Vec<Sexpr<'a>> {
     fn eq(&self, rhs: &Sexpr<'a>) -> bool {
         rhs.eq(self)
     }
-}*/
+}
 
 trait IntoSpannedSexpr<'a> {
     fn into_spanned(self, expr: Sexpr<'a>) -> SpannedSexpr<'a>;
@@ -478,6 +504,10 @@ mod basic_parsers {
         }
     }
 
+    pub fn any_char(input: Span) -> ParseResult<Span> {
+        char_that(|_| true)(input)
+    }
+
     pub fn eof<'a>(input: Span) -> ParseResult<Span> {
         if input.is_empty() {
             Ok((input, input))
@@ -513,6 +543,28 @@ mod combinators {
         parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
     ) -> impl Fn(Span<'a>) -> ParseResult<'a, T> {
         move |input: Span<'a>| -> ParseResult<'a, T> { parser(input).map(|(x, rest)| (x, input)) }
+    }
+
+    pub fn opt<'a, T>(
+        parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
+    ) -> impl Fn(Span<'a>) -> (Option<T>, Span<'a>) {
+        move |input: Span<'a>| {
+            parser(input)
+                .map(|(out, rest)| (Some(out), rest))
+                .unwrap_or((None, input))
+        }
+    }
+
+    pub fn not<'a, T>(
+        parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
+    ) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
+        move |input: Span<'a>| match parser(input) {
+            Ok(_) => Err(ParseError {
+                kind: ParseErrorKind::Not,
+                location: input,
+            }),
+            Err(_) => Ok(input.split(0)),
+        }
     }
 
     pub fn followed<'a, T, Z>(
@@ -745,31 +797,36 @@ mod tests {
         compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x y")));
     }
 
-    /*
     #[test]
     fn list_parsing() {
-        assert_eq!(
+        compare!(
             vec![Sexpr::Symbol("x"), Sexpr::Symbol("y"), Sexpr::Symbol("z")],
-            parse_list::<(Span, ErrorKind)>(Span::new("(x y   z)")).unwrap().1.expr
+            parse_list(Span::new("(x y z)"))
+        );
+
+        compare!(
+            vec![Sexpr::Symbol("x"), Sexpr::Symbol("y"), Sexpr::Symbol("z")],
+            parse_list(Span::new("(   x   y   z    )"))
         );
     }
 
     #[test]
     fn vector_parsing() {
-        assert_eq!(
+        compare!(
             vec![Sexpr::Symbol("x"), Sexpr::Symbol("y"), Sexpr::Symbol("z")],
-            parse_vector::<(Span, ErrorKind)>(Span::new("#(x y   z)")).unwrap().1.expr
+            parse_vector(Span::new("#(  x  y z   )"))
         );
     }
 
     #[test]
     fn number_parsing() {
-        compare!(Ok(Sexpr::Integer(42)), parse_number::<(Span, ErrorKind)>(Span::new("42")));
-        compare!(Ok(Sexpr::Integer(-24)), parse_number::<(Span, ErrorKind)>(Span::new("-24")));
-        compare!(Ok(Sexpr::Float(3.1415)), parse_number::<(Span, ErrorKind)>(Span::new("3.1415")));
+        compare!(Sexpr::Integer(42), parse_number(Span::new("42")));
+        compare!(Sexpr::Integer(-24), parse_number(Span::new("-24")));
+        compare!(Sexpr::Float(3.1415), parse_number(Span::new("3.1415")));
+        fail!(parse_number(Span::new("1x2y3")))
     }
 
-    #[test]
+    /*#[test]
     fn string_parsing() {
         compare!(Ok(Sexpr::String("42")), parse_string::<(Span, ErrorKind)>(Span::new("\"42\"")));
     }
