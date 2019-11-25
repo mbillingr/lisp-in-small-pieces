@@ -4,8 +4,9 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use basic_parsers::{eof, tag, whitespace};
-use combinators::{any, followed, map, peek};
+use crate::parsing::basic_parsers::char_that;
+use basic_parsers::{char, eof, tag, whitespace};
+use combinators::{all, any, followed, map, peek, repeat_0_or_more};
 use std::io::SeekFrom::Current;
 
 type Result<'a, T> = std::result::Result<T, ParseError<'a>>;
@@ -21,9 +22,34 @@ pub struct ParseError<'a> {
 #[derive(Debug)]
 pub enum ParseErrorKind {
     Context(&'static str),
+    Char(Option<char>),
     Tag(&'static str),
     Whitespace,
     Eof,
+    Repeat(Box<ParseErrorKind>),
+}
+
+pub trait Spanned<'a> {
+    fn span(&self) -> &Span<'a>;
+    fn span_mut(&mut self) -> &mut Span<'a>;
+}
+
+impl<'a> Spanned<'a> for Span<'a> {
+    fn span(&self) -> &Span<'a> {
+        self
+    }
+    fn span_mut(&mut self) -> &mut Span<'a> {
+        self
+    }
+}
+
+impl<'a> Spanned<'a> for SpannedSexpr<'a> {
+    fn span(&self) -> &Span<'a> {
+        &self.span
+    }
+    fn span_mut(&mut self) -> &mut Span<'a> {
+        &mut self.span
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -118,14 +144,42 @@ fn parse_false(input: Span) -> ParseResult<SpannedSexpr> {
         .map(|(span, rest)| (span.into_spanned(Sexpr::False), rest))
 }
 
-fn parse_delimiter(input: Span) -> ParseResult<()> {
-    any((
-        eof,
-        map(tag("("), |_| ()),
-        map(tag(")"), |_| ()),
-        map(whitespace, |_| ()),
+fn parse_symbol(input: Span) -> ParseResult<SpannedSexpr> {
+    all((
+        parse_symbol_initial,
+        repeat_0_or_more(parse_symbol_subsequent),
     ))(input)
-    .map_err(|pe| ParseError {
+    .map(|(span, rest)| {
+        (
+            span.into_spanned(Sexpr::Symbol(&span.text[span.start..span.end])),
+            rest,
+        )
+    })
+}
+
+fn parse_symbol_initial(input: Span) -> ParseResult<Span> {
+    any((
+        char_that(char::is_alphabetic),
+        any((char('!'), char('$'), char('%'), char('&'), char('*'))),
+        any((char('/'), char(':'), char('<'), char('='), char('>'))),
+        any((char('?'), char('^'), char('_'), char('~'))),
+    ))(input)
+}
+
+fn parse_symbol_subsequent(input: Span) -> ParseResult<Span> {
+    any((
+        parse_symbol_initial,
+        char_that(|ch| ch.is_ascii_digit()),
+        any((char('+'), char('-'), char('.'), char('@'))),
+    ))(input)
+}
+
+fn delimited_tag<'a>(name: &'static str) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
+    followed(tag(name), peek(parse_delimiter))
+}
+
+fn parse_delimiter(input: Span) -> ParseResult<Span> {
+    any((eof, tag("("), tag(")"), whitespace))(input).map_err(|pe| ParseError {
         kind: ParseErrorKind::Context("Expected delimiter"),
         ..pe
     })
@@ -397,9 +451,36 @@ mod basic_parsers {
         }
     }
 
-    pub fn eof<'a>(input: Span) -> ParseResult<()> {
+    pub fn char<'a>(tag: char) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
+        move |input: Span| -> ParseResult<Span> {
+            if input.starts_with(tag) {
+                Ok(input.split(tag.len_utf8()))
+            } else {
+                Err(ParseError {
+                    kind: ParseErrorKind::Char(Some(tag)),
+                    location: input,
+                })
+            }
+        }
+    }
+
+    pub fn char_that<'a>(
+        predicate: impl Fn(char) -> bool,
+    ) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
+        move |input: Span| -> ParseResult<Span> {
+            match input.chars().next() {
+                Some(ch) if predicate(ch) => Ok(input.split(ch.len_utf8())),
+                _ => Err(ParseError {
+                    kind: ParseErrorKind::Char(None),
+                    location: input,
+                }),
+            }
+        }
+    }
+
+    pub fn eof<'a>(input: Span) -> ParseResult<Span> {
         if input.is_empty() {
-            Ok(((), input))
+            Ok((input, input))
         } else {
             Err(ParseError {
                 kind: ParseErrorKind::Eof,
@@ -425,7 +506,8 @@ mod basic_parsers {
 }
 
 mod combinators {
-    use super::{ParseError, ParseErrorKind, ParseResult, Span};
+    use super::{ParseError, ParseErrorKind, ParseResult, Span, Spanned};
+    use std::io::ErrorKind;
 
     pub fn peek<'a, T>(
         parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
@@ -453,51 +535,162 @@ mod combinators {
         }
     }
 
-    pub fn any<'a, T>(
-        parsers: impl CombinatorAny<'a, T>,
+    pub fn repeat_0_or_more<'a>(
+        parser: impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>>,
+    ) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
+        move |input: Span<'a>| -> ParseResult<'a, Span<'a>> {
+            let mut rest = input;
+            let mut matched = Span {
+                end: input.start,
+                ..input
+            };
+            while let Ok(x) = parser(rest) {
+                matched.end = x.0.end;
+                rest = x.1;
+            }
+            Ok((matched, rest))
+        }
+    }
+
+    pub fn repeat_1_or_more<'a>(
+        parser: impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>>,
+    ) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
+        move |input: Span<'a>| -> ParseResult<'a, Span<'a>> {
+            let mut rest = input;
+            let mut matched = Span {
+                end: input.start,
+                ..input
+            };
+            loop {
+                match parser(rest) {
+                    Ok(x) => {
+                        matched.end = x.0.end;
+                        rest = x.1;
+                    }
+                    Err(mut e) => {
+                        if matched.is_empty() {
+                            e.kind = ParseErrorKind::Repeat(Box::new(e.kind));
+                            return Err(e);
+                        } else {
+                            return Ok((matched, rest));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn any<'a, T: Spanned<'a>>(
+        parsers: impl ParserSequence<'a, T>,
     ) -> impl Fn(Span<'a>) -> ParseResult<'a, T> {
-        move |input: Span<'a>| -> ParseResult<'a, T> { parsers.accept_first(input) }
+        move |input: Span<'a>| -> ParseResult<'a, T> { parsers.parse_or(input) }
     }
 
-    pub trait CombinatorAny<'a, T> {
-        fn accept_first(&self, input: Span<'a>) -> ParseResult<'a, T>;
+    pub fn all<'a, T: Spanned<'a>>(
+        parsers: impl ParserSequence<'a, T>,
+    ) -> impl Fn(Span<'a>) -> ParseResult<'a, T> {
+        move |input: Span<'a>| -> ParseResult<'a, T> { parsers.parse_and(input) }
     }
 
-    impl<'a, A, B, T> CombinatorAny<'a, T> for (A, B)
+    pub trait ParserSequence<'a, T: Spanned<'a>> {
+        fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T>;
+        fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T>;
+    }
+
+    impl<'a, A, B, T: Spanned<'a>> ParserSequence<'a, T> for (A, B)
     where
         A: Fn(Span<'a>) -> ParseResult<'a, T>,
         B: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
-        fn accept_first(&self, input: Span<'a>) -> ParseResult<'a, T> {
+        fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input).or_else(|_| self.1(input))
+        }
+
+        fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
+            self.0(input)
+                .and_then(|_| self.1(input))
+                .map(|(mut out, rest)| {
+                    out.span_mut().start = input.start;
+                    (out, rest)
+                })
         }
     }
 
-    impl<'a, A, B, C, T> CombinatorAny<'a, T> for (A, B, C)
+    impl<'a, A, B, C, T: Spanned<'a>> ParserSequence<'a, T> for (A, B, C)
     where
         A: Fn(Span<'a>) -> ParseResult<'a, T>,
         B: Fn(Span<'a>) -> ParseResult<'a, T>,
         C: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
-        fn accept_first(&self, input: Span<'a>) -> ParseResult<'a, T> {
+        fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input)
                 .or_else(|_| self.1(input))
                 .or_else(|_| self.2(input))
         }
+
+        fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
+            self.0(input)
+                .and_then(|_| self.1(input))
+                .and_then(|_| self.2(input))
+                .map(|(mut out, rest)| {
+                    out.span_mut().start = input.start;
+                    (out, rest)
+                })
+        }
     }
 
-    impl<'a, A, B, C, D, T> CombinatorAny<'a, T> for (A, B, C, D)
+    impl<'a, A, B, C, D, T: Spanned<'a>> ParserSequence<'a, T> for (A, B, C, D)
     where
         A: Fn(Span<'a>) -> ParseResult<'a, T>,
         B: Fn(Span<'a>) -> ParseResult<'a, T>,
         C: Fn(Span<'a>) -> ParseResult<'a, T>,
         D: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
-        fn accept_first(&self, input: Span<'a>) -> ParseResult<'a, T> {
+        fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input)
                 .or_else(|_| self.1(input))
                 .or_else(|_| self.2(input))
                 .or_else(|_| self.3(input))
+        }
+
+        fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
+            self.0(input)
+                .and_then(|_| self.1(input))
+                .and_then(|_| self.2(input))
+                .and_then(|_| self.3(input))
+                .map(|(mut out, rest)| {
+                    out.span_mut().start = input.start;
+                    (out, rest)
+                })
+        }
+    }
+
+    impl<'a, A, B, C, D, E, T: Spanned<'a>> ParserSequence<'a, T> for (A, B, C, D, E)
+    where
+        A: Fn(Span<'a>) -> ParseResult<'a, T>,
+        B: Fn(Span<'a>) -> ParseResult<'a, T>,
+        C: Fn(Span<'a>) -> ParseResult<'a, T>,
+        D: Fn(Span<'a>) -> ParseResult<'a, T>,
+        E: Fn(Span<'a>) -> ParseResult<'a, T>,
+    {
+        fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
+            self.0(input)
+                .or_else(|_| self.1(input))
+                .or_else(|_| self.2(input))
+                .or_else(|_| self.3(input))
+                .or_else(|_| self.4(input))
+        }
+
+        fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
+            self.0(input)
+                .and_then(|_| self.1(input))
+                .and_then(|_| self.2(input))
+                .and_then(|_| self.3(input))
+                .and_then(|_| self.4(input))
+                .map(|(mut out, rest)| {
+                    out.span_mut().start = input.start;
+                    (out, rest)
+                })
         }
     }
 }
@@ -512,6 +705,15 @@ mod tests {
                 Ok((ex, rest)) => {
                     assert_eq!(ex.expr, $expected);
                     assert!(rest.empty())
+                }
+                Err(e) => panic!("{:#?}", e),
+            }
+        };
+
+        ($expected:expr, _, $actual:expr) => {
+            match $actual {
+                Ok((ex, rest)) => {
+                    assert_eq!(ex.expr, $expected);
                 }
                 Err(e) => panic!("{:#?}", e),
             }
@@ -531,18 +733,19 @@ mod tests {
         compare!(Sexpr::True, parse_boolean(Span::new("#t")));
         compare!(Sexpr::False, parse_boolean(Span::new("#f")));
         fail!(parse_boolean(Span::new("#turnip")));
-        println!("{:#?}", parse_boolean(Span::new("#turnip")));
     }
 
-    /*
     #[test]
     fn symbol_parsing() {
         compare!(
-            Ok(Sexpr::Symbol("abc-def!")),
-            parse_symbol::<(Span, ErrorKind)>(Span::new("abc-def!"))
+            Sexpr::Symbol("abc-def!"),
+            parse_symbol(Span::new("abc-def!"))
         );
+        compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x(y)")));
+        compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x y")));
     }
 
+    /*
     #[test]
     fn list_parsing() {
         assert_eq!(

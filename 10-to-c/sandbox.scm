@@ -95,10 +95,15 @@
   ;'(begin (set! foo (lambda x x))
   ;        (foo 1 2 3)
 
-  '(let ((list (lambda x x))
+  '(let ((list '*wait*)
          (x 10)
          (y 20))
-    (list (- x y) '() 'result))
+    (set! list (lambda x x))
+    (if (< y 0)
+      (list (- x y) '() 'result)
+      (list (+ x y) '() 'result))
+
+    (set! fib (lambda (n) (if (< n 2) 1 (fib (- n 1))))))
 
   ;'(cons 1 2)
   #t)
