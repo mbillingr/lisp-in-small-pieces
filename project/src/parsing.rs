@@ -811,6 +811,29 @@ mod tests {
     }
 
     #[test]
+    fn nested_list_parsing() {
+        let result = parse_list(Span::new("(x ((y) z))")).unwrap().0.expr;
+        if let Sexpr::List(items) = result {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0].expr, Sexpr::Symbol("x"));
+            if let Sexpr::List(items) = &items[1].expr {
+                assert_eq!(items.len(), 2);
+                if let Sexpr::List(items) = &items[0].expr {
+                    assert_eq!(items.len(), 1);
+                    assert_eq!(items[0].expr, Sexpr::Symbol("y"));
+                }else {
+                    panic!("inner-most list not parsed correctly")
+                }
+                assert_eq!(items[1].expr, Sexpr::Symbol("z"));
+            } else {
+                panic!("inner list not parsed correctly")
+            }
+        } else {
+            panic!("outer list not parsed correctly")
+        }
+    }
+
+    #[test]
     fn vector_parsing() {
         compare!(
             vec![Sexpr::Symbol("x"), Sexpr::Symbol("y"), Sexpr::Symbol("z")],
