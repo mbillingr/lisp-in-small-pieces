@@ -58,9 +58,9 @@ impl<'a> Spanned<'a> for SpannedSexpr<'a> {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Span<'a> {
-    text: &'a str,
-    start: usize,
-    end: usize,
+    pub text: &'a str,
+    pub start: usize,
+    pub end: usize,
 }
 
 impl<'a> std::ops::Deref for Span<'a> {
@@ -134,9 +134,8 @@ pub enum Sexpr<'a> {
 }
 
 pub fn parse(src: &str) -> Result<SpannedSexpr> {
-    unimplemented!()
-    //let (rest, expr) = all_consuming(parse_sexpr)(Span::new(src))?;
-    //Ok((rest, expr))
+    let (expr, rest) = parse_sexpr(Span::new(src))?;
+    Ok(expr)
 }
 
 fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {

@@ -48,12 +48,11 @@ impl Span {
 
 impl SourceLocation {
     pub fn from_spanned(span: parsing::Span, src: Source) -> Self {
-        /*SourceLocation::Span(Span {
+        SourceLocation::Span(Span {
             src,
-            start: span.offset,
-            end: span.offset + span.input_len(),
-        })*/
-        unimplemented!()
+            start: span.start,
+            end: span.end,
+        })
     }
 
     pub fn last_char(&self) -> Self {

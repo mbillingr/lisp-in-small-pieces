@@ -20,12 +20,11 @@ pub enum Sexpr {
 
 impl TrackedSexpr {
     pub fn from_source(source: Source) -> Self {
-        /*let (_, expr) = match parse(&source.content) {
+        let expr = match parse(&source.content) {
             Ok(x) => x,
             Err(e) => panic!("{:#?}", e),
         };
-        Self::from_spanned( expr, source.clone())*/
-        unimplemented!()
+        Self::from_spanned(expr, source.clone())
     }
 
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
