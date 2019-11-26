@@ -81,20 +81,19 @@ impl std::fmt::Display for Span {
             writeln!(f, "{:>4}   {}", first + 1, first_text)?;
             writeln!(
                 f,
-                "       {: >2$}{:^>3$}",
+                "       {: >2$}{:^>3$}...",
                 "",
                 "",
                 self.start - first_start,
                 first_text.len() + first_start - self.start,
             )?;
-            writeln!(f, "       ...")?;
 
             let (last, last_start) = last_line;
             let last_text = self.src.extract_line(last);
             writeln!(f, "{:>4}   {}", last + 1, last_text)?;
             writeln!(
                 f,
-                "       {:^>1$}",
+                "    ...{:^>1$}",
                 "",
                 last_start + last_text.len() - self.end,
             )

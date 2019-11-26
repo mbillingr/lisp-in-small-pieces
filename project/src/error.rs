@@ -1,5 +1,5 @@
 use crate::error::ErrorKind::Objectify;
-use crate::objectify::ObjectifyError;
+use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
 use crate::parsing::{ParseError, ParseErrorKind};
 use crate::source::{Source, SourceLocation};
 
@@ -12,7 +12,7 @@ pub struct Error {
 #[derive(Debug)]
 pub enum ErrorKind {
     Parse(ParseErrorKind),
-    Objectify(ObjectifyError),
+    Objectify(ObjectifyErrorKind),
 }
 
 #[derive(Debug)]
@@ -24,8 +24,8 @@ pub enum ErrorContext {
 impl From<ObjectifyError> for Error {
     fn from(err: ObjectifyError) -> Self {
         Error {
-            kind: ErrorKind::Objectify(err),
-            context: ErrorContext::None,
+            kind: ErrorKind::Objectify(err.kind),
+            context: ErrorContext::Source(err.location),
         }
     }
 }

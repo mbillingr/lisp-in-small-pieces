@@ -1,9 +1,9 @@
 pub mod scheme {
     use crate::ast::AstNode;
     use crate::env::Env;
-    use crate::objectify::ObjectifyError;
     use crate::objectify::Result;
     use crate::objectify::{car, cdr, Translate};
+    use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
     use crate::sexpr::TrackedSexpr;
     use crate::value::Value;
 
@@ -19,7 +19,10 @@ pub mod scheme {
     }
 
     pub fn expand_assign(trans: &mut Translate, expr: &TrackedSexpr, env: &Env) -> Result<AstNode> {
-        let parts = expr.as_proper_list().ok_or(ObjectifyError::ExpectedList)?;
+        let parts = expr.as_proper_list().ok_or(ObjectifyError {
+            kind: ObjectifyErrorKind::ExpectedList,
+            location: expr.source().clone(),
+        })?;
         trans.objectify_assignment(&parts[1], &parts[2], env, expr.source().clone())
     }
 

@@ -12,7 +12,13 @@ use crate::value::Value;
 pub type Result<T> = std::result::Result<T, ObjectifyError>;
 
 #[derive(Debug)]
-pub enum ObjectifyError {
+pub struct ObjectifyError {
+    pub kind: ObjectifyErrorKind,
+    pub location: SourceLocation,
+}
+
+#[derive(Debug)]
+pub enum ObjectifyErrorKind {
     NoPair,
     IncorrectArity,
     ImmutableAssignment,
@@ -62,7 +68,10 @@ impl Translate {
     pub fn objectify_sequence(&mut self, exprs: &Sexpr, env: &Env) -> Result<AstNode> {
         let mut sequence = exprs
             .as_proper_list()
-            .ok_or(ObjectifyError::ExpectedList)?
+            .ok_or_else(|| ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedList,
+                location: exprs.source().clone(),
+            })?
             .clone();
 
         let last = if let Some(x) = sequence.pop() {
@@ -111,7 +120,10 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<AstNode> {
-        let args = args.as_proper_list().ok_or(ObjectifyError::ExpectedList)?;
+        let args = args.as_proper_list().ok_or_else(|| ObjectifyError {
+            kind: ObjectifyErrorKind::ExpectedList,
+            location: args.source().clone(),
+        })?;
         let args: Vec<_> = args
             .iter()
             .map(|e| self.objectify(e, env))
@@ -127,7 +139,10 @@ impl Translate {
             if desc.arity.check(args.len()) {
                 Ok(PredefinedApplication::new(fvf, args, span))
             } else {
-                Err(ObjectifyError::IncorrectArity)
+                Err(ObjectifyError {
+                    kind: ObjectifyErrorKind::IncorrectArity,
+                    location: span,
+                })
             }
         } else {
             Ok(RegularApplication::new(func, args, span))
@@ -151,7 +166,10 @@ impl Translate {
             if args.len() == func.variables.len() {
                 Ok(FixLet::new(func.variables, args, func.body, span))
             } else {
-                Err(ObjectifyError::IncorrectArity)
+                Err(ObjectifyError {
+                    kind: ObjectifyErrorKind::IncorrectArity,
+                    location: span,
+                })
             }
         }
     }
@@ -166,7 +184,10 @@ impl Translate {
         let body = func.body;
 
         if args.len() + 1 < variables.len() {
-            return Err(ObjectifyError::IncorrectArity);
+            return Err(ObjectifyError {
+                kind: ObjectifyErrorKind::IncorrectArity,
+                location: span,
+            });
         }
 
         let cons_var = self
@@ -208,19 +229,30 @@ impl Translate {
         if let Some((l, dotted)) = names.as_list() {
             let mut list: Vec<_> = (**l)
                 .iter()
-                .map(|x| x.as_symbol().ok_or(ObjectifyError::ExpectedSymbol))
+                .map(|x| {
+                    x.as_symbol().ok_or_else(|| ObjectifyError {
+                        kind: ObjectifyErrorKind::ExpectedSymbol,
+                        location: x.source().clone(),
+                    })
+                })
                 .map(|s| Ok(s?.clone()))
                 .map(|s| Ok(Variable::local(s?, false, false)))
                 .collect::<Result<_>>()?;
             if let Some(x) = dotted {
-                let s = x.as_symbol().ok_or(ObjectifyError::ExpectedSymbol)?;
+                let s = x.as_symbol().ok_or_else(|| ObjectifyError {
+                    kind: ObjectifyErrorKind::ExpectedSymbol,
+                    location: x.source().clone(),
+                })?;
                 list.push(Variable::local(s.clone(), false, true))
             }
             Ok(list)
         } else if let Some(s) = names.as_symbol() {
             Ok(vec![Variable::local(s.clone(), false, true)])
         } else {
-            Err(ObjectifyError::ExpectedList)
+            Err(ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedList,
+                location: names.source().clone(),
+            })
         }
     }
 
@@ -240,15 +272,24 @@ impl Translate {
         } else if let Some(r) = ov.downcast_ref::<GlobalReference>() {
             Ok(GlobalAssignment::new(r.variable().clone(), of, span))
         } else {
-            Err(ObjectifyError::ImmutableAssignment)
+            Err(ObjectifyError {
+                kind: ObjectifyErrorKind::ImmutableAssignment,
+                location: span,
+            })
         }
     }
 }
 
 pub fn car(e: &Sexpr) -> Result<&Sexpr> {
-    e.first().ok_or(ObjectifyError::NoPair)
+    e.first().ok_or_else(|| ObjectifyError {
+        kind: ObjectifyErrorKind::NoPair,
+        location: e.source().clone(),
+    })
 }
 
 pub fn cdr(e: &Sexpr) -> Result<Sexpr> {
-    e.tail().ok_or(ObjectifyError::NoPair)
+    e.tail().ok_or_else(|| ObjectifyError {
+        kind: ObjectifyErrorKind::NoPair,
+        location: e.source().clone(),
+    })
 }
