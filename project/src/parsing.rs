@@ -18,6 +18,7 @@ type ParseResult<'a, T> = Result<'a, (T, Span<'a>)>;
 pub struct ParseError<'a> {
     pub kind: ParseErrorKind,
     pub location: Span<'a>,
+    fatal: bool,
 }
 
 #[derive(Debug)]
@@ -29,7 +30,7 @@ pub enum ParseErrorKind {
     Eof,
     Repeat(Box<ParseErrorKind>),
     Not,
-    UnclosedList,
+    UnclosedSequence,
     InvalidToken,
 }
 
@@ -165,6 +166,7 @@ fn parse_invalid<T>(input: Span) -> ParseResult<T> {
     Err(ParseError {
         kind: ParseErrorKind::InvalidToken,
         location: input,
+        fatal: true,
     })
 }
 
@@ -179,8 +181,9 @@ fn parse_list(input: Span) -> ParseResult<SpannedSexpr> {
     let (open, rest) = char('(')(input)?;
     let (list, rest) = parse_sequence(rest)?;
     let (close, rest) = char(')')(rest).map_err(|e| ParseError {
-        kind: ParseErrorKind::UnclosedList,
+        kind: ParseErrorKind::UnclosedSequence,
         location: input,
+        fatal: true,
     })?;
 
     let final_span = Span::range(open, close);
@@ -206,6 +209,10 @@ fn parse_sequence(input: Span) -> ParseResult<Vec<SpannedSexpr>> {
             return Ok((seq, rest));
         }
 
+        if let Ok(_) = eof(rest) {
+            return Ok((seq, rest));
+        }
+
         let (item, r) = parse_sexpr(rest)?;
         seq.push(item);
         let (_, r) = opt(whitespace)(r).unwrap();
@@ -218,6 +225,7 @@ fn parse_boolean(input: Span) -> ParseResult<SpannedSexpr> {
         ParseError {
             kind: ParseErrorKind::Context("Expected boolean: #t, #f, #true, or #false"),
             location: input,
+            fatal: false,
         }
     })
 }
@@ -248,6 +256,7 @@ fn parse_number(input: Span) -> ParseResult<SpannedSexpr> {
     Err(ParseError {
         kind: ParseErrorKind::Context("Expected number"),
         location: input,
+        fatal: false,
     })
 }
 
@@ -373,6 +382,7 @@ mod basic_parsers {
                 Err(ParseError {
                     kind: ParseErrorKind::Tag(tag),
                     location: input,
+                    fatal: false,
                 })
             }
         }
@@ -386,6 +396,7 @@ mod basic_parsers {
                 Err(ParseError {
                     kind: ParseErrorKind::Char(Some(tag)),
                     location: input,
+                    fatal: false,
                 })
             }
         }
@@ -400,6 +411,7 @@ mod basic_parsers {
                 _ => Err(ParseError {
                     kind: ParseErrorKind::Char(None),
                     location: input,
+                    fatal: false,
                 }),
             }
         }
@@ -416,6 +428,7 @@ mod basic_parsers {
             Err(ParseError {
                 kind: ParseErrorKind::Eof,
                 location: input,
+                fatal: false,
             })
         }
     }
@@ -425,11 +438,13 @@ mod basic_parsers {
             None if input.is_empty() => Err(ParseError {
                 kind: ParseErrorKind::Whitespace,
                 location: input,
+                fatal: false,
             }),
             None => Ok(input.split(input.len())),
             Some((0, ch)) => Err(ParseError {
                 kind: ParseErrorKind::Whitespace,
                 location: input,
+                fatal: false,
             }),
             Some((i, ch)) => Ok(input.split(i)),
         }
@@ -459,10 +474,10 @@ mod combinators {
     pub fn opt<'a, T>(
         parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
     ) -> impl Fn(Span<'a>) -> ParseResult<Option<T>> {
-        move |input: Span<'a>| {
-            Ok(parser(input)
-                .map(|(out, rest)| (Some(out), rest))
-                .unwrap_or((None, input)))
+        move |input: Span<'a>| match parser(input) {
+            Ok((out, rest)) => Ok((Some(out), rest)),
+            Err(e) if !e.fatal => Ok((None, input)),
+            Err(e) => Err(e),
         }
     }
 
@@ -473,8 +488,10 @@ mod combinators {
             Ok(_) => Err(ParseError {
                 kind: ParseErrorKind::Not,
                 location: input,
+                fatal: false,
             }),
-            Err(_) => Ok(input.split(0)),
+            Err(e) if !e.fatal => Ok(input.split(0)),
+            Err(e) => Err(e),
         }
     }
 
@@ -566,7 +583,11 @@ mod combinators {
         B: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
         fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
-            self.0(input).or_else(|_| self.1(input))
+            match self.0(input) {
+                Ok(x) => Ok(x),
+                Err(e) if e.fatal => Err(e),
+                Err(_) => self.1(input),
+            }
         }
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
@@ -586,9 +607,7 @@ mod combinators {
         C: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
         fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
-            self.0(input)
-                .or_else(|_| self.1(input))
-                .or_else(|_| self.2(input))
+            any((&self.0, any((&self.1, &self.2))))(input)
         }
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
@@ -610,10 +629,7 @@ mod combinators {
         D: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
         fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
-            self.0(input)
-                .or_else(|_| self.1(input))
-                .or_else(|_| self.2(input))
-                .or_else(|_| self.3(input))
+            any((any((&self.0, &self.1)), any((&self.2, &self.3))))(input)
         }
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
@@ -637,11 +653,7 @@ mod combinators {
         E: Fn(Span<'a>) -> ParseResult<'a, T>,
     {
         fn parse_or(&self, input: Span<'a>) -> ParseResult<'a, T> {
-            self.0(input)
-                .or_else(|_| self.1(input))
-                .or_else(|_| self.2(input))
-                .or_else(|_| self.3(input))
-                .or_else(|_| self.4(input))
+            any((&self.0, &self.1, &self.2, any((&self.3, &self.4))))(input)
         }
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {

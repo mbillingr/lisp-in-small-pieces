@@ -74,8 +74,9 @@ pub fn report_error(e: Error) {
             println!("Error: {:?}", e.kind)
         }
         ErrorContext::Source(SourceLocation::Span(span)) => {
+            println!("Error:");
             println!("{}", span);
-            println!("{:?}", e.kind);
+            println!("{}", e.kind);
         }
     }
 }

@@ -39,3 +39,12 @@ impl Error {
         }
     }
 }
+
+impl std::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
+            ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
+        }
+    }
+}

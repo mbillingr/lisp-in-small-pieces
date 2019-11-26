@@ -63,23 +63,42 @@ impl std::fmt::Display for Span {
         let first_line = self.src.line_number(self.start);
         let last_line = self.src.line_number(self.end);
 
-        println!("{:?} ... {:?}", first_line, last_line);
-
         if first_line == last_line {
             let (line, line_start) = first_line;
             let span_length = self.end - self.start;
-            writeln!(f, "{}", self.src.extract_line(line))?;
-            writeln!(
+            writeln!(f, "{:>4}   {}", line + 1, self.src.extract_line(line))?;
+            write!(
                 f,
-                "{: >2$}{:^>3$}",
+                "       {: >2$}{:^>3$}",
                 "",
                 "",
                 self.start - line_start,
                 span_length
+            )
+        } else {
+            let (first, first_start) = first_line;
+            let first_text = self.src.extract_line(first);
+            writeln!(f, "{:>4}   {}", first + 1, first_text)?;
+            writeln!(
+                f,
+                "       {: >2$}{:^>3$}",
+                "",
+                "",
+                self.start - first_start,
+                first_text.len() + first_start - self.start,
             )?;
-        }
+            writeln!(f, "       ...")?;
 
-        write!(f, "{:?}", self)
+            let (last, last_start) = last_line;
+            let last_text = self.src.extract_line(last);
+            writeln!(f, "{:>4}   {}", last + 1, last_text)?;
+            writeln!(
+                f,
+                "       {:^>1$}",
+                "",
+                last_start + last_text.len() - self.end,
+            )
+        }
     }
 }
 
