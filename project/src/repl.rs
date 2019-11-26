@@ -1,11 +1,12 @@
-use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
 use crate::{
     ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
     env::{Env, EnvAccess, EnvChain, Environment, GlobalRuntimeEnv},
-    objectify::Translate,
+    error::{Error, ErrorContext},
+    language::scheme::{cons, expand_assign, expand_begin, expand_lambda},
+    objectify::{ObjectifyError, Translate},
     parsing::parse,
     sexpr::TrackedSexpr,
-    source::Source,
+    source::{Source, SourceLocation},
 };
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -37,11 +38,18 @@ pub fn repl() {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 let src = Source::from(line);
-                let sexpr = TrackedSexpr::from_source(src);
-                let obj = trans.objectify_toplevel(&sexpr);
-                println!(": {:#?}", obj);
-                trans.global_env.update_runtime_globals(&mut sg);
-                println!("{:?}", obj.unwrap().eval(sr, sg));
+
+                let val = TrackedSexpr::from_source(&src)
+                    .and_then(|sexpr| trans.objectify_toplevel(&sexpr).map_err(Into::into))
+                    .map(|obj| {
+                        trans.global_env.update_runtime_globals(&mut sg);
+                        obj.eval(sr, sg)
+                    });
+
+                match val {
+                    Ok(x) => println!("{:?}", x),
+                    Err(e) => report_error(e),
+                }
             }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
@@ -58,4 +66,16 @@ pub fn repl() {
         }
     }
     rl.save_history("repl.hist.txt").unwrap();
+}
+
+pub fn report_error(e: Error) {
+    match e.context {
+        ErrorContext::None | ErrorContext::Source(SourceLocation::NoSource) => {
+            println!("Error: {:?}", e.kind)
+        }
+        ErrorContext::Source(SourceLocation::Span(span)) => {
+            println!("{}", span);
+            println!("{:?}", e.kind);
+        }
+    }
 }

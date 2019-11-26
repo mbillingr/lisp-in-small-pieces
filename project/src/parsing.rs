@@ -16,8 +16,8 @@ type ParseResult<'a, T> = Result<'a, (T, Span<'a>)>;
 
 #[derive(Debug)]
 pub struct ParseError<'a> {
-    kind: ParseErrorKind,
-    location: Span<'a>,
+    pub kind: ParseErrorKind,
+    pub location: Span<'a>,
 }
 
 #[derive(Debug)]
@@ -67,6 +67,16 @@ impl<'a> std::ops::Deref for Span<'a> {
     type Target = str;
     fn deref(&self) -> &str {
         &self.text[self.start..self.end]
+    }
+}
+
+impl<'a> Default for Span<'a> {
+    fn default() -> Span<'a> {
+        Span {
+            text: "",
+            start: 0,
+            end: 0,
+        }
     }
 }
 
@@ -135,12 +145,15 @@ pub enum Sexpr<'a> {
 }
 
 pub fn parse(src: &str) -> Result<SpannedSexpr> {
-    let (expr, rest) = parse_sexpr(Span::new(src))?;
+    let rest = Span::new(src);
+    let (_, rest) = opt(whitespace)(rest)?;
+    let (expr, rest) = parse_sexpr(rest)?;
+    let k = all((map(opt(whitespace), |_| Span::default()), eof))(rest);
     Ok(expr)
 }
 
 fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
-    not(char(')'))(src)?;
+    //not(char(')'))(src)?;
     any((
         any((parse_abbreviation, parse_dot, parse_boolean, parse_symbol)),
         any((parse_list, parse_vector, parse_string, parse_number)),
@@ -148,7 +161,7 @@ fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
     ))(src)
 }
 
-fn parse_invalid(input: Span) -> ParseResult<SpannedSexpr> {
+fn parse_invalid<T>(input: Span) -> ParseResult<T> {
     Err(ParseError {
         kind: ParseErrorKind::InvalidToken,
         location: input,
@@ -184,7 +197,7 @@ fn parse_vector(input: Span) -> ParseResult<SpannedSexpr> {
 }
 
 fn parse_sequence(input: Span) -> ParseResult<Vec<SpannedSexpr>> {
-    let (_, mut rest) = opt(whitespace)(input);
+    let (_, mut rest) = opt(whitespace)(input).unwrap();
 
     let mut seq = vec![];
 
@@ -195,7 +208,7 @@ fn parse_sequence(input: Span) -> ParseResult<Vec<SpannedSexpr>> {
 
         let (item, r) = parse_sexpr(rest)?;
         seq.push(item);
-        let (_, r) = opt(whitespace)(r);
+        let (_, r) = opt(whitespace)(r).unwrap();
         rest = r;
     }
 }
@@ -433,13 +446,23 @@ mod combinators {
         move |input: Span<'a>| -> ParseResult<'a, T> { parser(input).map(|(x, rest)| (x, input)) }
     }
 
-    pub fn opt<'a, T>(
+    /*pub fn opt<'a, T>(
         parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
     ) -> impl Fn(Span<'a>) -> (Option<T>, Span<'a>) {
         move |input: Span<'a>| {
             parser(input)
                 .map(|(out, rest)| (Some(out), rest))
                 .unwrap_or((None, input))
+        }
+    }*/
+
+    pub fn opt<'a, T>(
+        parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
+    ) -> impl Fn(Span<'a>) -> ParseResult<Option<T>> {
+        move |input: Span<'a>| {
+            Ok(parser(input)
+                .map(|(out, rest)| (Some(out), rest))
+                .unwrap_or((None, input)))
         }
     }
 

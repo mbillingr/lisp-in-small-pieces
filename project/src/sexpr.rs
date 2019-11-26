@@ -1,4 +1,5 @@
-use crate::parsing::{parse, Sexpr as PS, Span, SpannedSexpr};
+use crate::error::Error;
+use crate::parsing::{parse, ParseError, Sexpr as PS, Span, SpannedSexpr};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
 use std::fmt::Debug;
@@ -47,12 +48,10 @@ impl std::fmt::Display for Sexpr {
 }
 
 impl TrackedSexpr {
-    pub fn from_source(source: Source) -> Self {
-        let expr = match parse(&source.content) {
-            Ok(x) => x,
-            Err(e) => panic!("{:#?}", e),
-        };
-        Self::from_spanned(expr, source.clone())
+    pub fn from_source(source: &Source) -> Result<Self, Error> {
+        parse(&source.content)
+            .map(|sexpr| Self::from_spanned(sexpr, source.clone()))
+            .map_err(|e| Error::from_parse_error_and_source(e, source.clone()))
     }
 
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
@@ -287,6 +286,6 @@ mod tests {
     #[test]
     fn try_it() {
         let src = Source::from("( x )");
-        println!("{:?}", TrackedSexpr::from_source(src));
+        println!("{:?}", TrackedSexpr::from_source(&src));
     }
 }

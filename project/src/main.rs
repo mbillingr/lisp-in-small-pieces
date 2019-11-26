@@ -1,5 +1,6 @@
 mod ast;
 mod env;
+mod error;
 mod eval;
 mod language;
 mod objectify;

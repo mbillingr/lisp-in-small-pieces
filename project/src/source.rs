@@ -23,6 +23,18 @@ pub struct Source {
     pub file: Option<PathBuf>,
 }
 
+impl Source {
+    pub fn loc(self, start: usize, end: usize) -> SourceLocation {
+        assert!(start <= self.content.len());
+        assert!(end <= self.content.len());
+        SourceLocation::Span(Span {
+            src: self,
+            start,
+            end,
+        })
+    }
+}
+
 impl Span {
     pub fn last_char(&self) -> Self {
         Span {
@@ -43,6 +55,31 @@ impl Span {
 
     pub fn is_compatible(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.src.content, &other.src.content)
+    }
+}
+
+impl std::fmt::Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let first_line = self.src.line_number(self.start);
+        let last_line = self.src.line_number(self.end);
+
+        println!("{:?} ... {:?}", first_line, last_line);
+
+        if first_line == last_line {
+            let (line, line_start) = first_line;
+            let span_length = self.end - self.start;
+            writeln!(f, "{}", self.src.extract_line(line))?;
+            writeln!(
+                f,
+                "{: >2$}{:^>3$}",
+                "",
+                "",
+                self.start - line_start,
+                span_length
+            )?;
+        }
+
+        write!(f, "{:?}", self)
     }
 }
 
@@ -93,5 +130,26 @@ impl Source {
             content: Rc::new(src),
             file: Some(file),
         })
+    }
+
+    // return line number and byte offset into line for given byte offset into full text
+    pub fn line_number(&self, pos: usize) -> (usize, usize) {
+        let mut count = 0;
+        let mut line_pos = 0;
+        for (i, ch) in self
+            .content
+            .bytes()
+            .enumerate()
+            .take(pos)
+            .filter(|&(_, ch)| ch == b'\n')
+        {
+            count += 1;
+            line_pos = i;
+        }
+        (count, line_pos)
+    }
+
+    pub fn extract_line(&self, n: usize) -> &str {
+        self.content.lines().take(n + 1).last().unwrap()
     }
 }
