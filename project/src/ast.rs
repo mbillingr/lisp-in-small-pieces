@@ -518,6 +518,12 @@ impl Ast for RegularApplication {
             .collect();
         self
     }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        let func = self.function.eval(sr, sg);
+        let args: Vec<_> = self.arguments.iter().map(|a| a.eval(sr, sg)).collect();
+        func.invoke(args, sg)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -702,12 +708,16 @@ impl RuntimeProcedure {
         }
     }
 
-    pub fn invoke(&self, _args: Vec<Value>) -> Value {
-        unimplemented!()
-        /*if self.arity.check(args.len()) {
-            (self.func)(args)
-        } else {
+    pub fn invoke(&self, args: Vec<Value>, sg: &mut GlobalRuntimeEnv) -> Value {
+        if self.variables.len() != args.len() {
             panic!("Incorrect arity")
-        }*/
+        }
+
+        let mut env = self.env.clone();
+        for (p, a) in self.variables.iter().zip(args) {
+            env = env.extend(p.name().clone(), a);
+        }
+
+        self.body.eval(&env, sg)
     }
 }

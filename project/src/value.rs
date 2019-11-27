@@ -1,4 +1,5 @@
 use crate::ast::RuntimeProcedure;
+use crate::env::GlobalRuntimeEnv;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use std::rc::Rc;
 
@@ -87,6 +88,13 @@ impl Value {
         match self {
             Value::Pair(p) => Some(p),
             _ => None,
+        }
+    }
+
+    pub fn invoke(&self, args: Vec<Value>, sg: &mut GlobalRuntimeEnv) -> Value {
+        match self {
+            Value::Procedure(proc) => proc.invoke(args, sg),
+            _ => panic!("Cannot invoke {:?}", self),
         }
     }
 }
