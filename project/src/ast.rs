@@ -675,6 +675,24 @@ pub struct RuntimeProcedure {
     pub env: LexicalRuntimeEnv,
 }
 
+impl std::fmt::Display for RuntimeProcedure {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let vars: Vec<_> = self
+            .variables
+            .iter()
+            .map(|var| {
+                if var.is_dotted() {
+                    format!(" . {}", var.name())
+                } else {
+                    var.name().to_string()
+                }
+            })
+            .collect();
+        let vars = vars.join(" ");
+        write!(f, "(lambda ({}) ...)", vars)
+    }
+}
+
 impl RuntimeProcedure {
     pub fn new(body: AstNode, variables: Vec<Variable>, env: LexicalRuntimeEnv) -> Self {
         RuntimeProcedure {

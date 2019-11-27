@@ -50,4 +50,43 @@ impl Value {
     pub fn cons(a: Value, b: Value) -> Self {
         Value::Pair(Rc::new((a, b)))
     }
+
+    pub fn is_pair(&self) -> bool {
+        self.as_pair().is_some()
+    }
+
+    pub fn as_pair(&self) -> Option<&Rc<(Value, Value)>> {
+        match self {
+            Value::Pair(p) => Some(p),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use Value::*;
+        match self {
+            Undefined => Ok(()),
+            Uninitialized => write!(f, "*uninitialized*"),
+            Nil => write!(f, "'()"),
+            Int(i) => write!(f, "{}", i),
+            Pair(pair) => {
+                let mut pair = pair;
+                write!(f, "(")?;
+                write!(f, "{}", pair.0)?;
+                while let Pair(ref p) = pair.1 {
+                    pair = p;
+                    write!(f, " {}", pair.0)?;
+                }
+                if let Nil = pair.1 {
+                    write!(f, ")")
+                } else {
+                    write!(f, " . {})", pair.1)
+                }
+            }
+            Procedure(proc) => write!(f, "{}", proc),
+            Box(x) => write!(f, "[{}]", x),
+        }
+    }
 }
