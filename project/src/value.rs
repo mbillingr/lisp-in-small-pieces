@@ -7,7 +7,11 @@ pub enum Value {
     Undefined,
     Uninitialized,
     Nil,
+    True,
+    False,
     Int(i64),
+    Float(f64),
+    String(Rc<str>),
 
     Pair(Rc<(Value, Value)>),
 
@@ -26,7 +30,11 @@ impl From<Sexpr> for Value {
     fn from(e: Sexpr) -> Self {
         match e {
             Sexpr::Nil => Value::Nil,
+            Sexpr::True => Value::True,
+            Sexpr::False => Value::False,
             Sexpr::Int(i) => Value::Int(i),
+            Sexpr::Float(f) => Value::Float(f),
+            Sexpr::String(s) => Value::String(s),
             _ => unimplemented!("{:?}", e),
         }
     }
@@ -34,11 +42,7 @@ impl From<Sexpr> for Value {
 
 impl From<TrackedSexpr> for Value {
     fn from(e: TrackedSexpr) -> Self {
-        match e.into_sexpr() {
-            Sexpr::Nil => Value::Nil,
-            Sexpr::Int(i) => Value::Int(i),
-            e => unimplemented!("{:?}", e),
-        }
+        e.into_sexpr().into()
     }
 }
 
@@ -49,6 +53,25 @@ impl Value {
 
     pub fn cons(a: Value, b: Value) -> Self {
         Value::Pair(Rc::new((a, b)))
+    }
+
+    pub fn is_true(&self) -> bool {
+        match self {
+            Value::False => false,
+            _ => true,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        self.as_bool().is_some()
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::True => Some(true),
+            Value::False => Some(false),
+            _ => None,
+        }
     }
 
     pub fn is_pair(&self) -> bool {
@@ -70,7 +93,11 @@ impl std::fmt::Display for Value {
             Undefined => Ok(()),
             Uninitialized => write!(f, "*uninitialized*"),
             Nil => write!(f, "'()"),
+            True => write!(f, "#t"),
+            False => write!(f, "#f"),
             Int(i) => write!(f, "{}", i),
+            Float(i) => write!(f, "{}", i),
+            String(s) => write!(f, "\"{}\"", s),
             Pair(pair) => {
                 let mut pair = pair;
                 write!(f, "(")?;

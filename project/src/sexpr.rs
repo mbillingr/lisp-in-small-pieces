@@ -11,11 +11,17 @@ pub struct TrackedSexpr {
     src: SourceLocation,
 }
 
+// TODO: Should we intern symbols and string?
+
 #[derive(Debug, Clone)]
 pub enum Sexpr {
     Nil,
+    True,
+    False,
     Symbol(Symbol),
+    String(Rc<str>),
     Int(i64),
+    Float(f64),
 
     List(RcSlice<TrackedSexpr>, Option<Box<TrackedSexpr>>),
 }
@@ -30,8 +36,12 @@ impl std::fmt::Display for Sexpr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Sexpr::Nil => write!(f, "'()"),
+            Sexpr::True => write!(f, "#t"),
+            Sexpr::False => write!(f, "#f"),
             Sexpr::Symbol(s) => write!(f, "{}", s),
+            Sexpr::String(s) => write!(f, "\"{}\"", s),
             Sexpr::Int(i) => write!(f, "{}", i),
+            Sexpr::Float(i) => write!(f, "{}", i),
             Sexpr::List(items, dot) => {
                 write!(f, "(")?;
                 write!(f, "{}", items[0])?;
@@ -57,13 +67,27 @@ impl TrackedSexpr {
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
         match se.expr {
             PS::Nil => TrackedSexpr::new(Sexpr::Nil, SourceLocation::from_spanned(se.span, source)),
+            PS::True => {
+                TrackedSexpr::new(Sexpr::True, SourceLocation::from_spanned(se.span, source))
+            }
+            PS::False => {
+                TrackedSexpr::new(Sexpr::False, SourceLocation::from_spanned(se.span, source))
+            }
             PS::Symbol(s) => TrackedSexpr::new(
                 Sexpr::Symbol(s.into()),
+                SourceLocation::from_spanned(se.span, source),
+            ),
+            PS::String(s) => TrackedSexpr::new(
+                Sexpr::String(s.into()),
                 SourceLocation::from_spanned(se.span, source),
             ),
             PS::Integer(i) => {
                 TrackedSexpr::new(Sexpr::Int(i), SourceLocation::from_spanned(se.span, source))
             }
+            PS::Float(f) => TrackedSexpr::new(
+                Sexpr::Float(f),
+                SourceLocation::from_spanned(se.span, source),
+            ),
             PS::List(l) if l.is_empty() => {
                 TrackedSexpr::new(Sexpr::Nil, SourceLocation::from_spanned(se.span, source))
             }
