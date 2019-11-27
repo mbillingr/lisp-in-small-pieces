@@ -1,4 +1,4 @@
-use crate::language::scheme::{add, divide, expand_alternative, multiply, subtract};
+use crate::language::scheme::{add, divide, expand_alternative, expand_quote, multiply, subtract};
 use crate::{
     ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
     env::{Env, EnvAccess, EnvChain, Environment, GlobalRuntimeEnv},
@@ -38,6 +38,7 @@ pub fn repl() {
     predef = predef.extend(Variable::Macro(MagicKeyword::new("begin", expand_begin)));
     predef = predef.extend(Variable::Macro(MagicKeyword::new("set!", expand_assign)));
     predef = predef.extend(Variable::Macro(MagicKeyword::new("if", expand_alternative)));
+    predef = predef.extend(Variable::Macro(MagicKeyword::new("quote", expand_quote)));
 
     let mut trans = Translate::from_predefined(predef);
 

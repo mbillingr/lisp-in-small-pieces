@@ -1,6 +1,7 @@
 use crate::ast::{RuntimePrimitive, RuntimeProcedure};
 use crate::env::GlobalRuntimeEnv;
 use crate::sexpr::{Sexpr, TrackedSexpr};
+use crate::symbol::Symbol;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -12,6 +13,7 @@ pub enum Value {
     False,
     Int(i64),
     Float(f64),
+    Symbol(Symbol),
     String(Rc<str>),
     Vector(Rc<[Value]>),
 
@@ -37,12 +39,19 @@ impl From<Sexpr> for Value {
             Sexpr::False => Value::False,
             Sexpr::Int(i) => Value::Int(i),
             Sexpr::Float(f) => Value::Float(f),
+            Sexpr::Symbol(s) => Value::Symbol(s),
             Sexpr::String(s) => Value::String(s),
+            Sexpr::List(l, dot) => {
+                let mut x = dot.map(|d| (*d).into()).unwrap_or(Value::Nil);
+                for item in l.iter().rev() {
+                    x = Value::cons(item.clone().into(), x);
+                }
+                x
+            }
             Sexpr::Vector(v) => {
                 let items: Vec<Value> = v.iter().map(|i| i.clone().into()).collect();
                 Value::Vector(items.into())
             }
-            _ => unimplemented!("{:?}", e),
         }
     }
 }
@@ -118,6 +127,7 @@ impl std::fmt::Display for Value {
             False => write!(f, "#f"),
             Int(i) => write!(f, "{}", i),
             Float(i) => write!(f, "{}", i),
+            Symbol(s) => write!(f, "{}", s),
             String(s) => write!(f, "\"{}\"", s),
             Pair(pair) => {
                 let mut pair = pair;

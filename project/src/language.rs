@@ -26,6 +26,11 @@ pub mod scheme {
         trans.objectify_assignment(&parts[1], &parts[2], env, expr.source().clone())
     }
 
+    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr, env: &Env) -> Result<AstNode> {
+        let body = &cdr(expr)?;
+        trans.objectify_quotation(car(body)?, env)
+    }
+
     pub fn expand_alternative(
         trans: &mut Translate,
         expr: &TrackedSexpr,
@@ -34,7 +39,7 @@ pub mod scheme {
         let rest = cdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
-        let (no, rest) = decons(&rest)?;
+        let (no, _) = decons(&rest)?;
         trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
     }
 

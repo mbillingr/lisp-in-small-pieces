@@ -61,7 +61,7 @@ impl Translate {
         }
     }
 
-    fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<AstNode> {
+    pub fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<AstNode> {
         Ok(Constant::new(expr.clone(), expr.source().clone()))
     }
 
