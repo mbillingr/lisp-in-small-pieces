@@ -31,4 +31,36 @@ pub mod scheme {
         let car = args.pop().unwrap();
         Value::cons(car, cdr)
     }
+
+    pub fn multiply(args: Vec<Value>) -> Value {
+        match args[..] {
+            [Value::Int(a), Value::Int(b)] => Value::Int(a * b),
+            [_, _] => panic!("Invalid operand types in multiplication"),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn divide(args: Vec<Value>) -> Value {
+        match args[..] {
+            [Value::Int(a), Value::Int(b)] => Value::Int(a / b),
+            [_, _] => panic!("Invalid operand types in division"),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn add(args: Vec<Value>) -> Value {
+        match args[..] {
+            [Value::Int(a), Value::Int(b)] => Value::Int(a + b),
+            [_, _] => panic!("Invalid operand types in addition"),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn subtract(args: Vec<Value>) -> Value {
+        match args[..] {
+            [Value::Int(a), Value::Int(b)] => Value::Int(a - b),
+            [_, _] => panic!("Invalid operand types in subtraction"),
+            _ => unreachable!(),
+        }
+    }
 }
