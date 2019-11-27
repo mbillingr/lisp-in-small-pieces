@@ -253,9 +253,13 @@ fn parse_number(input: Span) -> ParseResult<SpannedSexpr> {
 
 fn parse_symbol(input: Span) -> ParseResult<SpannedSexpr> {
     map(
-        all((
-            parse_symbol_initial,
-            repeat_0_or_more(parse_symbol_subsequent),
+        any((
+            all((
+                parse_symbol_initial,
+                repeat_0_or_more(parse_symbol_subsequent),
+            )),
+            //all((char('|'), repeat_0_or_more(parse_symbol_element), char('|'))),  //not yet implemented
+            parse_peculiar_identifier,
         )),
         |span| span.into_spanned(Sexpr::Symbol(&span.text[span.start..span.end])),
     )(input)
@@ -274,8 +278,27 @@ fn parse_symbol_subsequent(input: Span) -> ParseResult<Span> {
     any((
         parse_symbol_initial,
         char_that(|ch| ch.is_ascii_digit()),
-        any((char('+'), char('-'), char('.'), char('@'))),
+        any((parse_explicit_sign, char('.'), char('@'))),
     ))(input)
+}
+
+fn parse_peculiar_identifier(input: Span) -> ParseResult<Span> {
+    any((
+        parse_explicit_sign,
+        all((
+            parse_explicit_sign,
+            parse_sign_subsequent,
+            parse_symbol_subsequent,
+        )),
+    ))(input)
+}
+
+fn parse_sign_subsequent(input: Span) -> ParseResult<Span> {
+    any((parse_symbol_initial, parse_explicit_sign, char('@')))(input)
+}
+
+fn parse_explicit_sign(input: Span) -> ParseResult<Span> {
+    any((char('+'), char('-')))(input)
 }
 
 fn parse_string(input: Span) -> ParseResult<SpannedSexpr> {
