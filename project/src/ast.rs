@@ -259,6 +259,10 @@ impl Ast for PredefinedReference {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
+
+    fn eval(&self, _sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        (*sg.get_predefined(self.var.name())).into()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -444,6 +448,14 @@ impl Ast for Alternative {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
+    }
+
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        if self.condition.eval(sr, sg).is_true() {
+            self.consequence.eval(sr, sg)
+        } else {
+            self.alternative.eval(sr, sg)
+        }
     }
 }
 
@@ -654,7 +666,7 @@ impl FunctionDescription {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct RuntimePrimitive {
     pub func: fn(args: Vec<Value>) -> Value,
     pub arity: Arity,
@@ -671,6 +683,12 @@ impl RuntimePrimitive {
         } else {
             panic!("Incorrect arity")
         }
+    }
+}
+
+impl std::fmt::Display for RuntimePrimitive {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "*primitive*")
     }
 }
 

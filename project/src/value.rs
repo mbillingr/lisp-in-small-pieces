@@ -1,4 +1,4 @@
-use crate::ast::RuntimeProcedure;
+use crate::ast::{RuntimePrimitive, RuntimeProcedure};
 use crate::env::GlobalRuntimeEnv;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use std::rc::Rc;
@@ -18,6 +18,7 @@ pub enum Value {
     Pair(Rc<(Value, Value)>),
 
     Procedure(RuntimeProcedure),
+    Primitive(RuntimePrimitive),
 
     Box(Box<Value>),
 }
@@ -49,6 +50,12 @@ impl From<Sexpr> for Value {
 impl From<TrackedSexpr> for Value {
     fn from(e: TrackedSexpr) -> Self {
         e.into_sexpr().into()
+    }
+}
+
+impl From<RuntimePrimitive> for Value {
+    fn from(p: RuntimePrimitive) -> Self {
+        Value::Primitive(p)
     }
 }
 
@@ -94,6 +101,7 @@ impl Value {
     pub fn invoke(&self, args: Vec<Value>, sg: &mut GlobalRuntimeEnv) -> Value {
         match self {
             Value::Procedure(proc) => proc.invoke(args, sg),
+            Value::Primitive(proc) => proc.invoke(args),
             _ => panic!("Cannot invoke {:?}", self),
         }
     }
@@ -134,6 +142,7 @@ impl std::fmt::Display for Value {
                 write!(f, ")")
             }
             Procedure(proc) => write!(f, "{}", proc),
+            Primitive(proc) => write!(f, "{}", proc),
             Box(x) => write!(f, "[{}]", x),
         }
     }

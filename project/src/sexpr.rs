@@ -172,6 +172,22 @@ impl TrackedSexpr {
         }
     }
 
+    pub fn decons(&self) -> Option<(&Self, Self)> {
+        match &self.sexpr {
+            Sexpr::List(l, _) if l.len() == 0 => panic!("invalid list"),
+            Sexpr::List(l, None) if l.len() == 1 => Some((&l[0], Self::nil(self.src.last_char()))),
+            Sexpr::List(l, Some(dot)) if l.len() == 1 => Some((&l[0], (**dot).clone())),
+            Sexpr::List(l, d) => Some((
+                &l[0],
+                TrackedSexpr {
+                    sexpr: Sexpr::List(l.clone().slice_from(1), d.clone()),
+                    src: self.src.clone().start_at(&l[0].src),
+                },
+            )),
+            _ => None,
+        }
+    }
+
     pub fn at(&self, idx: usize) -> Option<&Self> {
         match &self.sexpr {
             Sexpr::List(l, _) if l.len() > idx => Some(&l[idx]),

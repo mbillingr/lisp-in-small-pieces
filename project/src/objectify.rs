@@ -1,6 +1,6 @@
 use crate::ast::{
-    AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference, LocalAssignment,
-    LocalReference, MagicKeyword, PredefinedApplication, PredefinedReference, Ref,
+    Alternative, AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference,
+    LocalAssignment, LocalReference, MagicKeyword, PredefinedApplication, PredefinedReference, Ref,
     RegularApplication, Sequence, Variable,
 };
 use crate::env::{Env, EnvAccess};
@@ -63,6 +63,20 @@ impl Translate {
 
     fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<AstNode> {
         Ok(Constant::new(expr.clone(), expr.source().clone()))
+    }
+
+    pub fn objectify_alternative(
+        &mut self,
+        condition: &Sexpr,
+        consequence: &Sexpr,
+        alternative: &Sexpr,
+        env: &Env,
+        span: SourceLocation,
+    ) -> Result<AstNode> {
+        let condition = self.objectify(condition, env)?;
+        let consequence = self.objectify(consequence, env)?;
+        let alternative = self.objectify(alternative, env)?;
+        Ok(Alternative::new(condition, consequence, alternative, span))
     }
 
     pub fn objectify_sequence(&mut self, exprs: &Sexpr, env: &Env) -> Result<AstNode> {
@@ -289,6 +303,13 @@ pub fn car(e: &Sexpr) -> Result<&Sexpr> {
 
 pub fn cdr(e: &Sexpr) -> Result<Sexpr> {
     e.tail().ok_or_else(|| ObjectifyError {
+        kind: ObjectifyErrorKind::NoPair,
+        location: e.source().clone(),
+    })
+}
+
+pub fn decons(e: &Sexpr) -> Result<(&Sexpr, Sexpr)> {
+    e.decons().ok_or_else(|| ObjectifyError {
         kind: ObjectifyErrorKind::NoPair,
         location: e.source().clone(),
     })
