@@ -115,7 +115,7 @@ impl Translate {
 
     fn objectify_application(
         &mut self,
-        mut func: AstNode,
+        func: AstNode,
         args: &Sexpr,
         env: &Env,
         span: SourceLocation,
@@ -225,7 +225,7 @@ impl Translate {
         Ok(Function::new(vars, bdy, span))
     }
 
-    fn objectify_variables_list(&mut self, mut names: &Sexpr) -> Result<Vec<Variable>> {
+    fn objectify_variables_list(&mut self, names: &Sexpr) -> Result<Vec<Variable>> {
         if let Some((l, dotted)) = names.as_list() {
             let mut list: Vec<_> = (**l)
                 .iter()

@@ -1,14 +1,7 @@
-use crate::sexpr::TrackedSexpr;
-use crate::source::Source;
-use std::io::Read;
-use std::path::PathBuf;
-use std::rc::Rc;
-
 use crate::parsing::basic_parsers::char_that;
 use crate::parsing::combinators::repeat_1_or_more;
 use basic_parsers::{any_char, char, eof, tag, whitespace};
 use combinators::{all, any, followed, map, not, opt, peek, repeat_0_or_more};
-use std::io::SeekFrom::Current;
 
 type Result<'a, T> = std::result::Result<T, ParseError<'a>>;
 
@@ -149,7 +142,7 @@ pub fn parse(src: &str) -> Result<SpannedSexpr> {
     let rest = Span::new(src);
     let (_, rest) = opt(whitespace)(rest)?;
     let (expr, rest) = parse_sexpr(rest)?;
-    let k = all((map(opt(whitespace), |_| Span::default()), eof))(rest);
+    let _ = all((map(opt(whitespace), |_| Span::default()), eof))(rest);
     Ok(expr)
 }
 
@@ -180,7 +173,7 @@ fn parse_dot(input: Span) -> ParseResult<SpannedSexpr> {
 fn parse_list(input: Span) -> ParseResult<SpannedSexpr> {
     let (open, rest) = char('(')(input)?;
     let (list, rest) = parse_sequence(rest)?;
-    let (close, rest) = char(')')(rest).map_err(|e| ParseError {
+    let (close, rest) = char(')')(rest).map_err(|_| ParseError {
         kind: ParseErrorKind::UnclosedSequence,
         location: input,
         fatal: true,
@@ -221,12 +214,10 @@ fn parse_sequence(input: Span) -> ParseResult<Vec<SpannedSexpr>> {
 }
 
 fn parse_boolean(input: Span) -> ParseResult<SpannedSexpr> {
-    followed(any((parse_true, parse_false)), peek(parse_delimiter))(input).map_err(|pe| {
-        ParseError {
-            kind: ParseErrorKind::Context("Expected boolean: #t, #f, #true, or #false"),
-            location: input,
-            fatal: false,
-        }
+    followed(any((parse_true, parse_false)), peek(parse_delimiter))(input).map_err(|_| ParseError {
+        kind: ParseErrorKind::Context("Expected boolean: #t, #f, #true, or #false"),
+        location: input,
+        fatal: false,
     })
 }
 
@@ -289,7 +280,7 @@ fn parse_symbol_subsequent(input: Span) -> ParseResult<Span> {
 
 fn parse_string(input: Span) -> ParseResult<SpannedSexpr> {
     let (open, rest) = char('"')(input)?;
-    let (span, rest) = repeat_0_or_more((all((not(char('"')), any_char))))(rest)?;
+    let (span, rest) = repeat_0_or_more(all((not(char('"')), any_char)))(rest)?;
     let (close, rest) = char('"')(rest)?;
 
     let final_span = Span::range(open, close);
@@ -326,10 +317,6 @@ fn expand<'a>(
             rest,
         ))
     }
-}
-
-fn delimited_tag<'a>(name: &'static str) -> impl Fn(Span<'a>) -> ParseResult<'a, Span<'a>> {
-    followed(tag(name), peek(parse_delimiter))
 }
 
 fn parse_delimiter(input: Span) -> ParseResult<Span> {
@@ -441,24 +428,23 @@ mod basic_parsers {
                 fatal: false,
             }),
             None => Ok(input.split(input.len())),
-            Some((0, ch)) => Err(ParseError {
+            Some((0, _)) => Err(ParseError {
                 kind: ParseErrorKind::Whitespace,
                 location: input,
                 fatal: false,
             }),
-            Some((i, ch)) => Ok(input.split(i)),
+            Some((i, _)) => Ok(input.split(i)),
         }
     }
 }
 
 mod combinators {
     use super::{ParseError, ParseErrorKind, ParseResult, Span, Spanned};
-    use std::io::ErrorKind;
 
     pub fn peek<'a, T>(
         parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
     ) -> impl Fn(Span<'a>) -> ParseResult<'a, T> {
-        move |input: Span<'a>| -> ParseResult<'a, T> { parser(input).map(|(x, rest)| (x, input)) }
+        move |input: Span<'a>| -> ParseResult<'a, T> { parser(input).map(|(x, _)| (x, input)) }
     }
 
     /*pub fn opt<'a, T>(
@@ -687,7 +673,7 @@ mod tests {
 
         ($expected:expr, _, $actual:expr) => {
             match $actual {
-                Ok((ex, rest)) => {
+                Ok((ex, _)) => {
                     assert_eq!(ex.expr, $expected);
                 }
                 Err(e) => panic!("{:#?}", e),

@@ -1,10 +1,9 @@
 use crate::{
-    ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
+    ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
     env::{Env, EnvAccess, EnvChain, Environment, GlobalRuntimeEnv},
     error::{Error, ErrorContext},
     language::scheme::{cons, expand_assign, expand_begin, expand_lambda},
-    objectify::{ObjectifyError, Translate},
-    parsing::parse,
+    objectify::Translate,
     sexpr::TrackedSexpr,
     source::{Source, SourceLocation},
 };
@@ -27,7 +26,7 @@ pub fn repl() {
     let mut runtime_predef = HashMap::new();
     runtime_predef.insert("cons".into(), RuntimePrimitive::new(Arity::Exact(2), cons));
 
-    let mut sr = &mut EnvChain::new();
+    let sr = &mut EnvChain::new();
     let mut sg = &mut GlobalRuntimeEnv::new(runtime_predef);
 
     let mut rl = Editor::<()>::new();

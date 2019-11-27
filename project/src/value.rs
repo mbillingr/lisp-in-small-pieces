@@ -1,5 +1,5 @@
 use crate::ast::RuntimeProcedure;
-use crate::sexpr::{self, Sexpr, TrackedSexpr};
+use crate::sexpr::{Sexpr, TrackedSexpr};
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]

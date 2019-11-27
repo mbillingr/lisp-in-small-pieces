@@ -14,12 +14,10 @@ mod value;
 use crate::ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
 use crate::env::EnvChain;
 use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
-use crate::objectify::{car, cdr, ObjectifyError, Result, Translate};
-use crate::sexpr::TrackedSexpr as Sexpr;
+use crate::objectify::Translate;
 use crate::source::SourceLocation::NoSource;
-use crate::value::Value;
 use ast::{Alternative, AstNode, Constant, Transformer, Visited};
-use env::{Env, EnvAccess, Environment, GlobalRuntimeEnv, LexicalRuntimeEnv};
+use env::{Env, EnvAccess, Environment, GlobalRuntimeEnv};
 use lexpr::sexp;
 use repl::repl;
 use std::collections::HashMap;
@@ -62,7 +60,7 @@ fn main() {
     let mut runtime_predef = HashMap::new();
     runtime_predef.insert("cons".into(), RuntimePrimitive::new(Arity::Exact(2), cons));
 
-    let mut sr = &mut EnvChain::new();
+    let sr = &mut EnvChain::new();
     let mut sg = &mut GlobalRuntimeEnv::new(runtime_predef);
 
     println!(

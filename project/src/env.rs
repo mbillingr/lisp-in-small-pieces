@@ -24,7 +24,7 @@ impl EnvAccess for Env {
             Environment::GlobalMarker(next) => next.borrow().update_runtime_globals(sg),
             Environment::Entry(next, var) => {
                 match var {
-                    Variable::Global(name) => sg.ensure_global(var.name().clone()),
+                    Variable::Global(name) => sg.ensure_global(name.clone()),
                     _ => {}
                 }
                 next.update_runtime_globals(sg)
@@ -118,7 +118,6 @@ impl EnvChain {
     }
 
     pub fn get_lexical(&self, name: &Symbol) -> Value {
-        let current = self;
         if self.var == *name {
             self.val.clone()
         } else {

@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::parsing::{parse, ParseError, Sexpr as PS, Span, SpannedSexpr};
+use crate::parsing::{parse, Sexpr as PS, SpannedSexpr};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
 use std::fmt::Debug;

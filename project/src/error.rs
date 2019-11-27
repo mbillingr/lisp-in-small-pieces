@@ -1,4 +1,3 @@
-use crate::error::ErrorKind::Objectify;
 use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
 use crate::parsing::{ParseError, ParseErrorKind};
 use crate::source::{Source, SourceLocation};

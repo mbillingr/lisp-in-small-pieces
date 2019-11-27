@@ -1,7 +1,7 @@
 use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::objectify::{Result, Translate};
 use crate::sexpr::TrackedSexpr as Sexpr;
-use crate::source::{Source, SourceLocation};
+use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::value::Value;
 use downcast_rs::{impl_downcast, Downcast};
@@ -21,7 +21,7 @@ pub trait Ast: std::fmt::Debug + Downcast {
         unimplemented!("deep clone {:?}", self)
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         unimplemented!("eval {:?}", self)
     }
 }
@@ -192,7 +192,7 @@ impl Ast for LocalReference {
         Ref::new(self.clone())
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn eval(&self, sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         sr.get_lexical(self.var.name())
     }
 }
@@ -226,7 +226,7 @@ impl Ast for GlobalReference {
         Ref::new(self.clone())
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn eval(&self, _sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
         sg.get_global(self.var.name())
     }
 }
@@ -292,7 +292,7 @@ impl Ast for LocalAssignment {
         Ref::new(self.clone())
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         unimplemented!()
     }
 }
@@ -349,9 +349,9 @@ impl Constant {
         })
     }
 
-    pub fn value(&self) -> &Value {
+    /*pub fn value(&self) -> &Value {
         &self.value
-    }
+    }*/
 }
 
 impl Ast for Constant {
@@ -367,7 +367,7 @@ impl Ast for Constant {
         Ref::new(self.clone())
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         self.value.clone()
     }
 }
@@ -478,7 +478,7 @@ impl Ast for Function {
         Ref::new(self.clone())
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+    fn eval(&self, sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         Value::Procedure(RuntimeProcedure::new(
             self.body.clone(),
             self.variables.clone(),
@@ -702,7 +702,7 @@ impl RuntimeProcedure {
         }
     }
 
-    pub fn invoke(&self, args: Vec<Value>) -> Value {
+    pub fn invoke(&self, _args: Vec<Value>) -> Value {
         unimplemented!()
         /*if self.arity.check(args.len()) {
             (self.func)(args)

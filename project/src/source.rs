@@ -154,7 +154,7 @@ impl Source {
     pub fn line_number(&self, pos: usize) -> (usize, usize) {
         let mut count = 0;
         let mut line_pos = 0;
-        for (i, ch) in self
+        for (i, _) in self
             .content
             .bytes()
             .enumerate()
