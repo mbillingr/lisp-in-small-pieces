@@ -24,6 +24,7 @@ pub enum Sexpr {
     Float(f64),
 
     List(RcSlice<TrackedSexpr>, Option<Box<TrackedSexpr>>),
+    Vector(RcSlice<TrackedSexpr>),
 }
 
 impl std::fmt::Display for TrackedSexpr {
@@ -50,6 +51,14 @@ impl std::fmt::Display for Sexpr {
                 }
                 if let Some(d) = dot {
                     write!(f, " . {}", d)?;
+                }
+                write!(f, ")")
+            }
+            Sexpr::Vector(items) => {
+                write!(f, "#(")?;
+                write!(f, "{}", items[0])?;
+                for i in &items[1..] {
+                    write!(f, " {}", i)?;
                 }
                 write!(f, ")")
             }
@@ -106,6 +115,16 @@ impl TrackedSexpr {
                 }
                 TrackedSexpr::new(
                     Sexpr::List(items.into(), dotted),
+                    SourceLocation::from_spanned(se.span, source),
+                )
+            }
+            PS::Vector(l) => {
+                let items: Vec<_> = l
+                    .into_iter()
+                    .map(|i| Self::from_spanned(i, source.clone()))
+                    .collect();
+                TrackedSexpr::new(
+                    Sexpr::Vector(items.into()),
                     SourceLocation::from_spanned(se.span, source),
                 )
             }

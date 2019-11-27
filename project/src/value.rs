@@ -12,6 +12,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     String(Rc<str>),
+    Vector(Rc<[Value]>),
 
     Pair(Rc<(Value, Value)>),
 
@@ -35,6 +36,10 @@ impl From<Sexpr> for Value {
             Sexpr::Int(i) => Value::Int(i),
             Sexpr::Float(f) => Value::Float(f),
             Sexpr::String(s) => Value::String(s),
+            Sexpr::Vector(v) => {
+                let items: Vec<Value> = v.iter().map(|i| i.clone().into()).collect();
+                Value::Vector(items.into())
+            }
             _ => unimplemented!("{:?}", e),
         }
     }
@@ -111,6 +116,14 @@ impl std::fmt::Display for Value {
                 } else {
                     write!(f, " . {})", pair.1)
                 }
+            }
+            Vector(items) => {
+                write!(f, "#(")?;
+                write!(f, "{}", items[0])?;
+                for i in &items[1..] {
+                    write!(f, " {}", i)?;
+                }
+                write!(f, ")")
             }
             Procedure(proc) => write!(f, "{}", proc),
             Box(x) => write!(f, "[{}]", x),
