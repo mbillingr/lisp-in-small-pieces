@@ -3,6 +3,12 @@ use std::rc::Rc;
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Symbol(Rc<str>);
 
+impl Symbol {
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 impl From<&str> for Symbol {
     fn from(s: &str) -> Symbol {
         Symbol(s.into())

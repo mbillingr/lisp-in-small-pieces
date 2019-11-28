@@ -1,4 +1,6 @@
-use crate::language::scheme::{add, divide, expand_alternative, expand_quote, multiply, subtract};
+use crate::language::scheme::{
+    add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
+};
 use crate::{
     ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
     env::{Env, EnvAccess, EnvChain, Environment, GlobalRuntimeEnv},
@@ -17,6 +19,10 @@ pub fn repl() {
     predef = predef.extend(Variable::predefined(
         "cons",
         FunctionDescription::new(Arity::Exact(2), "cons a b"),
+    ));
+    predef = predef.extend(Variable::predefined(
+        "eq?",
+        FunctionDescription::new(Arity::Exact(2), "eq? a b"),
     ));
     predef = predef.extend(Variable::predefined(
         "*",
@@ -44,6 +50,7 @@ pub fn repl() {
 
     let mut runtime_predef = HashMap::new();
     runtime_predef.insert("cons".into(), RuntimePrimitive::new(Arity::Exact(2), cons));
+    runtime_predef.insert("eq?".into(), RuntimePrimitive::new(Arity::Exact(2), is_eq));
     runtime_predef.insert("*".into(), RuntimePrimitive::new(Arity::Exact(2), multiply));
     runtime_predef.insert("/".into(), RuntimePrimitive::new(Arity::Exact(2), divide));
     runtime_predef.insert("+".into(), RuntimePrimitive::new(Arity::Exact(2), add));

@@ -22,7 +22,7 @@ pub enum Value {
     Procedure(RuntimeProcedure),
     Primitive(RuntimePrimitive),
 
-    Box(Box<Value>),
+    Box(Rc<Value>),
 }
 
 impl From<i64> for Value {
@@ -73,6 +73,13 @@ impl Value {
         Value::Nil
     }
 
+    pub fn bool(b: bool) -> Self {
+        match b {
+            true => Value::True,
+            false => Value::False,
+        }
+    }
+
     pub fn cons(a: Value, b: Value) -> Self {
         Value::Pair(Rc::new((a, b)))
     }
@@ -112,6 +119,26 @@ impl Value {
             Value::Procedure(proc) => proc.invoke(args, sg),
             Value::Primitive(proc) => proc.invoke(args),
             _ => panic!("Cannot invoke {:?}", self),
+        }
+    }
+
+    pub fn is_eq(&self, other: &Self) -> bool {
+        match [self, other] {
+            [Value::Undefined, Value::Undefined] => false,
+            [Value::Uninitialized, Value::Uninitialized] => true,
+            [Value::Nil, Value::Nil] => true,
+            [Value::True, Value::True] => true,
+            [Value::False, Value::False] => true,
+            [Value::Int(a), Value::Int(b)] => a == b,
+            [Value::Float(a), Value::Float(b)] => a == b,
+            [Value::Symbol(a), Value::Symbol(b)] => Symbol::ptr_eq(a, b),
+            [Value::String(a), Value::String(b)] => Rc::ptr_eq(a, b),
+            [Value::Vector(a), Value::Vector(b)] => Rc::ptr_eq(a, b),
+            [Value::Pair(a), Value::Pair(b)] => Rc::ptr_eq(a, b),
+            [Value::Procedure(a), Value::Procedure(b)] => a as *const _ == b as *const _,
+            [Value::Primitive(a), Value::Primitive(b)] => a as *const _ == b as *const _,
+            [Value::Box(a), Value::Box(b)] => Rc::ptr_eq(a, b),
+            [_, _] => false,
         }
     }
 }

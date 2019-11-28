@@ -49,6 +49,13 @@ pub mod scheme {
         Value::cons(car, cdr)
     }
 
+    pub fn is_eq(args: Vec<Value>) -> Value {
+        match &args[..] {
+            [a, b] => Value::bool(Value::is_eq(a, b)),
+            _ => unreachable!(),
+        }
+    }
+
     pub fn multiply(args: Vec<Value>) -> Value {
         match args[..] {
             [Value::Int(a), Value::Int(b)] => Value::Int(a * b),
