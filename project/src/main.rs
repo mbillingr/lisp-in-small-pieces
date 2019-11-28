@@ -22,7 +22,14 @@ use lexpr::sexp;
 use repl::repl;
 use std::collections::HashMap;
 
+use bdwgc_alloc::Allocator;
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: Allocator = Allocator;
+
 fn main() {
+    unsafe { Allocator::initialize() }
+
     let ast: AstNode = Alternative::new(
         Constant::new(1, NoSource),
         Constant::new(2, NoSource),
