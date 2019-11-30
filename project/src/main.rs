@@ -6,6 +6,7 @@ mod language;
 mod objectify;
 mod parsing;
 mod repl;
+mod scm;
 mod sexpr;
 mod source;
 mod symbol;
