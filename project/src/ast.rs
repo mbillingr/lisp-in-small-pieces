@@ -267,8 +267,8 @@ impl Ast for PredefinedReference {
 
 #[derive(Debug, Clone)]
 pub struct LocalAssignment {
-    reference: LocalReference,
-    form: AstNode,
+    pub reference: LocalReference,
+    pub form: AstNode,
     span: SourceLocation,
 }
 
@@ -583,9 +583,9 @@ impl Ast for PredefinedApplication {
 
 #[derive(Debug, Clone)]
 pub struct FixLet {
-    variables: Vec<Variable>,
-    arguments: Vec<AstNode>,
-    body: AstNode,
+    pub variables: Vec<Variable>,
+    pub arguments: Vec<AstNode>,
+    pub body: AstNode,
     span: SourceLocation,
 }
 

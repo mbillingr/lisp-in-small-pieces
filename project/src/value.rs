@@ -2,6 +2,7 @@ use crate::ast::{RuntimePrimitive, RuntimeProcedure};
 use crate::env::GlobalRuntimeEnv;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -22,7 +23,7 @@ pub enum Value {
     Procedure(RuntimeProcedure),
     Primitive(RuntimePrimitive),
 
-    Box(Rc<Value>),
+    Box(Rc<RefCell<Value>>),
 }
 
 impl From<i64> for Value {
@@ -84,6 +85,10 @@ impl Value {
         Value::Pair(Rc::new((a, b)))
     }
 
+    pub fn boxed(x: Value) -> Value {
+        Value::Box(Rc::new(RefCell::new(x)))
+    }
+
     pub fn is_true(&self) -> bool {
         match self {
             Value::False => false,
@@ -141,6 +146,20 @@ impl Value {
             [_, _] => false,
         }
     }
+
+    pub fn set(&self, value: Value) -> Value {
+        match self {
+            Value::Box(target) => target.replace(value),
+            _ => panic!("set on unboxed value"),
+        }
+    }
+
+    pub fn get(&self) -> Value {
+        match self {
+            Value::Box(target) => target.borrow().clone(),
+            _ => panic!("set on unboxed value"),
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
@@ -180,7 +199,7 @@ impl std::fmt::Display for Value {
             }
             Procedure(proc) => write!(f, "{}", proc),
             Primitive(proc) => write!(f, "{}", proc),
-            Box(x) => write!(f, "[{}]", x),
+            Box(x) => write!(f, "[{}]", x.borrow()),
         }
     }
 }

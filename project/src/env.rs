@@ -127,6 +127,17 @@ impl EnvChain {
             }
         }
     }
+
+    pub unsafe fn set_lexical(&self, name: &Symbol, value: Value) {
+        if self.var == *name {
+            *(&self.val as *const _ as *mut _) = value;
+        } else {
+            match self.next {
+                Some(ref env) => env.set_lexical(name, value),
+                None => panic!("Unbound lexical variable: {}", name),
+            }
+        }
+    }
 }
 
 pub struct GlobalRuntimeEnv {

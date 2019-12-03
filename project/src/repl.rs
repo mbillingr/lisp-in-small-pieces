@@ -1,3 +1,4 @@
+use crate::ast_transform::boxify::Boxify;
 use crate::language::scheme::{
     add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
 };
@@ -70,9 +71,10 @@ pub fn repl() {
 
                 let val = TrackedSexpr::from_source(&src)
                     .and_then(|sexpr| trans.objectify_toplevel(&sexpr).map_err(Into::into))
-                    .map(|obj| {
+                    .map(|ast| {
+                        let ast = ast.transform(&mut Boxify);
                         trans.global_env.update_runtime_globals(&mut sg);
-                        obj.eval(sr, sg)
+                        ast.eval(sr, sg)
                     });
 
                 match val {
