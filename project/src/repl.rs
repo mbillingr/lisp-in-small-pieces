@@ -1,4 +1,5 @@
 use crate::ast_transform::boxify::Boxify;
+use crate::ast_transform::flatten_closures::Flatten;
 use crate::language::scheme::{
     add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
 };
@@ -73,6 +74,7 @@ pub fn repl() {
                     .and_then(|sexpr| trans.objectify_toplevel(&sexpr).map_err(Into::into))
                     .map(|ast| {
                         let ast = ast.transform(&mut Boxify);
+                        let ast = ast.transform(&mut Flatten::new());
                         trans.global_env.update_runtime_globals(&mut sg);
                         ast.eval(sr, sg)
                     });

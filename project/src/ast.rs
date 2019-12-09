@@ -180,10 +180,22 @@ impl Variable {
     }
 }
 
+impl PartialEq for Variable {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_same(other)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalReference {
     var: Variable,
     span: SourceLocation,
+}
+
+impl PartialEq for LocalReference {
+    fn eq(&self, other: &Self) -> bool {
+        self.var == other.var
+    }
 }
 
 impl LocalReference {

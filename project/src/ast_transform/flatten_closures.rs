@@ -7,8 +7,8 @@ use crate::value::Value;
 
 #[derive(Debug, Clone)]
 struct FlatClosure {
-    func: Function,
-    free_vars: Vec<Variable>,
+    pub func: Function,
+    pub free_vars: Vec<AstNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ struct FreeReference {
 
 pub struct Flatten {
     current_function: Option<FlatClosure>,
-    vars: Vec<Variable>,
+    bound_vars: Vec<Variable>,
 }
 
 impl Transformer for Flatten {
@@ -33,29 +33,107 @@ impl Transformer for Flatten {
 }
 
 impl Flatten {
+    pub fn new() -> Self {
+        Flatten {
+            current_function: None,
+            bound_vars: vec![],
+        }
+    }
+
     fn local_reference(&mut self, node: &LocalReference) -> Visited {
-        if let Some(v) = self.vars.iter().rev().find(|&v| node.variable().is_same(v)) {
+        if self.bound_vars.contains(node.variable()) {
+            Visited::Identity
+        } else {
             self.current_function
                 .as_mut()
                 .unwrap()
                 .adjoin_free_variables(node);
-            Visited::Transformed(FreeReference::new(v.clone(), node.source().clone()))
-        } else {
-            Visited::Identity
+            Visited::Transformed(FreeReference::new(
+                node.variable().clone(),
+                node.source().clone(),
+            ))
         }
     }
 
-    fn fixlet(&self, node: &FixLet) -> AstNode {
-        unimplemented!()
+    fn fixlet(&mut self, node: &FixLet) -> AstNode {
+        let arguments = node
+            .arguments
+            .iter()
+            .map(|a| a.clone().transform(self))
+            .collect();
+
+        let n = self.bound_vars.len();
+        self.bound_vars.extend_from_slice(&node.variables);
+
+        let body = node.body.clone().transform(self);
+
+        self.bound_vars.truncate(n);
+
+        FixLet::new(
+            node.variables.clone(),
+            arguments,
+            body,
+            node.source().clone(),
+        )
     }
 
-    fn function(&self, node: &Function) -> AstNode {
-        unimplemented!()
+    fn function(&mut self, node: &Function) -> AstNode {
+        let mut newfun = FlatClosure {
+            func: node.clone(),
+            free_vars: vec![],
+        };
+
+        let mut trans = Flatten {
+            current_function: Some(newfun),
+            bound_vars: node.variables.clone(),
+        };
+
+        let newbody = node.body.clone().transform(&mut trans);
+
+        let mut newfun = trans.current_function.unwrap();
+
+        let free_vars: Vec<_> = newfun
+            .free_vars
+            .iter()
+            .cloned()
+            .map(|r| r.transform(self))
+            .collect();
+
+        newfun.func.body = newbody;
+        newfun.free_vars = free_vars;
+
+        Ref::new(newfun)
     }
 }
 
 impl FlatClosure {
     fn adjoin_free_variables(&mut self, node: &LocalReference) {
+        if self
+            .free_vars
+            .iter()
+            .find(|fv| fv.downcast_ref::<LocalReference>() == Some(node))
+            .is_none()
+        {
+            self.free_vars.push(Ref::new(node.clone()));
+        }
+    }
+}
+
+impl Ast for FlatClosure {
+    fn source(&self) -> &SourceLocation {
+        self.func.source()
+    }
+
+    fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
+        self.func.body = self.func.body.transform(visitor);
+        self
+    }
+
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
+    }
+
+    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         unimplemented!()
     }
 }
