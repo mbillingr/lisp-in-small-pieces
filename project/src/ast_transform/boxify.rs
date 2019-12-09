@@ -29,33 +29,46 @@ pub struct Boxify;
 
 impl Transformer for Boxify {
     fn visit(&mut self, node: &AstNode) -> Visited {
-        if let Some(r) = node.downcast_ref::<LocalReference>() {
-            Visited::Transformed(BoxRead::new(r.clone(), r.source().clone()))
-        } else if let Some(a) = node.downcast_ref::<LocalAssignment>() {
-            Visited::Transformed(BoxWrite::new(
-                a.reference.clone(),
-                a.form.clone(),
-                a.source().clone(),
-            ))
-        } else if let Some(f) = node.downcast_ref::<Function>() {
-            Visited::Transformed(Function::new(
-                f.variables.clone(),
-                boxify_mutable_variables(f.body.clone(), &f.variables).transform(self),
-                f.source().clone(),
-            ))
-        } else if let Some(f) = node.downcast_ref::<FixLet>() {
-            Visited::Transformed(FixLet::new(
-                f.variables.clone(),
-                f.arguments
-                    .iter()
-                    .map(|a| a.clone().transform(self))
-                    .collect(),
-                boxify_mutable_variables(f.body.clone(), &f.variables).transform(self),
-                f.source().clone(),
-            ))
-        } else {
-            Visited::Identity
+        dispatch! { self on node:
+            LocalReference => Boxify::transform_local_reference,
+            LocalAssignment => Boxify::transform_local_assignment,
+            Function => Boxify::transform_function,
+            FixLet => Boxify::transform_fixlet,
         }
+    }
+}
+
+impl Boxify {
+    fn transform_local_reference(&self, node: &LocalReference) -> AstNode {
+        BoxRead::new(node.clone(), node.source().clone())
+    }
+
+    fn transform_local_assignment(&self, node: &LocalAssignment) -> AstNode {
+        BoxWrite::new(
+            node.reference.clone(),
+            node.form.clone(),
+            node.source().clone(),
+        )
+    }
+
+    fn transform_function(&mut self, node: &Function) -> AstNode {
+        Function::new(
+            node.variables.clone(),
+            boxify_mutable_variables(node.body.clone(), &node.variables).transform(self),
+            node.source().clone(),
+        )
+    }
+
+    fn transform_fixlet(&mut self, node: &FixLet) -> AstNode {
+        FixLet::new(
+            node.variables.clone(),
+            node.arguments
+                .iter()
+                .map(|a| a.clone().transform(self))
+                .collect(),
+            boxify_mutable_variables(node.body.clone(), &node.variables).transform(self),
+            node.source().clone(),
+        )
     }
 }
 
