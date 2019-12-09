@@ -3,7 +3,7 @@ macro_rules! dispatch {
 
     ($trans:ident on $node:ident: $kind:ty => $func:expr, $($rest:tt)*) => {
         if let Some(obj) = $node.downcast_ref::<$kind>() {
-            Visited::Transformed($func($trans, obj))
+            $func($trans, obj).into()
         } else {
             dispatch!($trans on $node: $($rest)*)
         }
@@ -11,3 +11,4 @@ macro_rules! dispatch {
 }
 
 pub mod boxify;
+pub mod flatten_closures;

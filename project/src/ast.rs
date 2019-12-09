@@ -52,6 +52,12 @@ pub enum Visited {
     Transformed(AstNode),
 }
 
+impl From<AstNode> for Visited {
+    fn from(node: AstNode) -> Self {
+        Visited::Transformed(node)
+    }
+}
+
 pub type MagicKeywordHandler = fn(&mut Translate, &Sexpr, &Env) -> Result<AstNode>;
 
 #[derive(Clone)]
@@ -116,6 +122,17 @@ impl Variable {
 
     pub fn predefined(name: impl Into<Symbol>, func: FunctionDescription) -> Self {
         Variable::Predefined(Rc::new((name.into(), func)))
+    }
+
+    pub fn is_same(&self, other: &Self) -> bool {
+        use Variable::*;
+        match (self, other) {
+            (Local(a), Local(b)) => Rc::ptr_eq(a, b),
+            (Global(a), Global(b)) => a == b,
+            (Predefined(a), Predefined(b)) => Rc::ptr_eq(a, b),
+            (Macro(a), Macro(b)) => Rc::ptr_eq(a, b),
+            (_, _) => false,
+        }
     }
 
     pub fn name(&self) -> &Symbol {
