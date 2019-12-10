@@ -1,4 +1,7 @@
 macro_rules! dispatch {
+
+    ($trans:ident on $node:ident: _ => $blk:block) => {$blk};
+
     ($trans:ident on $node:ident:) => {Visited::Identity};
 
     ($trans:ident on $node:ident: $kind:ty => $func:expr, $($rest:tt)*) => {

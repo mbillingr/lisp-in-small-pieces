@@ -195,6 +195,13 @@ impl TrackedSexpr {
         }
     }
 
+    pub fn is_null(&self) -> bool {
+        match self.sexpr {
+            Sexpr::Nil => true,
+            _ => false,
+        }
+    }
+
     pub fn is_atom(&self) -> bool {
         match &self.sexpr {
             Sexpr::List(_, _) => false,

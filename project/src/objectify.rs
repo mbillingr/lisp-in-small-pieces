@@ -137,14 +137,18 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<AstNode> {
-        let args = args.as_proper_list().ok_or_else(|| ObjectifyError {
-            kind: ObjectifyErrorKind::ExpectedList,
-            location: args.source().clone(),
-        })?;
-        let args: Vec<_> = args
-            .iter()
-            .map(|e| self.objectify(e, env))
-            .collect::<Result<_>>()?;
+        let args = if args.is_null() {
+            vec![]
+        } else {
+            args.as_proper_list()
+                .ok_or_else(|| ObjectifyError {
+                    kind: ObjectifyErrorKind::ExpectedList,
+                    location: args.source().clone(),
+                })?
+                .iter()
+                .map(|e| self.objectify(e, env))
+                .collect::<Result<_>>()?
+        };
 
         if let Some(f) = func.downcast_ref::<Function>() {
             return self.process_closed_application(f.clone(), args, span);
@@ -237,6 +241,7 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<AstNode> {
+        println!("{:?}", names);
         let vars = self.objectify_variables_list(names)?;
         let bdy = self.objectify_sequence(body, &env.clone().extend_frame(vars.iter().cloned()))?;
         Ok(Function::new(vars, bdy, span))
@@ -265,6 +270,8 @@ impl Translate {
             Ok(list)
         } else if let Some(s) = names.as_symbol() {
             Ok(vec![Variable::local(s.clone(), false, true)])
+        } else if names.is_null() {
+            Ok(vec![])
         } else {
             Err(ObjectifyError {
                 kind: ObjectifyErrorKind::ExpectedList,
