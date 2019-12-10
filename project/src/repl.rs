@@ -1,5 +1,6 @@
 use crate::ast_transform::boxify::Boxify;
 use crate::ast_transform::flatten_closures::Flatten;
+use crate::ast_transform::generate_bytecode::BytecodeGenerator;
 use crate::language::scheme::{
     add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
 };
@@ -75,7 +76,11 @@ pub fn repl() {
                     .map(|ast| {
                         let ast = ast.transform(&mut Boxify);
                         let ast = ast.transform(&mut Flatten::new());
+
+                        let code = BytecodeGenerator::compile_toplevel(&ast);
+
                         println!("{:#?}", ast);
+                        println!("{:?}", code);
                         trans.global_env.update_runtime_globals(&mut sg);
                         ast.eval(sr, sg)
                     });

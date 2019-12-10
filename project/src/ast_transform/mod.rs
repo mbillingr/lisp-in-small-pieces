@@ -11,7 +11,16 @@ macro_rules! dispatch {
             dispatch!($trans on $node: $($rest)*)
         }
     };
+
+    ($trans:ident on $node:ident: $var:ident as $kind:ty => $e:expr, $($rest:tt)*) => {
+        if let Some($var) = $node.downcast_ref::<$kind>() {
+            $e
+        } else {
+            dispatch!($trans on $node: $($rest)*)
+        }
+    };
 }
 
 pub mod boxify;
 pub mod flatten_closures;
+pub mod generate_bytecode;

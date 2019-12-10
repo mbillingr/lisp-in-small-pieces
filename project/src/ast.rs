@@ -1,6 +1,6 @@
 use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::objectify::{Result, Translate};
-use crate::sexpr::TrackedSexpr as Sexpr;
+use crate::sexpr::{self, TrackedSexpr as Sexpr};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::value::Value;
@@ -391,15 +391,36 @@ impl Ast for GlobalAssignment {
 
 #[derive(Debug, Clone)]
 pub struct Constant {
-    value: Value,
+    pub value: sexpr::Sexpr,
     span: SourceLocation,
 }
 
 impl Constant {
-    pub fn new(value: impl Into<Value>, span: SourceLocation) -> Ref<Self> {
+    pub fn new(value: Sexpr) -> Ref<Self> {
         Ref::new(Constant {
-            value: value.into(),
-            span,
+            value: value.sexpr,
+            span: value.src,
+        })
+    }
+
+    /*pub fn new(value: sexpr::Sexpr, span: SourceLocation) -> Ref<Self> {
+        Ref::new(Constant {
+            value: value.sexpr,
+            span: value.src
+        })
+    }*/
+
+    pub fn nil() -> Ref<Self> {
+        Ref::new(Constant {
+            value: sexpr::Sexpr::Nil,
+            span: SourceLocation::NoSource,
+        })
+    }
+
+    pub fn int(value: i64) -> Ref<Self> {
+        Ref::new(Constant {
+            value: sexpr::Sexpr::Int(value),
+            span: SourceLocation::NoSource,
         })
     }
 
@@ -422,14 +443,14 @@ impl Ast for Constant {
     }
 
     fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        self.value.clone()
+        self.value.clone().into()
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Sequence {
-    first: AstNode,
-    next: AstNode,
+    pub first: AstNode,
+    pub next: AstNode,
     span: SourceLocation,
 }
 
@@ -462,9 +483,9 @@ impl Ast for Sequence {
 
 #[derive(Debug, Clone)]
 pub struct Alternative {
-    condition: AstNode,
-    consequence: AstNode,
-    alternative: AstNode,
+    pub condition: AstNode,
+    pub consequence: AstNode,
+    pub alternative: AstNode,
     span: SourceLocation,
 }
 

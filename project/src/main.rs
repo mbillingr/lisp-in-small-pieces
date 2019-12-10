@@ -13,7 +13,7 @@ mod source;
 mod symbol;
 mod value;
 
-use crate::ast::{Arity, Ast, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
+use crate::ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
 use crate::env::EnvChain;
 use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
 use crate::objectify::Translate;
@@ -33,9 +33,9 @@ fn main() {
     unsafe { Allocator::initialize() }
 
     let ast: AstNode = Alternative::new(
-        Constant::new(1, NoSource),
-        Constant::new(2, NoSource),
-        Constant::new(3, NoSource),
+        Constant::int(1),
+        Constant::int(2),
+        Constant::int(3),
         NoSource,
     );
     println!("{:?}", ast);
@@ -117,8 +117,8 @@ struct AllConstZero;
 
 impl Transformer for AllConstZero {
     fn visit(&mut self, node: &AstNode) -> Visited {
-        if let Some(c) = node.downcast_ref::<Constant>() {
-            Visited::Transformed(Constant::new(0, c.source().clone()))
+        if let Some(_) = node.downcast_ref::<Constant>() {
+            Visited::Transformed(Constant::int(0))
         } else {
             Visited::Identity
         }

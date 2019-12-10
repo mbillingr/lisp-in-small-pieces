@@ -7,7 +7,6 @@ use crate::env::{Env, EnvAccess};
 use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
-use crate::value::Value;
 
 pub type Result<T> = std::result::Result<T, ObjectifyError>;
 
@@ -62,7 +61,7 @@ impl Translate {
     }
 
     pub fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<AstNode> {
-        Ok(Constant::new(expr.clone(), expr.source().clone()))
+        Ok(Constant::new(expr.clone()))
     }
 
     pub fn objectify_alternative(
@@ -216,7 +215,7 @@ impl Translate {
             .find_variable("cons")
             .expect("The cons pritimive must be available in the predefined environment");
 
-        let mut dotted: AstNode = Constant::new(Value::nil(), span.last_char());
+        let mut dotted: AstNode = Constant::new(Sexpr::nil(span.last_char()));
 
         while args.len() >= variables.len() {
             let x = args.pop().unwrap();

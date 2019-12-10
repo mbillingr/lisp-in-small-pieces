@@ -7,8 +7,8 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct TrackedSexpr {
-    sexpr: Sexpr,
-    src: SourceLocation,
+    pub sexpr: Sexpr,
+    pub src: SourceLocation,
 }
 
 // TODO: Should we intern symbols and string?

@@ -78,7 +78,7 @@ impl Flatten {
     }
 
     fn function(&mut self, node: &Function) -> AstNode {
-        let mut newfun = FlatClosure {
+        let newfun = FlatClosure {
             func: node.clone(),
             free_vars: vec![],
         };
