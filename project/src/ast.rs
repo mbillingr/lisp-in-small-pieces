@@ -99,7 +99,7 @@ impl Ast for MagicKeyword {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Variable {
     Local(Rc<(Symbol, Cell<bool>, Cell<bool>)>),
     Global(Symbol),
@@ -186,6 +186,24 @@ impl Variable {
 impl PartialEq for Variable {
     fn eq(&self, other: &Self) -> bool {
         self.is_same(other)
+    }
+}
+
+impl std::fmt::Debug for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Variable::Local(var) => write!(
+                f,
+                "local{}{} {}",
+                if var.1.get() { " mut" } else { "" },
+                if var.2.get() { " dotted" } else { "" },
+                var.0
+            ),
+            Variable::Global(name) => write!(f, "global {}", name),
+            Variable::Predefined(var) => write!(f, "predefined {}", var.0),
+            Variable::Macro(var) => write!(f, "macro {}", var.name),
+            Variable::Free(name) => write!(f, "free {}", name),
+        }
     }
 }
 

@@ -4,13 +4,13 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum SourceLocation {
     NoSource,
     Span(Span),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Span {
     src: Source,
     start: usize,
@@ -169,5 +169,27 @@ impl Source {
 
     pub fn extract_line(&self, n: usize) -> &str {
         self.content.lines().take(n + 1).last().unwrap()
+    }
+}
+
+impl std::fmt::Debug for SourceLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SourceLocation::NoSource => write!(f, "*no source avialable*"),
+            SourceLocation::Span(span) => span.fmt(f),
+        }
+    }
+}
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "\n{}", self)
+        } else {
+            write!(
+                f,
+                "Span {{ src: {:?}, start: {:?}, end: {:?}}}",
+                self.src, self.start, self.end
+            )
+        }
     }
 }

@@ -7,7 +7,7 @@ lazy_static! {
     static ref INTERNED_STRINGS: RwLock<HashSet<&'static str>> = RwLock::new(HashSet::new());
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Symbol(&'static str);
 
 impl Symbol {
@@ -90,5 +90,15 @@ impl std::cmp::PartialEq<Symbol> for str {
 impl std::fmt::Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl std::fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", self.0)
+        } else {
+            write!(f, "Symbol({})", self.0)
+        }
     }
 }
