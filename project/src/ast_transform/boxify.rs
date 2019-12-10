@@ -8,13 +8,13 @@ use crate::value::Value;
 
 #[derive(Debug, Clone)]
 struct BoxRead {
-    pub reference: LocalReference,
+    pub reference: AstNode,
     span: SourceLocation,
 }
 
 #[derive(Debug, Clone)]
 struct BoxWrite {
-    pub reference: LocalReference,
+    pub reference: AstNode,
     pub form: AstNode,
     span: SourceLocation,
 }
@@ -41,7 +41,7 @@ impl Transformer for Boxify {
 impl Boxify {
     fn transform_local_reference(&self, node: &LocalReference) -> Visited {
         if node.variable().is_mutable() {
-            let newnode: AstNode = BoxRead::new(node.clone(), node.source().clone());
+            let newnode: AstNode = BoxRead::new(Ref::new(node.clone()), node.source().clone());
             newnode.into()
         } else {
             Visited::Identity
@@ -50,7 +50,7 @@ impl Boxify {
 
     fn transform_local_assignment(&self, node: &LocalAssignment) -> AstNode {
         BoxWrite::new(
-            node.reference.clone(),
+            Ref::new(node.reference.clone()),
             node.form.clone(),
             node.source().clone(),
         )
@@ -78,7 +78,7 @@ impl Boxify {
 }
 
 impl BoxRead {
-    pub fn new(reference: LocalReference, span: SourceLocation) -> Ref<Self> {
+    pub fn new(reference: AstNode, span: SourceLocation) -> Ref<Self> {
         Ref::new(BoxRead { reference, span })
     }
 }
@@ -88,7 +88,8 @@ impl Ast for BoxRead {
         &self.span
     }
 
-    fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
+    fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
+        self.reference = self.reference.transform(visitor);
         self
     }
 
@@ -96,13 +97,13 @@ impl Ast for BoxRead {
         Ref::new(self.clone())
     }
 
-    fn eval(&self, sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        sr.get_lexical(self.reference.variable().name()).get()
+    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
+        self.reference.eval(sr, sg).get()
     }
 }
 
 impl BoxWrite {
-    pub fn new(reference: LocalReference, form: AstNode, span: SourceLocation) -> Ref<Self> {
+    pub fn new(reference: AstNode, form: AstNode, span: SourceLocation) -> Ref<Self> {
         Ref::new(BoxWrite {
             reference,
             form,
@@ -117,6 +118,7 @@ impl Ast for BoxWrite {
     }
 
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
+        self.reference = self.reference.transform(visitor);
         self.form = self.form.transform(visitor);
         self
     }
@@ -126,8 +128,7 @@ impl Ast for BoxWrite {
     }
 
     fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        sr.get_lexical(self.reference.variable().name())
-            .set(self.form.eval(sr, sg));
+        self.reference.eval(sr, sg).set(self.form.eval(sr, sg));
         Value::Undefined
     }
 }
