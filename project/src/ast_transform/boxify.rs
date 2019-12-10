@@ -39,8 +39,13 @@ impl Transformer for Boxify {
 }
 
 impl Boxify {
-    fn transform_local_reference(&self, node: &LocalReference) -> AstNode {
-        BoxRead::new(node.clone(), node.source().clone())
+    fn transform_local_reference(&self, node: &LocalReference) -> Visited {
+        if node.variable().is_mutable() {
+            let newnode: AstNode = BoxRead::new(node.clone(), node.source().clone());
+            newnode.into()
+        } else {
+            Visited::Identity
+        }
     }
 
     fn transform_local_assignment(&self, node: &LocalAssignment) -> AstNode {
