@@ -75,6 +75,7 @@ pub fn repl() {
                     .map(|ast| {
                         let ast = ast.transform(&mut Boxify);
                         let ast = ast.transform(&mut Flatten::new());
+                        println!("{:#?}", ast);
                         trans.global_env.update_runtime_globals(&mut sg);
                         ast.eval(sr, sg)
                     });

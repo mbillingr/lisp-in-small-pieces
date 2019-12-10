@@ -105,6 +105,7 @@ pub enum Variable {
     Global(Symbol),
     Predefined(Rc<(Symbol, FunctionDescription)>),
     Macro(Rc<MagicKeyword>),
+    Free(Symbol),
 }
 
 impl Variable {
@@ -131,6 +132,7 @@ impl Variable {
             (Global(a), Global(b)) => a == b,
             (Predefined(a), Predefined(b)) => Rc::ptr_eq(a, b),
             (Macro(a), Macro(b)) => Rc::ptr_eq(a, b),
+            (Free(a), Free(b)) => a == b,
             (_, _) => false,
         }
     }
@@ -141,6 +143,7 @@ impl Variable {
             Variable::Global(v) => &*v,
             Variable::Predefined(v) => &v.0,
             Variable::Macro(mkw) => mkw.name(),
+            Variable::Free(v) => &*v,
         }
     }
 

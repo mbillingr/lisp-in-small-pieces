@@ -112,6 +112,7 @@ impl Translate {
                 Ok(PredefinedReference::new(v, expr.source().clone()))
             }
             Some(Variable::Macro(mkw)) => Ok(Ref::new((*mkw).clone())),
+            Some(Variable::Free(_)) => panic!("There should be no free variables in the compile-time environment"),
             None => self.objectify_free_reference(var_name.clone(), env, expr.source().clone()),
         }
     }

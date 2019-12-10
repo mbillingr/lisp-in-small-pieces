@@ -49,7 +49,7 @@ impl Flatten {
                 .unwrap()
                 .adjoin_free_variables(node);
             Visited::Transformed(FreeReference::new(
-                node.variable().clone(),
+                Variable::Free(*node.variable().name()),
                 node.source().clone(),
             ))
         }
