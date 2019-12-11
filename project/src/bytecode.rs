@@ -20,6 +20,7 @@ pub enum Op {
     Constant(usize),
     LocalRef(usize),
     GlobalRef(usize),
+    GlobalSet(usize),
 
     PushVal,
     PopVal,
@@ -78,6 +79,7 @@ impl VirtualMachine {
                 Op::Constant(idx) => val = code.constants[idx],
                 Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
                 Op::GlobalRef(idx) => val = self.globals[idx],
+                Op::GlobalSet(idx) => self.globals[idx] = val,
                 Op::PushVal => self.push_value(val),
                 Op::PopVal => val = self.pop_value()?,
                 Op::Jump(delta) => ip += delta,

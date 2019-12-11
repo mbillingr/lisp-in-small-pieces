@@ -353,8 +353,8 @@ impl Ast for LocalAssignment {
 
 #[derive(Debug, Clone)]
 pub struct GlobalAssignment {
-    variable: Variable,
-    form: AstNode,
+    pub variable: Variable,
+    pub form: AstNode,
     span: SourceLocation,
 }
 

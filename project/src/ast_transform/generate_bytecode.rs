@@ -1,6 +1,6 @@
 use crate::ast::{
-    Alternative, Ast, AstNode, Constant, FixLet, Function, GlobalReference, LocalReference, Ref,
-    Sequence, Transformer, Variable, Visited,
+    Alternative, Ast, AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference,
+    LocalReference, Ref, Sequence, Transformer, Variable, Visited,
 };
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
@@ -49,6 +49,7 @@ impl BytecodeGenerator {
             a as Alternative => self.compile_alternative(a, tail),
             r as LocalReference => self.compile_local_ref(r, tail),
             r as GlobalReference => self.compile_global_ref(r, tail),
+            r as GlobalAssignment => self.compile_global_set(r, tail),
             f as FixLet => self.compile_fixlet(f, tail),
             c as FlatClosure => self.compile_closure(c, tail),
             _ => { unimplemented!("Byte code compilation of:\n {:#?}\n", node.source()) }
@@ -108,6 +109,13 @@ impl BytecodeGenerator {
     fn compile_global_ref(&mut self, node: &GlobalReference, tail: bool) -> Vec<Op> {
         let idx = self.globals.find_idx(node.var.name()).unwrap();
         vec![Op::GlobalRef(idx)]
+    }
+
+    fn compile_global_set(&mut self, node: &GlobalAssignment, tail: bool) -> Vec<Op> {
+        let idx = self.globals.find_idx(node.variable.name()).unwrap();
+        let mut meaning = self.compile(&node.form, false);
+        meaning.push(Op::GlobalSet(idx));
+        meaning
     }
 
     fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Vec<Op> {
