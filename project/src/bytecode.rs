@@ -53,9 +53,7 @@ impl VirtualMachine {
                 Op::Constant(idx) => self.push_value(code.constants[idx]),
                 Op::Jump(delta) => ip += delta,
                 Op::JumpFalse(delta) => {
-                    if self.pop_value()?
-                        .is_false()
-                    {
+                    if self.pop_value()?.is_false() {
                         ip += delta
                     }
                 }
@@ -75,4 +73,3 @@ impl VirtualMachine {
         self.value_stack.push(value)
     }
 }
-
