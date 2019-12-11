@@ -1,5 +1,6 @@
 mod ast;
 mod ast_transform;
+mod bytecode;
 mod env;
 mod error;
 mod eval;

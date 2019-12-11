@@ -1,18 +1,12 @@
 use crate::ast::{
-    Alternative, AstNode, Constant, FixLet, Function, LocalReference, Ref, Sequence,
-    Transformer, Variable, Visited,
+    Alternative, AstNode, Constant, FixLet, Function, LocalReference, Ref, Sequence, Transformer,
+    Variable, Visited,
 };
+use crate::bytecode::Op;
 use crate::env::{GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::value::Value;
-
-#[derive(Debug)]
-pub enum Op {
-    Constant(usize),
-    JumpFalse(usize),
-    Goto(usize),
-}
 
 #[derive(Debug)]
 pub struct BytecodeGenerator {
@@ -71,9 +65,9 @@ impl BytecodeGenerator {
         let m3 = self.compile(&node.alternative, tail);
 
         let mut meaning = m1;
-        meaning.push(Op::JumpFalse(m2.len() + 1));
+        meaning.push(Op::JumpFalse(m2.len() as isize + 1));
         meaning.extend(m2);
-        meaning.push(Op::Goto(m3.len()));
+        meaning.push(Op::Jump(m3.len() as isize));
         meaning.extend(m3);
         meaning
     }
