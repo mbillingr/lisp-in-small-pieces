@@ -572,8 +572,8 @@ impl Ast for Function {
 
 #[derive(Debug)]
 pub struct RegularApplication {
-    function: AstNode,
-    arguments: Vec<AstNode>,
+    pub function: AstNode,
+    pub arguments: Vec<AstNode>,
     span: SourceLocation,
 }
 

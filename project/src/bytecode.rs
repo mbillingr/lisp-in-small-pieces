@@ -1,11 +1,13 @@
 use crate::scm::Scm;
 use crate::source::{Source, SourceLocation};
+use lazy_static::lazy_static;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
     ValueStackUnderflow,
+    NotCallable,
 }
 
 #[derive(Debug)]
@@ -30,7 +32,10 @@ pub enum Op {
 
     MakeClosure(&'static CodeObject, usize),
 
+    Call(usize),
+    TailCall(usize),
     Return,
+    Halt,
 
     Drop(usize),
 }
@@ -52,6 +57,15 @@ impl CodeObject {
 pub struct VirtualMachine {
     globals: Vec<Scm>,
     value_stack: Vec<Scm>,
+    call_stack: Vec<(usize, isize, &'static CodeObject, &'static [Scm])>,
+}
+
+thread_local! {
+    static HALT: &'static CodeObject = Box::leak(Box::new(CodeObject {
+            source: SourceLocation::NoSource,
+            constants: Box::new([]),
+            code: Box::new([Op::Halt]),
+        }));
 }
 
 impl VirtualMachine {
@@ -59,6 +73,7 @@ impl VirtualMachine {
         VirtualMachine {
             globals,
             value_stack: vec![],
+            call_stack: vec![],
         }
     }
 
@@ -66,11 +81,14 @@ impl VirtualMachine {
         self.globals.resize(n, Scm::uninitialized())
     }
 
-    pub fn eval(&mut self, code: &'static CodeObject) -> Result<Scm> {
+    pub fn eval(&mut self, mut code: &'static CodeObject) -> Result<Scm> {
         let mut val = Scm::Undefined;
+        let mut free: &[Scm] = &[];
 
         let mut ip: isize = 0;
         let mut frame_offset = 0;
+
+        self.call_stack.push((0, 0, HALT.with(|x| *x), &[]));
 
         loop {
             let op = &code.code[ip as usize];
@@ -95,7 +113,28 @@ impl VirtualMachine {
                     }
                     val = Scm::closure(func, vars);
                 }
-                Op::Return => return Ok(val), // TODO: return to previous function
+                Op::TailCall(arity) | Op::Call(arity) => {
+                    // TODO: implement tail call
+                    match val {
+                        Scm::Closure(cc, fv) => {
+                            self.call_stack.push((frame_offset, ip, code, free));
+                            frame_offset = self.value_stack.len() - arity;
+                            ip = 0;
+                            code = cc;
+                            free = fv;
+                        }
+                        _ => return Err(Error::NotCallable),
+                    }
+                }
+                Op::Return => {
+                    self.value_stack.truncate(frame_offset);
+                    let data = self.call_stack.pop().expect("call-stack underflow");
+                    frame_offset = data.0;
+                    ip = data.1;
+                    code = data.2;
+                    free = data.3;
+                }
+                Op::Halt => return Ok(val),
                 Op::Drop(n) => {
                     self.value_stack.truncate(self.value_stack.len() - n);
                 }

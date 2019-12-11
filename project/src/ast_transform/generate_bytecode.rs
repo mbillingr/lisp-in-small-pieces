@@ -1,6 +1,6 @@
 use crate::ast::{
     Alternative, Ast, AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference,
-    LocalReference, Ref, Sequence, Transformer, Variable, Visited,
+    LocalReference, Ref, RegularApplication, Sequence, Transformer, Variable, Visited,
 };
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
@@ -52,6 +52,7 @@ impl BytecodeGenerator {
             r as GlobalAssignment => self.compile_global_set(r, tail),
             f as FixLet => self.compile_fixlet(f, tail),
             c as FlatClosure => self.compile_closure(c, tail),
+            a as RegularApplication => self.compile_application(a, tail),
             _ => { unimplemented!("Byte code compilation of:\n {:#?}\n", node.source()) }
         };
 
@@ -151,6 +152,29 @@ impl BytecodeGenerator {
 
         let n_free = node.free_vars.len();
         meaning.push(Op::MakeClosure(function, n_free));
+
+        meaning
+    }
+
+    fn compile_application(&mut self, node: &RegularApplication, tail: bool) -> Vec<Op> {
+        // todo: does Scheme require that the function is evaluated first?
+        let mut meaning = vec![];
+
+        for a in &node.arguments {
+            let m = self.compile(a, false);
+            meaning.extend(m);
+            meaning.push(Op::PushVal);
+        }
+
+        let mf = self.compile(&node.function, false);
+        meaning.extend(mf);
+
+        let arity = node.arguments.len();
+
+        match tail {
+            true => meaning.push(Op::TailCall(arity)),
+            false => meaning.push(Op::Call(arity)),
+        }
 
         meaning
     }
