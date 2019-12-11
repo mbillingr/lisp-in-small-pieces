@@ -15,11 +15,15 @@ pub struct CodeObject {
     code: Box<[Op]>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Op {
     Constant(usize),
     LocalRef(usize),
     GlobalRef(usize),
+
+    PushVal,
+    PopVal,
+
     JumpFalse(isize),
     Jump(isize),
 
@@ -27,7 +31,7 @@ pub enum Op {
 
     Return,
 
-    Drop,
+    Drop(usize),
 }
 
 impl CodeObject {
@@ -62,6 +66,8 @@ impl VirtualMachine {
     }
 
     pub fn eval(&mut self, code: &'static CodeObject) -> Result<Scm> {
+        let mut val = Scm::Undefined;
+
         let mut ip: isize = 0;
         let mut frame_offset = 0;
 
@@ -69,15 +75,14 @@ impl VirtualMachine {
             let op = &code.code[ip as usize];
             ip += 1;
             match *op {
-                Op::Constant(idx) => self.push_value(code.constants[idx]),
-                Op::LocalRef(idx) => {
-                    let x = self.ref_value(idx + frame_offset)?;
-                    self.push_value(x);
-                }
-                Op::GlobalRef(idx) => self.push_value(self.globals[idx]),
+                Op::Constant(idx) => val = code.constants[idx],
+                Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
+                Op::GlobalRef(idx) => val = self.globals[idx],
+                Op::PushVal => self.push_value(val),
+                Op::PopVal => val = self.pop_value()?,
                 Op::Jump(delta) => ip += delta,
                 Op::JumpFalse(delta) => {
-                    if self.pop_value()?.is_false() {
+                    if val.is_false() {
                         ip += delta
                     }
                 }
@@ -86,11 +91,11 @@ impl VirtualMachine {
                     for _ in 0..n_free {
                         vars.push(self.pop_value()?);
                     }
-                    self.push_value(Scm::closure(func, vars));
+                    val = Scm::closure(func, vars);
                 }
-                Op::Return => return self.pop_value(), // TODO: return to previous function
-                Op::Drop => {
-                    self.pop_value()?;
+                Op::Return => return Ok(val), // TODO: return to previous function
+                Op::Drop(n) => {
+                    self.value_stack.truncate(self.value_stack.len() - n);
                 }
             }
         }

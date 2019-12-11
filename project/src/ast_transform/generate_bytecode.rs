@@ -76,7 +76,6 @@ impl BytecodeGenerator {
     fn compile_sequence(&mut self, node: &Sequence, tail: bool) -> Vec<Op> {
         let mut m1 = self.compile(&node.first, false);
         let m2 = self.compile(&node.next, tail);
-        m1.push(Op::Drop);
         m1.extend(m2);
         m1
     }
@@ -118,6 +117,7 @@ impl BytecodeGenerator {
         for (var, arg) in node.variables.iter().zip(&node.arguments) {
             let m = self.compile(arg, false);
             meaning.extend(m);
+            meaning.push(Op::PushVal);
             self.env.push(*var.name());
         }
 
@@ -125,6 +125,7 @@ impl BytecodeGenerator {
         meaning.extend(m);
 
         self.env.truncate(n);
+        meaning.push(Op::Drop(node.variables.len()));
 
         meaning
     }
