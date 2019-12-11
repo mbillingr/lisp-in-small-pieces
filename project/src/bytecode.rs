@@ -113,19 +113,28 @@ impl VirtualMachine {
                     }
                     val = Scm::closure(func, vars);
                 }
-                Op::TailCall(arity) | Op::Call(arity) => {
-                    // TODO: implement tail call
-                    match val {
-                        Scm::Closure(cc, fv) => {
-                            self.call_stack.push((frame_offset, ip, code, free));
-                            frame_offset = self.value_stack.len() - arity;
-                            ip = 0;
-                            code = cc;
-                            free = fv;
-                        }
-                        _ => return Err(Error::NotCallable),
+                Op::Call(arity) => match val {
+                    Scm::Closure(cc, fv) => {
+                        self.call_stack.push((frame_offset, ip, code, free));
+                        frame_offset = self.value_stack.len() - arity;
+                        ip = 0;
+                        code = cc;
+                        free = fv;
                     }
-                }
+                    _ => return Err(Error::NotCallable),
+                },
+                Op::TailCall(arity) => match val {
+                    Scm::Closure(cc, fv) => {
+                        let new_frame_offset = self.value_stack.len() - arity;
+                        self.value_stack
+                            .copy_within(new_frame_offset.., frame_offset);
+                        self.value_stack.truncate(frame_offset + arity);
+                        ip = 0;
+                        code = cc;
+                        free = fv;
+                    }
+                    _ => return Err(Error::NotCallable),
+                },
                 Op::Return => {
                     self.value_stack.truncate(frame_offset);
                     let data = self.call_stack.pop().expect("call-stack underflow");
