@@ -95,6 +95,8 @@ pub fn repl() {
 
                         let code = Box::leak(Box::new(code));
 
+                        vm.resize_globals(trans.env.globals.len());
+
                         Ok(vm.eval(code)?)
                     });
 

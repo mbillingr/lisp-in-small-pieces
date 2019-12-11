@@ -249,7 +249,7 @@ impl Ast for LocalReference {
 
 #[derive(Debug, Clone)]
 pub struct GlobalReference {
-    var: Variable,
+    pub var: Variable,
     span: SourceLocation,
 }
 

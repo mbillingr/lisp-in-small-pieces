@@ -107,9 +107,8 @@ impl BytecodeGenerator {
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, tail: bool) -> Vec<Op> {
-        /*let idx = self.globals.find_idx(node);
-        vec![Op::GlobalRef(idx)]*/
-        unimplemented!()
+        let idx = self.globals.find_idx(node.var.name()).unwrap();
+        vec![Op::GlobalRef(idx)]
     }
 
     fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Vec<Op> {

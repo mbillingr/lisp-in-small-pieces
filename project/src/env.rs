@@ -51,6 +51,10 @@ impl Environment {
         Environment(Rc::new(RefCell::new(vec![])))
     }
 
+    pub fn len(&self) -> usize {
+        self.0.borrow().len()
+    }
+
     pub fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
         self.0
             .borrow()
@@ -58,6 +62,16 @@ impl Environment {
             .rev()
             .find(|var| name.eq(var.name()))
             .cloned()
+    }
+
+    pub fn find_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
+        self.0
+            .borrow()
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, var)| name.eq(var.name()))
+            .map(|(idx, _)| idx)
     }
 
     pub fn extend_frame(&self, vars: impl Iterator<Item = Variable>) {

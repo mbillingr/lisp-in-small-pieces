@@ -26,6 +26,10 @@ pub enum Scm {
 }
 
 impl Scm {
+    pub fn uninitialized() -> Self {
+        Scm::Uninitialized
+    }
+
     pub fn closure(func: &'static CodeObject, free_vars: impl Into<Box<[Scm]>>) -> Self {
         Scm::Closure(func, Box::leak(free_vars.into()))
     }

@@ -57,6 +57,10 @@ impl VirtualMachine {
         }
     }
 
+    pub fn resize_globals(&mut self, n: usize) {
+        self.globals.resize(n, Scm::uninitialized())
+    }
+
     pub fn eval(&mut self, code: &'static CodeObject) -> Result<Scm> {
         let mut ip: isize = 0;
         let mut frame_offset = 0;
