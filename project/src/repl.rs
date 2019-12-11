@@ -7,7 +7,7 @@ use crate::language::scheme::{
 };
 use crate::{
     ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
-    env::{Env, EnvAccess, EnvChain, Environment, GlobalRuntimeEnv},
+    env::{Env, EnvAccess, EnvChain, GlobalRuntimeEnv},
     error::{Error, ErrorContext},
     language::scheme::{cons, expand_assign, expand_begin, expand_lambda},
     objectify::Translate,
@@ -19,38 +19,43 @@ use rustyline::Editor;
 use std::collections::HashMap;
 
 pub fn repl() {
-    let mut predef = Env::new(Environment::Empty);
-    predef = predef.extend(Variable::predefined(
+    let mut env = Env::new();
+    env.predef.extend(Variable::predefined(
         "cons",
         FunctionDescription::new(Arity::Exact(2), "cons a b"),
     ));
-    predef = predef.extend(Variable::predefined(
+    env.predef.extend(Variable::predefined(
         "eq?",
         FunctionDescription::new(Arity::Exact(2), "eq? a b"),
     ));
-    predef = predef.extend(Variable::predefined(
+    env.predef.extend(Variable::predefined(
         "*",
         FunctionDescription::new(Arity::Exact(2), "* a b"),
     ));
-    predef = predef.extend(Variable::predefined(
+    env.predef.extend(Variable::predefined(
         "/",
         FunctionDescription::new(Arity::Exact(2), "/ a b"),
     ));
-    predef = predef.extend(Variable::predefined(
+    env.predef.extend(Variable::predefined(
         "+",
         FunctionDescription::new(Arity::Exact(2), "+ a b"),
     ));
-    predef = predef.extend(Variable::predefined(
+    env.predef.extend(Variable::predefined(
         "-",
         FunctionDescription::new(Arity::Exact(2), "- a b"),
     ));
-    predef = predef.extend(Variable::Macro(MagicKeyword::new("lambda", expand_lambda)));
-    predef = predef.extend(Variable::Macro(MagicKeyword::new("begin", expand_begin)));
-    predef = predef.extend(Variable::Macro(MagicKeyword::new("set!", expand_assign)));
-    predef = predef.extend(Variable::Macro(MagicKeyword::new("if", expand_alternative)));
-    predef = predef.extend(Variable::Macro(MagicKeyword::new("quote", expand_quote)));
+    env.predef
+        .extend(Variable::Macro(MagicKeyword::new("lambda", expand_lambda)));
+    env.predef
+        .extend(Variable::Macro(MagicKeyword::new("begin", expand_begin)));
+    env.predef
+        .extend(Variable::Macro(MagicKeyword::new("set!", expand_assign)));
+    env.predef
+        .extend(Variable::Macro(MagicKeyword::new("if", expand_alternative)));
+    env.predef
+        .extend(Variable::Macro(MagicKeyword::new("quote", expand_quote)));
 
-    let mut trans = Translate::from_predefined(predef);
+    let mut trans = Translate::new(env);
 
     /*let mut runtime_predef = HashMap::new();
     runtime_predef.insert("cons".into(), RuntimePrimitive::new(Arity::Exact(2), cons));
@@ -80,7 +85,7 @@ pub fn repl() {
                         let ast = ast.transform(&mut Boxify);
                         let ast = ast.transform(&mut Flatten::new());
 
-                        let globals = trans.global_env.clone();
+                        let globals = trans.env.globals.clone();
                         let code = BytecodeGenerator::compile_toplevel(&ast, globals);
 
                         println!("{:#?}", ast);

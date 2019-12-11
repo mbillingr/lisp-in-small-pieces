@@ -20,7 +20,7 @@ use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
 use crate::objectify::Translate;
 use crate::source::SourceLocation::NoSource;
 use ast::{Alternative, AstNode, Constant, Transformer, Visited};
-use env::{Env, EnvAccess, Environment, GlobalRuntimeEnv};
+use env::{Env, EnvAccess, GlobalRuntimeEnv};
 use lexpr::sexp;
 use repl::repl;
 use std::collections::HashMap;
@@ -44,7 +44,7 @@ fn main() {
     let ast = ast.transform(&mut AllConstZero);
     println!("{:?}", ast);
 
-    let mut predef = Env::new(Environment::Empty);
+    /*let mut predef = Env::new(Environment::Empty);
     predef = predef.extend(Variable::predefined(
         "cons",
         FunctionDescription::new(Arity::Exact(2), "cons a b"),
@@ -107,7 +107,7 @@ fn main() {
             .objectify_toplevel(&sexp!((lambda (x) x)).into())
             .unwrap()
             .eval(sr, sg)
-    );
+    );*/
 
     //println!("{:?}", trans.objectify_toplevel(&sexp!((begin (#"set!" foo (lambda (x) x)) (foo 10))).into()).unwrap().eval(sr, sg));
 

@@ -26,22 +26,16 @@ pub enum ObjectifyErrorKind {
 }
 
 pub struct Translate {
-    pub predef_env: Env,
-    pub global_env: Env,
+    pub env: Env,
 }
 
 impl Translate {
-    pub fn from_predefined(predef_env: Env) -> Self {
-        let global_env = predef_env.clone().mark_global(0);
-        Translate {
-            predef_env,
-            global_env,
-        }
+    pub fn new(env: Env) -> Self {
+        Translate { env }
     }
 
     pub fn objectify_toplevel(&mut self, expr: &Sexpr) -> Result<AstNode> {
-        let env = self.global_env.clone();
-        self.objectify(expr, &env)
+        self.objectify(expr, &self.env.clone())
     }
 
     pub fn objectify(&mut self, expr: &Sexpr, env: &Env) -> Result<AstNode> {
@@ -125,7 +119,7 @@ impl Translate {
         span: SourceLocation,
     ) -> Result<AstNode> {
         let v = Variable::Global(name);
-        env.insert_global(v.clone());
+        env.globals.extend(v.clone());
         Ok(GlobalReference::new(v, span))
     }
 
@@ -211,7 +205,8 @@ impl Translate {
         }
 
         let cons_var = self
-            .predef_env
+            .env
+            .predef
             .find_variable("cons")
             .expect("The cons pritimive must be available in the predefined environment");
 
@@ -240,9 +235,10 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<AstNode> {
-        println!("{:?}", names);
         let vars = self.objectify_variables_list(names)?;
-        let bdy = self.objectify_sequence(body, &env.clone().extend_frame(vars.iter().cloned()))?;
+        env.locals.extend_frame(vars.iter().cloned());
+        let bdy = self.objectify_sequence(body, env)?;
+        env.locals.pop_frame(vars.len());
         Ok(Function::new(vars, bdy, span))
     }
 

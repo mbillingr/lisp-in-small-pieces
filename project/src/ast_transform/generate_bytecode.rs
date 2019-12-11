@@ -4,21 +4,22 @@ use crate::ast::{
 };
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
-use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
+use crate::env::{Env, Environment, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::value::Value;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct BytecodeGenerator {
-    globals: Env,
+    globals: Environment,
     constants: Vec<Scm>,
     env: Vec<Symbol>,
 }
 
 impl BytecodeGenerator {
-    pub fn new(globals: Env) -> Self {
+    pub fn new(globals: Environment) -> Self {
         BytecodeGenerator {
             globals,
             constants: vec![],
@@ -26,14 +27,14 @@ impl BytecodeGenerator {
         }
     }
 
-    pub fn compile_toplevel(node: &AstNode, globals: Env) -> CodeObject {
+    pub fn compile_toplevel(node: &AstNode, globals: Environment) -> CodeObject {
         let mut bcgen = Self::new(globals);
         let mut code = bcgen.compile(node, true);
         code.push(Op::Return);
         CodeObject::new(node.source().clone(), code, bcgen.constants)
     }
 
-    pub fn compile_function(func: &Function, globals: Env) -> CodeObject {
+    pub fn compile_function(func: &Function, globals: Environment) -> CodeObject {
         let mut bcgen = Self::new(globals);
         bcgen.env = func.variables.iter().map(Variable::name).copied().collect();
         let mut code = bcgen.compile(&func.body, true);

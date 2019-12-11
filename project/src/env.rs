@@ -5,21 +5,23 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub type Env = Rc<Environment>;
-
-#[derive(Debug)]
-pub enum Environment {
-    Empty,
-    Entry(Env, Variable),
-    GlobalMarker(RefCell<(Env, usize)>),
+#[derive(Debug, Clone)]
+pub struct Env {
+    pub locals: Environment,
+    pub globals: Environment,
+    pub predef: Environment,
 }
 
-impl EnvAccess for Env {
-    fn new_empty() -> Self {
-        Rc::new(Environment::Empty).mark_global(0)
+impl Env {
+    pub fn new() -> Self {
+        Env {
+            locals: Environment::new(),
+            globals: Environment::new(),
+            predef: Environment::new(),
+        }
     }
 
-    fn update_runtime_globals(&self, sg: &mut GlobalRuntimeEnv) {
+    /*fn update_runtime_globals(&self, sg: &mut GlobalRuntimeEnv) {
         match &**self {
             Environment::GlobalMarker(next) => next.borrow().0.update_runtime_globals(sg),
             Environment::Entry(next, var) => {
@@ -31,54 +33,45 @@ impl EnvAccess for Env {
             }
             Environment::Empty => {}
         }
+    }*/
+
+    pub fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
+        self.locals
+            .find_variable(name)
+            .or_else(|| self.globals.find_variable(name))
+            .or_else(|| self.predef.find_variable(name))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Environment(Rc<RefCell<Vec<Variable>>>);
+
+impl Environment {
+    pub fn new() -> Self {
+        Environment(Rc::new(RefCell::new(vec![])))
     }
 
-    fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
-        match &**self {
-            Environment::Empty => None,
-            Environment::GlobalMarker(env) => env.borrow().0.find_variable(name),
-            Environment::Entry(env, var) => {
-                if name.eq(var.name()) {
-                    Some(var.clone())
-                } else {
-                    env.find_variable(name)
-                }
-            }
-        }
+    pub fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
+        self.0
+            .borrow()
+            .iter()
+            .rev()
+            .find(|var| name.eq(var.name()))
+            .cloned()
     }
 
-    fn find_global_environment(&self) -> &Env {
-        match &**self {
-            Environment::GlobalMarker(_) => self,
-            Environment::Entry(env, _) => env.find_global_environment(),
-            Environment::Empty => panic!("No global environment"),
-        }
+    pub fn extend_frame(&self, vars: impl Iterator<Item = Variable>) {
+        self.0.borrow_mut().extend(vars)
     }
 
-    fn extend(self, var: Variable) -> Env {
-        Rc::new(Environment::Entry(self, var))
+    pub fn extend(&self, var: Variable) {
+        self.0.borrow_mut().push(var);
     }
 
-    fn extend_frame(mut self, vars: impl Iterator<Item = Variable>) -> Self {
-        for var in vars {
-            self = self.extend(var);
-        }
-        self
-    }
-
-    fn insert_global(&self, var: Variable) {
-        if let Environment::GlobalMarker(env) = &**self.find_global_environment() {
-            let r = env.borrow().0.clone().extend(var);
-            let mut e = env.borrow_mut();
-            e.0 = r;
-            e.1 += 1;
-        } else {
-            unreachable!()
-        }
-    }
-
-    fn mark_global(self, n: usize) -> Self {
-        Rc::new(Environment::GlobalMarker(RefCell::new((self, n))))
+    pub fn pop_frame(&self, n: usize) {
+        let mut vars = self.0.borrow_mut();
+        let n = vars.len() - n;
+        vars.truncate(n);
     }
 }
 
