@@ -1,3 +1,4 @@
+use crate::bytecode::CodeObject;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use std::cell::Cell;
@@ -17,12 +18,18 @@ pub enum Scm {
 
     Pair(&'static (Cell<Scm>, Cell<Scm>)),
 
+    Closure(&'static CodeObject, &'static [Scm]),
+
     /*Procedure(RuntimeProcedure),
     Primitive(RuntimePrimitive),*/
     Cell(&'static Cell<Scm>),
 }
 
 impl Scm {
+    pub fn closure(func: &'static CodeObject, free_vars: impl Into<Box<[Scm]>>) -> Self {
+        Scm::Closure(func, Box::leak(free_vars.into()))
+    }
+
     pub fn equals(&self, other: &Self) -> bool {
         use Scm::*;
         match (self, other) {

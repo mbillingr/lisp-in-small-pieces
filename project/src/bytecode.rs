@@ -16,8 +16,12 @@ pub struct CodeObject {
 #[derive(Debug)]
 pub enum Op {
     Constant(usize),
+    LocalRef(usize),
     JumpFalse(isize),
     Jump(isize),
+
+    MakeClosure(&'static CodeObject, usize),
+
     Return,
 
     Drop,
@@ -45,17 +49,29 @@ impl VirtualMachine {
 
     pub fn eval(&mut self, code: &'static CodeObject) -> Result<Scm> {
         let mut ip: isize = 0;
+        let mut frame_offset = 0;
 
         loop {
             let op = &code.code[ip as usize];
             ip += 1;
             match *op {
                 Op::Constant(idx) => self.push_value(code.constants[idx]),
+                Op::LocalRef(idx) => {
+                    let x = self.ref_value(idx + frame_offset)?;
+                    self.push_value(x);
+                }
                 Op::Jump(delta) => ip += delta,
                 Op::JumpFalse(delta) => {
                     if self.pop_value()?.is_false() {
                         ip += delta
                     }
+                }
+                Op::MakeClosure(func, n_free) => {
+                    let mut vars = Vec::with_capacity(n_free);
+                    for _ in 0..n_free {
+                        vars.push(self.pop_value()?);
+                    }
+                    self.push_value(Scm::closure(func, vars));
                 }
                 Op::Return => return self.pop_value(), // TODO: return to previous function
                 Op::Drop => {
@@ -71,5 +87,9 @@ impl VirtualMachine {
 
     fn push_value(&mut self, value: Scm) {
         self.value_stack.push(value)
+    }
+
+    fn ref_value(&mut self, idx: usize) -> Result<Scm> {
+        Ok(self.value_stack[idx])
     }
 }

@@ -6,7 +6,7 @@ use crate::source::SourceLocation;
 use crate::value::Value;
 
 #[derive(Debug, Clone)]
-struct FlatClosure {
+pub struct FlatClosure {
     pub func: Function,
     pub free_vars: Vec<AstNode>,
 }
