@@ -27,8 +27,23 @@ impl Scm {
         use Scm::*;
         match (self, other) {
             (Nil, Nil) => true,
+            (True, True) => true,
+            (False, False) => true,
             (Int(a), Int(b)) => a == b,
-            _ => unimplemented!(),
+            (Float(a), Float(b)) => a == b,
+            (Symbol(a), Symbol(b)) => a == b,
+            (String(a), String(b)) => a == b,
+            (Vector(a), Vector(b)) => a.iter().zip(*b).all(|(a, b)| a.equals(b)),
+            (Pair(a), Pair(b)) => a.0.equals(&b.0) && a.1.equals(&b.1),
+            (Cell(a), Cell(b)) => a.get().equals(&b.get()),
+            _ => false,
+        }
+    }
+
+    pub fn is_false(&self) -> bool {
+        match self {
+            Scm::False => true,
+            _ => false,
         }
     }
 }

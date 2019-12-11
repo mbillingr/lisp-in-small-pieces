@@ -1,3 +1,4 @@
+use crate::bytecode::Error as BytecodeError;
 use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
 use crate::parsing::{ParseError, ParseErrorKind};
 use crate::source::{Source, SourceLocation};
@@ -12,6 +13,7 @@ pub struct Error {
 pub enum ErrorKind {
     Parse(ParseErrorKind),
     Objectify(ObjectifyErrorKind),
+    Runtime(BytecodeError),
 }
 
 #[derive(Debug)]
@@ -25,6 +27,15 @@ impl From<ObjectifyError> for Error {
         Error {
             kind: ErrorKind::Objectify(err.kind),
             context: ErrorContext::Source(err.location),
+        }
+    }
+}
+
+impl From<BytecodeError> for Error {
+    fn from(err: BytecodeError) -> Self {
+        Error {
+            kind: ErrorKind::Runtime(err),
+            context: ErrorContext::None,
         }
     }
 }
@@ -44,6 +55,7 @@ impl std::fmt::Display for ErrorKind {
         match self {
             ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
             ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
+            ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),
         }
     }
 }

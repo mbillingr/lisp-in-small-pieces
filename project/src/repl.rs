@@ -1,6 +1,7 @@
 use crate::ast_transform::boxify::Boxify;
 use crate::ast_transform::flatten_closures::Flatten;
 use crate::ast_transform::generate_bytecode::BytecodeGenerator;
+use crate::bytecode::eval_code_object;
 use crate::language::scheme::{
     add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
 };
@@ -73,7 +74,7 @@ pub fn repl() {
 
                 let val = TrackedSexpr::from_source(&src)
                     .and_then(|sexpr| trans.objectify_toplevel(&sexpr).map_err(Into::into))
-                    .map(|ast| {
+                    .and_then(|ast| {
                         let ast = ast.transform(&mut Boxify);
                         let ast = ast.transform(&mut Flatten::new());
 
@@ -82,11 +83,15 @@ pub fn repl() {
                         println!("{:#?}", ast);
                         println!("{:?}", code);
                         trans.global_env.update_runtime_globals(&mut sg);
-                        ast.eval(sr, sg)
+                        //ast.eval(sr, sg);
+
+                        let code = Box::leak(Box::new(code));
+
+                        Ok(eval_code_object(code)?)
                     });
 
                 match val {
-                    Ok(x) => println!("{}", x),
+                    Ok(x) => println!("{:?}", x),
                     Err(e) => report_error(e),
                 }
             }

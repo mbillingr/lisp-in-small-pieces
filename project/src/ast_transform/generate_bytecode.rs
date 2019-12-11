@@ -2,7 +2,7 @@ use crate::ast::{
     Alternative, AstNode, Constant, FixLet, Function, LocalReference, Ref, Sequence, Transformer,
     Variable, Visited,
 };
-use crate::bytecode::Op;
+use crate::bytecode::{CodeObject, Op};
 use crate::env::{GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
@@ -18,11 +18,11 @@ impl BytecodeGenerator {
         BytecodeGenerator { constants: vec![] }
     }
 
-    pub fn compile_toplevel(node: &AstNode) -> Vec<Op> {
-        // TODO: return code object (= function?)
+    pub fn compile_toplevel(node: &AstNode) -> CodeObject {
         let mut bcgen = Self::new();
-        let code = bcgen.compile(node, true);
-        code
+        let mut code = bcgen.compile(node, true);
+        code.push(Op::Return);
+        CodeObject::new(code, bcgen.constants)
     }
 
     fn compile(&mut self, node: &AstNode, tail: bool) -> Vec<Op> {
@@ -55,6 +55,7 @@ impl BytecodeGenerator {
     fn compile_sequence(&mut self, node: &Sequence, tail: bool) -> Vec<Op> {
         let mut m1 = self.compile(&node.first, false);
         let m2 = self.compile(&node.next, tail);
+        m1.push(Op::Drop);
         m1.extend(m2);
         m1
     }
