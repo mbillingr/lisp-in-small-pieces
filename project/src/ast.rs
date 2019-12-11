@@ -283,7 +283,7 @@ impl Ast for GlobalReference {
 
 #[derive(Debug, Clone)]
 pub struct PredefinedReference {
-    var: Variable,
+    pub var: Variable,
     span: SourceLocation,
 }
 
@@ -611,8 +611,8 @@ impl Ast for RegularApplication {
 
 #[derive(Debug, Clone)]
 pub struct PredefinedApplication {
-    variable: Variable,
-    arguments: Vec<AstNode>,
+    pub variable: Variable,
+    pub arguments: Vec<AstNode>,
     span: SourceLocation,
 }
 

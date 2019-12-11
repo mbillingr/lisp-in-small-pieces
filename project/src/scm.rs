@@ -1,3 +1,4 @@
+use crate::ast::RuntimePrimitive;
 use crate::bytecode::CodeObject;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
@@ -19,6 +20,7 @@ pub enum Scm {
     Pair(&'static (Cell<Scm>, Cell<Scm>)),
 
     Closure(&'static CodeObject, &'static [Scm]),
+    Primitive(RuntimePrimitive),
 
     /*Procedure(RuntimeProcedure),
     Primitive(RuntimePrimitive),*/

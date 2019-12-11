@@ -11,6 +11,7 @@ use crate::{
     error::{Error, ErrorContext},
     language::scheme::{cons, expand_assign, expand_begin, expand_lambda},
     objectify::Translate,
+    scm::Scm,
     sexpr::TrackedSexpr,
     source::{Source, SourceLocation},
 };
@@ -57,18 +58,19 @@ pub fn repl() {
 
     let mut trans = Translate::new(env);
 
-    /*let mut runtime_predef = HashMap::new();
-    runtime_predef.insert("cons".into(), RuntimePrimitive::new(Arity::Exact(2), cons));
-    runtime_predef.insert("eq?".into(), RuntimePrimitive::new(Arity::Exact(2), is_eq));
-    runtime_predef.insert("*".into(), RuntimePrimitive::new(Arity::Exact(2), multiply));
-    runtime_predef.insert("/".into(), RuntimePrimitive::new(Arity::Exact(2), divide));
-    runtime_predef.insert("+".into(), RuntimePrimitive::new(Arity::Exact(2), add));
-    runtime_predef.insert("-".into(), RuntimePrimitive::new(Arity::Exact(2), subtract));*/
+    let mut runtime_predef = vec![
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), cons)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), is_eq)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), multiply)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), divide)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), add)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), subtract)),
+    ];
 
     let sr = &mut EnvChain::new();
     //let mut sg = &mut GlobalRuntimeEnv::new(runtime_predef);
 
-    let mut vm = VirtualMachine::new(vec![]);
+    let mut vm = VirtualMachine::new(vec![], runtime_predef);
 
     let mut rl = Editor::<()>::new();
     if rl.load_history("repl.hist.txt").is_err() {}
@@ -86,7 +88,8 @@ pub fn repl() {
                         let ast = ast.transform(&mut Flatten::new());
 
                         let globals = trans.env.globals.clone();
-                        let code = BytecodeGenerator::compile_toplevel(&ast, globals);
+                        let predef = trans.env.predef.clone();
+                        let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
 
                         println!("{:#?}", ast);
                         println!("{:?}", code);

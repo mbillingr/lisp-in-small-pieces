@@ -22,6 +22,7 @@ pub enum Op {
     Constant(usize),
     LocalRef(usize),
     GlobalRef(usize),
+    PredefRef(usize),
     GlobalSet(usize),
 
     PushVal,
@@ -34,6 +35,7 @@ pub enum Op {
 
     Call(usize),
     TailCall(usize),
+    CallPrimitive(usize),
     Return,
     Halt,
 
@@ -56,6 +58,7 @@ impl CodeObject {
 
 pub struct VirtualMachine {
     globals: Vec<Scm>,
+    predef: Vec<Scm>,
     value_stack: Vec<Scm>,
     call_stack: Vec<(usize, isize, &'static CodeObject, &'static [Scm])>,
 }
@@ -69,9 +72,10 @@ thread_local! {
 }
 
 impl VirtualMachine {
-    pub fn new(globals: Vec<Scm>) -> Self {
+    pub fn new(globals: Vec<Scm>, predef: Vec<Scm>) -> Self {
         VirtualMachine {
             globals,
+            predef,
             value_stack: vec![],
             call_stack: vec![],
         }
@@ -97,6 +101,7 @@ impl VirtualMachine {
                 Op::Constant(idx) => val = code.constants[idx],
                 Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
                 Op::GlobalRef(idx) => val = self.globals[idx],
+                Op::PredefRef(idx) => val = self.predef[idx],
                 Op::GlobalSet(idx) => self.globals[idx] = val,
                 Op::PushVal => self.push_value(val),
                 Op::PopVal => val = self.pop_value()?,
@@ -135,6 +140,7 @@ impl VirtualMachine {
                     }
                     _ => return Err(Error::NotCallable),
                 },
+                Op::CallPrimitive(arity) => {}
                 Op::Return => {
                     self.value_stack.truncate(frame_offset);
                     let data = self.call_stack.pop().expect("call-stack underflow");

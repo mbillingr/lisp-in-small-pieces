@@ -1,6 +1,7 @@
 use crate::ast::{
     Alternative, Ast, AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference,
-    LocalReference, Ref, RegularApplication, Sequence, Transformer, Variable, Visited,
+    LocalReference, PredefinedApplication, PredefinedReference, Ref, RegularApplication, Sequence,
+    Transformer, Variable, Visited,
 };
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
@@ -14,28 +15,38 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct BytecodeGenerator {
     globals: Environment,
+    predef: Environment,
     constants: Vec<Scm>,
     env: Vec<Symbol>,
 }
 
 impl BytecodeGenerator {
-    pub fn new(globals: Environment) -> Self {
+    pub fn new(globals: Environment, predef: Environment) -> Self {
         BytecodeGenerator {
             globals,
+            predef,
             constants: vec![],
             env: vec![],
         }
     }
 
-    pub fn compile_toplevel(node: &AstNode, globals: Environment) -> CodeObject {
-        let mut bcgen = Self::new(globals);
+    pub fn compile_toplevel(
+        node: &AstNode,
+        globals: Environment,
+        predef: Environment,
+    ) -> CodeObject {
+        let mut bcgen = Self::new(globals, predef);
         let mut code = bcgen.compile(node, true);
         code.push(Op::Return);
         CodeObject::new(node.source().clone(), code, bcgen.constants)
     }
 
-    pub fn compile_function(func: &Function, globals: Environment) -> CodeObject {
-        let mut bcgen = Self::new(globals);
+    pub fn compile_function(
+        func: &Function,
+        globals: Environment,
+        predef: Environment,
+    ) -> CodeObject {
+        let mut bcgen = Self::new(globals, predef);
         bcgen.env = func.variables.iter().map(Variable::name).copied().collect();
         let mut code = bcgen.compile(&func.body, true);
         code.push(Op::Return);
@@ -49,6 +60,7 @@ impl BytecodeGenerator {
             a as Alternative => self.compile_alternative(a, tail),
             r as LocalReference => self.compile_local_ref(r, tail),
             r as GlobalReference => self.compile_global_ref(r, tail),
+            r as PredefinedReference => self.compile_predef_ref(r, tail),
             r as GlobalAssignment => self.compile_global_set(r, tail),
             f as FixLet => self.compile_fixlet(f, tail),
             c as FlatClosure => self.compile_closure(c, tail),
@@ -112,6 +124,11 @@ impl BytecodeGenerator {
         vec![Op::GlobalRef(idx)]
     }
 
+    fn compile_predef_ref(&mut self, node: &PredefinedReference, tail: bool) -> Vec<Op> {
+        let idx = self.predef.find_idx(node.var.name()).unwrap();
+        vec![Op::PredefRef(idx)]
+    }
+
     fn compile_global_set(&mut self, node: &GlobalAssignment, tail: bool) -> Vec<Op> {
         let idx = self.globals.find_idx(node.variable.name()).unwrap();
         let mut meaning = self.compile(&node.form, false);
@@ -140,7 +157,11 @@ impl BytecodeGenerator {
     }
 
     fn compile_closure(&mut self, node: &FlatClosure, tail: bool) -> Vec<Op> {
-        let function = BytecodeGenerator::compile_function(&node.func, self.globals.clone());
+        let function = BytecodeGenerator::compile_function(
+            &node.func,
+            self.globals.clone(),
+            self.predef.clone(),
+        );
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];
@@ -175,6 +196,23 @@ impl BytecodeGenerator {
             true => meaning.push(Op::TailCall(arity)),
             false => meaning.push(Op::Call(arity)),
         }
+
+        meaning
+    }
+
+    fn compile_primitive(&mut self, node: &PredefinedApplication, tail: bool) -> Vec<Op> {
+        let mut meaning = vec![];
+
+        for a in &node.arguments {
+            let m = self.compile(a, false);
+            meaning.extend(m);
+            meaning.push(Op::PushVal);
+        }
+
+        unimplemented!("how do we get the primitive function in place?");
+
+        let arity = node.arguments.len();
+        meaning.push(Op::CallPrimitive(arity));
 
         meaning
     }
