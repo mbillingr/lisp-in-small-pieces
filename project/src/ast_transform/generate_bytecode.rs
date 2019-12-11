@@ -1,6 +1,6 @@
 use crate::ast::{
-    Alternative, AstNode, Constant, FixLet, Function, LocalReference, Ref, Sequence, Transformer,
-    Variable, Visited,
+    Alternative, Ast, AstNode, Constant, FixLet, Function, LocalReference, Ref, Sequence,
+    Transformer, Variable, Visited,
 };
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
@@ -27,14 +27,15 @@ impl BytecodeGenerator {
         let mut bcgen = Self::new();
         let mut code = bcgen.compile(node, true);
         code.push(Op::Return);
-        CodeObject::new(code, bcgen.constants)
+        CodeObject::new(node.source().clone(), code, bcgen.constants)
     }
 
     pub fn compile_function(func: &Function) -> CodeObject {
         let mut bcgen = Self::new();
+        bcgen.env = func.variables.clone();
         let mut code = bcgen.compile(&func.body, true);
         code.push(Op::Return);
-        CodeObject::new(code, bcgen.constants)
+        CodeObject::new(func.source().clone(), code, bcgen.constants)
     }
 
     fn compile(&mut self, node: &AstNode, tail: bool) -> Vec<Op> {

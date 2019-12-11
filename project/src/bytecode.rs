@@ -1,4 +1,5 @@
 use crate::scm::Scm;
+use crate::source::{Source, SourceLocation};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -9,6 +10,7 @@ pub enum Error {
 
 #[derive(Debug)]
 pub struct CodeObject {
+    source: SourceLocation,
     constants: Box<[Scm]>,
     code: Box<[Op]>,
 }
@@ -28,8 +30,13 @@ pub enum Op {
 }
 
 impl CodeObject {
-    pub fn new(code: impl Into<Box<[Op]>>, constants: impl Into<Box<[Scm]>>) -> Self {
+    pub fn new(
+        source: SourceLocation,
+        code: impl Into<Box<[Op]>>,
+        constants: impl Into<Box<[Scm]>>,
+    ) -> Self {
         CodeObject {
+            source,
             constants: constants.into(),
             code: code.into(),
         }
