@@ -19,6 +19,7 @@ pub struct CodeObject {
 pub enum Op {
     Constant(usize),
     LocalRef(usize),
+    GlobalRef(usize),
     JumpFalse(isize),
     Jump(isize),
 
@@ -44,12 +45,14 @@ impl CodeObject {
 }
 
 pub struct VirtualMachine {
+    globals: Vec<Scm>,
     value_stack: Vec<Scm>,
 }
 
 impl VirtualMachine {
-    pub fn new() -> Self {
+    pub fn new(globals: Vec<Scm>) -> Self {
         VirtualMachine {
+            globals,
             value_stack: vec![],
         }
     }
@@ -67,6 +70,7 @@ impl VirtualMachine {
                     let x = self.ref_value(idx + frame_offset)?;
                     self.push_value(x);
                 }
+                Op::GlobalRef(idx) => self.push_value(self.globals[idx]),
                 Op::Jump(delta) => ip += delta,
                 Op::JumpFalse(delta) => {
                     if self.pop_value()?.is_false() {

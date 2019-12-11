@@ -1,38 +1,41 @@
 use crate::ast::{
-    Alternative, Ast, AstNode, Constant, FixLet, Function, LocalReference, Ref, Sequence,
-    Transformer, Variable, Visited,
+    Alternative, Ast, AstNode, Constant, FixLet, Function, GlobalReference, LocalReference, Ref,
+    Sequence, Transformer, Variable, Visited,
 };
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
-use crate::env::{GlobalRuntimeEnv, LexicalRuntimeEnv};
+use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
+use crate::symbol::Symbol;
 use crate::value::Value;
 
 #[derive(Debug)]
 pub struct BytecodeGenerator {
+    globals: Env,
     constants: Vec<Scm>,
-    env: Vec<Variable>,
+    env: Vec<Symbol>,
 }
 
 impl BytecodeGenerator {
-    pub fn new() -> Self {
+    pub fn new(globals: Env) -> Self {
         BytecodeGenerator {
+            globals,
             constants: vec![],
             env: vec![],
         }
     }
 
-    pub fn compile_toplevel(node: &AstNode) -> CodeObject {
-        let mut bcgen = Self::new();
+    pub fn compile_toplevel(node: &AstNode, globals: Env) -> CodeObject {
+        let mut bcgen = Self::new(globals);
         let mut code = bcgen.compile(node, true);
         code.push(Op::Return);
         CodeObject::new(node.source().clone(), code, bcgen.constants)
     }
 
-    pub fn compile_function(func: &Function) -> CodeObject {
-        let mut bcgen = Self::new();
-        bcgen.env = func.variables.clone();
+    pub fn compile_function(func: &Function, globals: Env) -> CodeObject {
+        let mut bcgen = Self::new(globals);
+        bcgen.env = func.variables.iter().map(Variable::name).copied().collect();
         let mut code = bcgen.compile(&func.body, true);
         code.push(Op::Return);
         CodeObject::new(func.source().clone(), code, bcgen.constants)
@@ -44,6 +47,7 @@ impl BytecodeGenerator {
             s as Sequence => self.compile_sequence(s, tail),
             a as Alternative => self.compile_alternative(a, tail),
             r as LocalReference => self.compile_local_ref(r, tail),
+            r as GlobalReference => self.compile_global_ref(r, tail),
             f as FixLet => self.compile_fixlet(f, tail),
             c as FlatClosure => self.compile_closure(c, tail),
             _ => { unimplemented!("Byte code compilation of:\n {:#?}\n", node.source()) }
@@ -95,10 +99,16 @@ impl BytecodeGenerator {
             .iter()
             .enumerate()
             .rev()
-            .find(|&(_, v)| v == node.variable())
+            .find(|&(_, v)| v == node.variable().name())
             .unwrap()
             .0;
         vec![Op::LocalRef(idx)]
+    }
+
+    fn compile_global_ref(&mut self, node: &GlobalReference, tail: bool) -> Vec<Op> {
+        /*let idx = self.globals.find_idx(node);
+        vec![Op::GlobalRef(idx)]*/
+        unimplemented!()
     }
 
     fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Vec<Op> {
@@ -108,7 +118,7 @@ impl BytecodeGenerator {
         for (var, arg) in node.variables.iter().zip(&node.arguments) {
             let m = self.compile(arg, false);
             meaning.extend(m);
-            self.env.push(var.clone());
+            self.env.push(*var.name());
         }
 
         let m = self.compile(&node.body, tail);
@@ -120,7 +130,7 @@ impl BytecodeGenerator {
     }
 
     fn compile_closure(&mut self, node: &FlatClosure, tail: bool) -> Vec<Op> {
-        let function = BytecodeGenerator::compile_function(&node.func);
+        let function = BytecodeGenerator::compile_function(&node.func, self.globals.clone());
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];

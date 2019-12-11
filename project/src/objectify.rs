@@ -32,7 +32,7 @@ pub struct Translate {
 
 impl Translate {
     pub fn from_predefined(predef_env: Env) -> Self {
-        let global_env = predef_env.clone().mark_global();
+        let global_env = predef_env.clone().mark_global(0);
         Translate {
             predef_env,
             global_env,

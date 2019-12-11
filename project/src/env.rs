@@ -11,17 +11,17 @@ pub type Env = Rc<Environment>;
 pub enum Environment {
     Empty,
     Entry(Env, Variable),
-    GlobalMarker(RefCell<Env>),
+    GlobalMarker(RefCell<(Env, usize)>),
 }
 
 impl EnvAccess for Env {
     fn new_empty() -> Self {
-        Rc::new(Environment::Empty).mark_global()
+        Rc::new(Environment::Empty).mark_global(0)
     }
 
     fn update_runtime_globals(&self, sg: &mut GlobalRuntimeEnv) {
         match &**self {
-            Environment::GlobalMarker(next) => next.borrow().update_runtime_globals(sg),
+            Environment::GlobalMarker(next) => next.borrow().0.update_runtime_globals(sg),
             Environment::Entry(next, var) => {
                 match var {
                     Variable::Global(name) => sg.ensure_global(name.clone()),
@@ -36,7 +36,7 @@ impl EnvAccess for Env {
     fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
         match &**self {
             Environment::Empty => None,
-            Environment::GlobalMarker(env) => env.borrow().find_variable(name),
+            Environment::GlobalMarker(env) => env.borrow().0.find_variable(name),
             Environment::Entry(env, var) => {
                 if name.eq(var.name()) {
                     Some(var.clone())
@@ -68,15 +68,17 @@ impl EnvAccess for Env {
 
     fn insert_global(&self, var: Variable) {
         if let Environment::GlobalMarker(env) = &**self.find_global_environment() {
-            let r = env.borrow().clone().extend(var);
-            *env.borrow_mut() = r;
+            let r = env.borrow().0.clone().extend(var);
+            let mut e = env.borrow_mut();
+            e.0 = r;
+            e.1 += 1;
         } else {
             unreachable!()
         }
     }
 
-    fn mark_global(self) -> Self {
-        Rc::new(Environment::GlobalMarker(RefCell::new(self)))
+    fn mark_global(self, n: usize) -> Self {
+        Rc::new(Environment::GlobalMarker(RefCell::new((self, n))))
     }
 }
 
@@ -88,7 +90,7 @@ pub trait EnvAccess {
     fn extend(self, var: Variable) -> Self;
     fn extend_frame(self, vars: impl Iterator<Item = Variable>) -> Self;
     fn insert_global(&self, var: Variable);
-    fn mark_global(self) -> Self;
+    fn mark_global(self, n: usize) -> Self;
 }
 
 pub type LexicalRuntimeEnv = Rc<EnvChain>;

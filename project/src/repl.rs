@@ -52,16 +52,18 @@ pub fn repl() {
 
     let mut trans = Translate::from_predefined(predef);
 
-    let mut runtime_predef = HashMap::new();
+    /*let mut runtime_predef = HashMap::new();
     runtime_predef.insert("cons".into(), RuntimePrimitive::new(Arity::Exact(2), cons));
     runtime_predef.insert("eq?".into(), RuntimePrimitive::new(Arity::Exact(2), is_eq));
     runtime_predef.insert("*".into(), RuntimePrimitive::new(Arity::Exact(2), multiply));
     runtime_predef.insert("/".into(), RuntimePrimitive::new(Arity::Exact(2), divide));
     runtime_predef.insert("+".into(), RuntimePrimitive::new(Arity::Exact(2), add));
-    runtime_predef.insert("-".into(), RuntimePrimitive::new(Arity::Exact(2), subtract));
+    runtime_predef.insert("-".into(), RuntimePrimitive::new(Arity::Exact(2), subtract));*/
 
     let sr = &mut EnvChain::new();
-    let mut sg = &mut GlobalRuntimeEnv::new(runtime_predef);
+    //let mut sg = &mut GlobalRuntimeEnv::new(runtime_predef);
+
+    let mut vm = VirtualMachine::new(vec![]);
 
     let mut rl = Editor::<()>::new();
     if rl.load_history("repl.hist.txt").is_err() {}
@@ -78,16 +80,17 @@ pub fn repl() {
                         let ast = ast.transform(&mut Boxify);
                         let ast = ast.transform(&mut Flatten::new());
 
-                        let code = BytecodeGenerator::compile_toplevel(&ast);
+                        let globals = trans.global_env.clone();
+                        let code = BytecodeGenerator::compile_toplevel(&ast, globals);
 
                         println!("{:#?}", ast);
                         println!("{:?}", code);
-                        trans.global_env.update_runtime_globals(&mut sg);
+                        //trans.global_env.update_runtime_globals(&mut sg);
                         //ast.eval(sr, sg);
 
                         let code = Box::leak(Box::new(code));
 
-                        Ok(VirtualMachine::new().eval(code)?)
+                        Ok(vm.eval(code)?)
                     });
 
                 match val {
