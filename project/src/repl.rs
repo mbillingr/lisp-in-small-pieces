@@ -1,7 +1,7 @@
 use crate::ast_transform::boxify::Boxify;
 use crate::ast_transform::flatten_closures::Flatten;
 use crate::ast_transform::generate_bytecode::BytecodeGenerator;
-use crate::bytecode::eval_code_object;
+use crate::bytecode::VirtualMachine;
 use crate::language::scheme::{
     add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
 };
@@ -87,7 +87,7 @@ pub fn repl() {
 
                         let code = Box::leak(Box::new(code));
 
-                        Ok(eval_code_object(code)?)
+                        Ok(VirtualMachine::new().eval(code)?)
                     });
 
                 match val {
