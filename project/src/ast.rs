@@ -1,5 +1,6 @@
 use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::objectify::{Result, Translate};
+use crate::scm::Scm;
 use crate::sexpr::{self, TrackedSexpr as Sexpr};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
@@ -645,10 +646,11 @@ impl Ast for PredefinedApplication {
     }
 
     fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        let name = self.variable.name();
+        /*let name = self.variable.name();
         let args: Vec<_> = self.arguments.iter().map(|a| a.eval(sr, sg)).collect();
         let func = sg.get_predefined(name);
-        func.invoke(args)
+        func.invoke(&args)*/
+        unimplemented!()
     }
 }
 
@@ -737,23 +739,29 @@ impl FunctionDescription {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct RuntimePrimitive {
-    pub func: fn(args: Vec<Value>) -> Value,
+    pub func: fn(args: &[Scm]) -> Scm,
     pub arity: Arity,
 }
 
 impl RuntimePrimitive {
-    pub fn new(arity: Arity, func: fn(args: Vec<Value>) -> Value) -> Self {
+    pub fn new(arity: Arity, func: fn(args: &[Scm]) -> Scm) -> Self {
         RuntimePrimitive { arity, func }
     }
 
-    pub fn invoke(&self, args: Vec<Value>) -> Value {
+    pub fn invoke(&self, args: &[Scm]) -> Scm {
         if self.arity.check(args.len()) {
-            (self.func)(args)
+            (self.func)(&args)
         } else {
             panic!("Incorrect arity")
         }
+    }
+}
+
+impl std::fmt::Debug for RuntimePrimitive {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "*primitive*")
     }
 }
 

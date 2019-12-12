@@ -4,6 +4,7 @@ pub mod scheme {
     use crate::objectify::{car, cdr, Translate};
     use crate::objectify::{decons, Result};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
+    use crate::scm::Scm;
     use crate::sexpr::TrackedSexpr;
     use crate::value::Value;
 
@@ -43,20 +44,20 @@ pub mod scheme {
         trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
     }
 
-    pub fn cons(mut args: Vec<Value>) -> Value {
-        let cdr = args.pop().unwrap();
-        let car = args.pop().unwrap();
-        Value::cons(car, cdr)
+    pub fn cons(mut args: &[Scm]) -> Scm {
+        let car = args[0];
+        let cdr = args[1];
+        Scm::cons(car, cdr)
     }
 
-    pub fn is_eq(args: Vec<Value>) -> Value {
+    /*pub fn is_eq(args: &[Scm]) -> Scm {
         match &args[..] {
-            [a, b] => Value::bool(Value::is_eq(a, b)),
+            [a, b] => Value::bool(Scm::is_eq(a, b)),
             _ => unreachable!(),
         }
     }
 
-    pub fn multiply(args: Vec<Value>) -> Value {
+    pub fn multiply(args: &[Scm]) -> Scm {
         match args[..] {
             [Value::Int(a), Value::Int(b)] => Value::Int(a * b),
             [_, _] => panic!("Invalid operand types in multiplication"),
@@ -64,7 +65,7 @@ pub mod scheme {
         }
     }
 
-    pub fn divide(args: Vec<Value>) -> Value {
+    pub fn divide(args: &[Scm]) -> Scm {
         match args[..] {
             [Value::Int(a), Value::Int(b)] => Value::Int(a / b),
             [_, _] => panic!("Invalid operand types in division"),
@@ -72,7 +73,7 @@ pub mod scheme {
         }
     }
 
-    pub fn add(args: Vec<Value>) -> Value {
+    pub fn add(args: &[Scm]) -> Scm {
         match args[..] {
             [Value::Int(a), Value::Int(b)] => Value::Int(a + b),
             [_, _] => panic!("Invalid operand types in addition"),
@@ -80,11 +81,11 @@ pub mod scheme {
         }
     }
 
-    pub fn subtract(args: Vec<Value>) -> Value {
+    pub fn subtract(args: &[Scm]) -> Scm {
         match args[..] {
             [Value::Int(a), Value::Int(b)] => Value::Int(a - b),
             [_, _] => panic!("Invalid operand types in subtraction"),
             _ => unreachable!(),
         }
-    }
+    }*/
 }

@@ -126,6 +126,11 @@ impl VirtualMachine {
                         code = cc;
                         free = fv;
                     }
+                    Scm::Primitive(func) => {
+                        let n = self.value_stack.len() - arity;
+                        val = func.invoke(&self.value_stack[n..]);
+                        self.value_stack.truncate(n);
+                    }
                     _ => return Err(Error::NotCallable),
                 },
                 Op::TailCall(arity) => match val {
@@ -140,7 +145,7 @@ impl VirtualMachine {
                     }
                     _ => return Err(Error::NotCallable),
                 },
-                Op::CallPrimitive(arity) => {}
+                Op::CallPrimitive(arity) => unimplemented!(),
                 Op::Return => {
                     self.value_stack.truncate(frame_offset);
                     let data = self.call_stack.pop().expect("call-stack underflow");

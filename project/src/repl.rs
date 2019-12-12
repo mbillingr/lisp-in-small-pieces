@@ -2,14 +2,13 @@ use crate::ast_transform::boxify::Boxify;
 use crate::ast_transform::flatten_closures::Flatten;
 use crate::ast_transform::generate_bytecode::BytecodeGenerator;
 use crate::bytecode::VirtualMachine;
-use crate::language::scheme::{
-    add, divide, expand_alternative, expand_quote, is_eq, multiply, subtract,
-};
 use crate::{
     ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
     env::{Env, EnvAccess, EnvChain, GlobalRuntimeEnv},
     error::{Error, ErrorContext},
-    language::scheme::{cons, expand_assign, expand_begin, expand_lambda},
+    language::scheme::{
+        cons, expand_alternative, expand_assign, expand_begin, expand_lambda, expand_quote,
+    },
     objectify::Translate,
     scm::Scm,
     sexpr::TrackedSexpr,
@@ -60,11 +59,11 @@ pub fn repl() {
 
     let mut runtime_predef = vec![
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), cons)),
-        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), is_eq)),
+        /*Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), is_eq)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), multiply)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), divide)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), add)),
-        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), subtract)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), subtract)),*/
     ];
 
     let sr = &mut EnvChain::new();

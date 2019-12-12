@@ -65,6 +65,7 @@ impl BytecodeGenerator {
             f as FixLet => self.compile_fixlet(f, tail),
             c as FlatClosure => self.compile_closure(c, tail),
             a as RegularApplication => self.compile_application(a, tail),
+            p as PredefinedApplication => self.compile_predefined_application(p, tail),
             _ => { unimplemented!("Byte code compilation of:\n {:#?}\n", node.source()) }
         };
 
@@ -200,7 +201,11 @@ impl BytecodeGenerator {
         meaning
     }
 
-    fn compile_primitive(&mut self, node: &PredefinedApplication, tail: bool) -> Vec<Op> {
+    fn compile_predefined_application(
+        &mut self,
+        node: &PredefinedApplication,
+        tail: bool,
+    ) -> Vec<Op> {
         let mut meaning = vec![];
 
         for a in &node.arguments {
@@ -209,10 +214,11 @@ impl BytecodeGenerator {
             meaning.push(Op::PushVal);
         }
 
-        unimplemented!("how do we get the primitive function in place?");
+        let idx = self.predef.find_idx(node.variable.name()).unwrap();
+        meaning.push(Op::PredefRef(idx));
 
         let arity = node.arguments.len();
-        meaning.push(Op::CallPrimitive(arity));
+        meaning.push(Op::Call(arity));
 
         meaning
     }

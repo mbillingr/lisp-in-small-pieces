@@ -122,7 +122,7 @@ impl Value {
     pub fn invoke(&self, args: Vec<Value>, sg: &mut GlobalRuntimeEnv) -> Value {
         match self {
             Value::Procedure(proc) => proc.invoke(args, sg),
-            Value::Primitive(proc) => proc.invoke(args),
+            //Value::Primitive(proc) => proc.invoke(args),
             _ => panic!("Cannot invoke {:?}", self),
         }
     }
