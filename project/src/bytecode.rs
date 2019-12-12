@@ -125,6 +125,11 @@ impl VirtualMachine {
                         ip = 0;
                         code = cc;
                         free = fv;
+
+                        unimplemented!("How should we deal with n-ary application?");
+                        // We have to figure at runtime if the correct number of arguments was
+                        // was supplied. If the last parameter is dotted it conses any excess
+                        // arguments...
                     }
                     Scm::Primitive(func) => {
                         let n = self.value_stack.len() - arity;
