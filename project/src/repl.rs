@@ -103,7 +103,7 @@ pub fn repl() {
                     });
 
                 match val {
-                    Ok(x) => println!("{:?}", x),
+                    Ok(x) => println!("{}", x),
                     Err(e) => report_error(e),
                 }
             }

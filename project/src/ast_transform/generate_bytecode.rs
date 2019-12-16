@@ -78,7 +78,7 @@ impl BytecodeGenerator {
     }
 
     fn compile_constant(&mut self, node: &Constant, _tail: bool) -> Vec<Op> {
-        let value: Scm = node.value.clone().into();
+        let value: Scm = (&node.value).into();
         let idx = self.constants.iter().position(|x| x.equals(&value));
         let idx = match idx {
             None => {
