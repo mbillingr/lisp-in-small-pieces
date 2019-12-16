@@ -50,6 +50,10 @@ impl Scm {
         }
     }
 
+    pub fn boxed(x: Scm) -> Scm {
+        Scm::Cell(Box::leak(Box::new(Cell::new(x))))
+    }
+
     pub fn cons(car: Scm, cdr: Scm) -> Scm {
         Scm::Pair(Box::leak(Box::new((Cell::new(car), Cell::new(cdr)))))
     }
@@ -110,6 +114,20 @@ impl Scm {
             (Int(a), Float(b)) => Ok((a as f64) < b),
             (Float(a), Int(b)) => Ok(a < (b as f64)),
             (Float(a), Float(b)) => Ok(a < b),
+            _ => Err(Error::TypeError),
+        }
+    }
+
+    pub fn set(&self, value: Scm) -> Result<()> {
+        match self {
+            Scm::Cell(x) => Ok(x.set(value)),
+            _ => Err(Error::TypeError),
+        }
+    }
+
+    pub fn get(&self) -> Result<Scm> {
+        match self {
+            Scm::Cell(x) => Ok(x.get()),
             _ => Err(Error::TypeError),
         }
     }

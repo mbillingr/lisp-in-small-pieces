@@ -3,6 +3,7 @@ use crate::ast::{
     GlobalReference, LocalReference, PredefinedApplication, PredefinedReference, Ref,
     RegularApplication, Sequence, Transformer, Variable, Visited,
 };
+use crate::ast_transform::boxify::{BoxCreate, BoxRead, BoxWrite};
 use crate::ast_transform::flatten_closures::FlatClosure;
 use crate::bytecode::{CodeObject, Op};
 use crate::env::{Env, Environment, GlobalRuntimeEnv, LexicalRuntimeEnv};
@@ -71,7 +72,10 @@ impl BytecodeGenerator {
             c as FlatClosure => self.compile_closure(c, tail),
             a as RegularApplication => self.compile_application(a, tail),
             p as PredefinedApplication => self.compile_predefined_application(p, tail),
-            _ => { unimplemented!("Byte code compilation of:\n {:#?}\n", node.source()) }
+            b as BoxCreate => self.compile_box_create(b, tail),
+            b as BoxWrite => self.compile_box_write(b, tail),
+            b as BoxRead => self.compile_box_read(b, tail),
+            _ => { unimplemented!("Byte code compilation of:\n {:#?}\n {:?}", node.source(), node) }
         };
 
         code
@@ -225,6 +229,33 @@ impl BytecodeGenerator {
         let arity = node.arguments.len();
         meaning.push(Op::Call(arity));
 
+        meaning
+    }
+
+    fn compile_box_create(&mut self, node: &BoxCreate, tail: bool) -> Vec<Op> {
+        let idx = self
+            .env
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|&(_, v)| v == node.variable.name())
+            .unwrap()
+            .0;
+        self.env.push(*node.variable.name());
+        vec![Op::Boxify(idx)]
+    }
+
+    fn compile_box_write(&mut self, node: &BoxWrite, tail: bool) -> Vec<Op> {
+        let mut meaning = self.compile(&node.reference, false);
+        meaning.push(Op::PushVal);
+        meaning.extend(self.compile(&node.form, false));
+        meaning.push(Op::BoxSet);
+        meaning
+    }
+
+    fn compile_box_read(&mut self, node: &BoxRead, tail: bool) -> Vec<Op> {
+        let mut meaning = self.compile(&node.reference, false);
+        meaning.push(Op::BoxGet);
         meaning
     }
 }

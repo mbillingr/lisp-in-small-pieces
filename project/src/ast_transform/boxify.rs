@@ -7,20 +7,20 @@ use crate::source::SourceLocation;
 use crate::value::Value;
 
 #[derive(Debug, Clone)]
-struct BoxRead {
+pub struct BoxRead {
     pub reference: AstNode,
     span: SourceLocation,
 }
 
 #[derive(Debug, Clone)]
-struct BoxWrite {
+pub struct BoxWrite {
     pub reference: AstNode,
     pub form: AstNode,
     span: SourceLocation,
 }
 
 #[derive(Debug, Clone)]
-struct BoxCreate {
+pub struct BoxCreate {
     pub variable: Variable,
     span: SourceLocation,
 }
