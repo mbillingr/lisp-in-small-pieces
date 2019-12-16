@@ -18,9 +18,7 @@ pub trait Ast: std::fmt::Debug + Downcast {
 
     fn default_transform(self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode;
 
-    fn deep_clone(&self) -> AstNode {
-        unimplemented!("deep clone {:?}", self)
-    }
+    fn deep_clone(&self) -> AstNode;
 
     fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
         unimplemented!("eval {:?}", self)
@@ -584,7 +582,7 @@ impl Ast for Function {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RegularApplication {
     pub function: AstNode,
     pub arguments: Vec<AstNode>,
@@ -614,6 +612,10 @@ impl Ast for RegularApplication {
             .map(|a| a.transform(visitor))
             .collect();
         self
+    }
+
+    fn deep_clone(&self) -> AstNode {
+        Ref::new(self.clone())
     }
 
     fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {

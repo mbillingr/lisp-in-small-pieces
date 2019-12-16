@@ -8,7 +8,7 @@ use crate::{
     error::{Error, ErrorContext},
     language::scheme::{
         add, cons, divide, expand_alternative, expand_assign, expand_begin, expand_lambda,
-        expand_quote, is_eq, multiply, subtract,
+        expand_quote, is_eq, is_less, multiply, subtract,
     },
     objectify::Translate,
     scm::Scm,
@@ -28,6 +28,10 @@ pub fn repl() {
     env.predef.extend(Variable::predefined(
         "eq?",
         FunctionDescription::new(Arity::Exact(2), "eq? a b"),
+    ));
+    env.predef.extend(Variable::predefined(
+        "<",
+        FunctionDescription::new(Arity::Exact(2), "< a b"),
     ));
     env.predef.extend(Variable::predefined(
         "*",
@@ -61,6 +65,7 @@ pub fn repl() {
     let mut runtime_predef = vec![
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), cons)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), is_eq)),
+        Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), is_less)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), multiply)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), divide)),
         Scm::Primitive(RuntimePrimitive::new(Arity::Exact(2), add)),

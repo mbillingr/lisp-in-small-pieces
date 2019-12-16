@@ -57,6 +57,13 @@ pub mod scheme {
         }
     }
 
+    pub fn is_less(args: &[Scm]) -> Scm {
+        match &args[..] {
+            [a, b] => Scm::bool(Scm::num_less(a, b).unwrap()),
+            _ => unreachable!(),
+        }
+    }
+
     pub fn multiply(args: &[Scm]) -> Scm {
         match args[..] {
             [a, b] => (a * b).unwrap(),

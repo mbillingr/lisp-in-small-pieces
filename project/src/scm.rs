@@ -62,6 +62,13 @@ impl Scm {
         Scm::String(Box::leak(s.into()))
     }
 
+    pub fn is_false(&self) -> bool {
+        match self {
+            Scm::False => true,
+            _ => false,
+        }
+    }
+
     pub fn ptr_eq(&self, other: &Self) -> bool {
         use Scm::*;
         match (self, other) {
@@ -96,10 +103,14 @@ impl Scm {
         }
     }
 
-    pub fn is_false(&self) -> bool {
-        match self {
-            Scm::False => true,
-            _ => false,
+    pub fn num_less(&self, other: &Self) -> Result<bool> {
+        use Scm::*;
+        match (*self, *other) {
+            (Int(a), Int(b)) => Ok(a < b),
+            (Int(a), Float(b)) => Ok((a as f64) < b),
+            (Float(a), Int(b)) => Ok(a < (b as f64)),
+            (Float(a), Float(b)) => Ok(a < b),
+            _ => Err(Error::TypeError),
         }
     }
 }
