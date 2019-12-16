@@ -546,6 +546,19 @@ impl Function {
             span,
         })
     }
+
+    pub fn arity(&self) -> Arity {
+        if self
+            .variables
+            .last()
+            .map(Variable::is_dotted)
+            .unwrap_or(false)
+        {
+            Arity::AtLeast(self.variables.len() as u16 - 1)
+        } else {
+            Arity::Exact(self.variables.len() as u16)
+        }
+    }
 }
 
 impl Ast for Function {

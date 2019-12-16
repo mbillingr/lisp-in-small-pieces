@@ -1,3 +1,4 @@
+use crate::ast::Arity;
 use crate::scm::Scm;
 use crate::source::{Source, SourceLocation};
 use lazy_static::lazy_static;
@@ -13,6 +14,7 @@ pub enum Error {
 #[derive(Debug)]
 pub struct CodeObject {
     source: SourceLocation,
+    arity: Arity,
     constants: Box<[Scm]>,
     code: Box<[Op]>,
 }
@@ -44,12 +46,14 @@ pub enum Op {
 
 impl CodeObject {
     pub fn new(
+        arity: Arity,
         source: SourceLocation,
         code: impl Into<Box<[Op]>>,
         constants: impl Into<Box<[Scm]>>,
     ) -> Self {
         CodeObject {
             source,
+            arity,
             constants: constants.into(),
             code: code.into(),
         }
@@ -65,6 +69,7 @@ pub struct VirtualMachine {
 
 thread_local! {
     static HALT: &'static CodeObject = Box::leak(Box::new(CodeObject {
+            arity: Arity::Exact(0),
             source: SourceLocation::NoSource,
             constants: Box::new([]),
             code: Box::new([Op::Halt]),
@@ -118,32 +123,33 @@ impl VirtualMachine {
                     }
                     val = Scm::closure(func, vars);
                 }
-                Op::Call(arity) => match val {
+                Op::Call(nargs) => match val {
                     Scm::Closure(cc, fv) => {
+                        let n_locals = self.convert_args(cc.arity, nargs);
+
                         self.call_stack.push((frame_offset, ip, code, free));
-                        frame_offset = self.value_stack.len() - arity;
+                        frame_offset = self.value_stack.len() - n_locals;
+
                         ip = 0;
                         code = cc;
                         free = fv;
-
-                        unimplemented!("How should we deal with n-ary application?");
-                        // We have to figure at runtime if the correct number of arguments was
-                        // was supplied. If the last parameter is dotted it conses any excess
-                        // arguments...
                     }
                     Scm::Primitive(func) => {
-                        let n = self.value_stack.len() - arity;
+                        let n = self.value_stack.len() - nargs;
                         val = func.invoke(&self.value_stack[n..]);
                         self.value_stack.truncate(n);
                     }
                     _ => return Err(Error::NotCallable),
                 },
-                Op::TailCall(arity) => match val {
+                Op::TailCall(nargs) => match val {
                     Scm::Closure(cc, fv) => {
-                        let new_frame_offset = self.value_stack.len() - arity;
+                        let n_locals = self.convert_args(cc.arity, nargs);
+
+                        let new_frame_offset = self.value_stack.len() - n_locals;
                         self.value_stack
                             .copy_within(new_frame_offset.., frame_offset);
-                        self.value_stack.truncate(frame_offset + arity);
+                        self.value_stack.truncate(frame_offset + n_locals);
+
                         ip = 0;
                         code = cc;
                         free = fv;
@@ -163,6 +169,25 @@ impl VirtualMachine {
                 Op::Drop(n) => {
                     self.value_stack.truncate(self.value_stack.len() - n);
                 }
+            }
+        }
+    }
+
+    fn convert_args(&mut self, arity: Arity, n_passed: usize) -> usize {
+        match arity {
+            Arity::Exact(n) => {
+                assert_eq!(n as usize, n_passed);
+                n_passed
+            }
+            Arity::AtLeast(n) => {
+                assert!(n_passed >= n as usize);
+                self.push_value(Scm::nil());
+                for _ in (0..n_passed - n as usize) {
+                    let b = self.pop_value().unwrap();
+                    let a = self.pop_value().unwrap();
+                    self.push_value(Scm::cons(a, b));
+                }
+                1 + n as usize
             }
         }
     }

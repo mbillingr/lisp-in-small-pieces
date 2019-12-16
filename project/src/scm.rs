@@ -32,6 +32,10 @@ impl Scm {
         Scm::Uninitialized
     }
 
+    pub fn nil() -> Self {
+        Self::Nil
+    }
+
     pub fn cons(car: Scm, cdr: Scm) -> Scm {
         Scm::Pair(Box::leak(Box::new((Cell::new(car), Cell::new(cdr)))))
     }
