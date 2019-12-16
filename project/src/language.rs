@@ -50,42 +50,38 @@ pub mod scheme {
         Scm::cons(car, cdr)
     }
 
-    /*pub fn is_eq(args: &[Scm]) -> Scm {
+    pub fn is_eq(args: &[Scm]) -> Scm {
         match &args[..] {
-            [a, b] => Value::bool(Scm::is_eq(a, b)),
+            [a, b] => Scm::bool(Scm::ptr_eq(a, b)),
             _ => unreachable!(),
         }
     }
 
     pub fn multiply(args: &[Scm]) -> Scm {
         match args[..] {
-            [Value::Int(a), Value::Int(b)] => Value::Int(a * b),
-            [_, _] => panic!("Invalid operand types in multiplication"),
+            [a, b] => (a * b).unwrap(),
             _ => unreachable!(),
         }
     }
 
     pub fn divide(args: &[Scm]) -> Scm {
         match args[..] {
-            [Value::Int(a), Value::Int(b)] => Value::Int(a / b),
-            [_, _] => panic!("Invalid operand types in division"),
+            [a, b] => (a / b).unwrap(),
             _ => unreachable!(),
         }
     }
 
     pub fn add(args: &[Scm]) -> Scm {
         match args[..] {
-            [Value::Int(a), Value::Int(b)] => Value::Int(a + b),
-            [_, _] => panic!("Invalid operand types in addition"),
+            [a, b] => (a + b).unwrap(),
             _ => unreachable!(),
         }
     }
 
     pub fn subtract(args: &[Scm]) -> Scm {
         match args[..] {
-            [Value::Int(a), Value::Int(b)] => Value::Int(a - b),
-            [_, _] => panic!("Invalid operand types in subtraction"),
+            [a, b] => (a - b).unwrap(),
             _ => unreachable!(),
         }
-    }*/
+    }
 }

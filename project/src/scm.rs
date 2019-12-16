@@ -27,6 +27,13 @@ pub enum Scm {
     Cell(&'static Cell<Scm>),
 }
 
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
+pub enum Error {
+    TypeError,
+}
+
 impl Scm {
     pub fn uninitialized() -> Self {
         Scm::Uninitialized
@@ -34,6 +41,13 @@ impl Scm {
 
     pub fn nil() -> Self {
         Self::Nil
+    }
+
+    pub fn bool(b: bool) -> Self {
+        match b {
+            true => Scm::True,
+            false => Scm::False,
+        }
     }
 
     pub fn cons(car: Scm, cdr: Scm) -> Scm {
@@ -46,6 +60,23 @@ impl Scm {
 
     pub fn string(s: impl Into<Box<str>>) -> Self {
         Scm::String(Box::leak(s.into()))
+    }
+
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        use Scm::*;
+        match (self, other) {
+            (Nil, Nil) => true,
+            (True, True) => true,
+            (False, False) => true,
+            (Int(a), Int(b)) => a == b,
+            (Float(a), Float(b)) => a == b,
+            (Symbol(a), Symbol(b)) => a.ptr_eq(b),
+            (String(a), String(b)) => *a as *const str == *b as *const str,
+            (Vector(a), Vector(b)) => *a as *const _ == *b as *const _,
+            (Pair(a), Pair(b)) => *a as *const _ == *b as *const _,
+            (Cell(a), Cell(b)) => *a as *const _ == *b as *const _,
+            _ => false,
+        }
     }
 
     pub fn equals(&self, other: &Self) -> bool {
@@ -153,5 +184,61 @@ impl From<&Sexpr> for Scm {
 impl From<&TrackedSexpr> for Scm {
     fn from(e: &TrackedSexpr) -> Self {
         (&e.sexpr).into()
+    }
+}
+
+impl std::ops::Mul for Scm {
+    type Output = Result<Scm>;
+    fn mul(self, other: Self) -> Self::Output {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Int(a * b)),
+            (Int(a), Float(b)) => Ok(Float(a as f64 * b)),
+            (Float(a), Int(b)) => Ok(Float(a * b as f64)),
+            (Float(a), Float(b)) => Ok(Float(a * b)),
+            _ => Err(Error::TypeError),
+        }
+    }
+}
+
+impl std::ops::Div for Scm {
+    type Output = Result<Scm>;
+    fn div(self, other: Self) -> Self::Output {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Float(a as f64 / b as f64)),
+            (Int(a), Float(b)) => Ok(Float(a as f64 / b)),
+            (Float(a), Int(b)) => Ok(Float(a / b as f64)),
+            (Float(a), Float(b)) => Ok(Float(a / b)),
+            _ => Err(Error::TypeError),
+        }
+    }
+}
+
+impl std::ops::Add for Scm {
+    type Output = Result<Scm>;
+    fn add(self, other: Self) -> Self::Output {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Int(a + b)),
+            (Int(a), Float(b)) => Ok(Float(a as f64 + b)),
+            (Float(a), Int(b)) => Ok(Float(a + b as f64)),
+            (Float(a), Float(b)) => Ok(Float(a + b)),
+            _ => Err(Error::TypeError),
+        }
+    }
+}
+
+impl std::ops::Sub for Scm {
+    type Output = Result<Scm>;
+    fn sub(self, other: Self) -> Self::Output {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Int(a - b)),
+            (Int(a), Float(b)) => Ok(Float(a as f64 - b)),
+            (Float(a), Int(b)) => Ok(Float(a - b as f64)),
+            (Float(a), Float(b)) => Ok(Float(a - b)),
+            _ => Err(Error::TypeError),
+        }
     }
 }
