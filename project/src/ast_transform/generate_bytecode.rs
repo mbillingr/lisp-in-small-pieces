@@ -118,14 +118,7 @@ impl BytecodeGenerator {
     }
 
     fn compile_local_ref(&mut self, node: &LocalReference, tail: bool) -> Vec<Op> {
-        let idx = self
-            .env
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|&(_, v)| v == node.variable().name())
-            .unwrap()
-            .0;
+        let idx = self.index_of_local(node.variable().name());
         vec![Op::LocalRef(idx)]
     }
 
@@ -246,16 +239,32 @@ impl BytecodeGenerator {
     }
 
     fn compile_box_write(&mut self, node: &BoxWrite, tail: bool) -> Vec<Op> {
-        let mut meaning = self.compile(&node.reference, false);
-        meaning.push(Op::PushVal);
-        meaning.extend(self.compile(&node.form, false));
-        meaning.push(Op::BoxSet);
+        let reference = node
+            .reference
+            .downcast_ref::<LocalReference>()
+            .expect("LocalReference");
+        let idx = self.index_of_local(reference.variable().name());
+        let mut meaning = self.compile(&node.form, false);
+        meaning.push(Op::BoxSet(idx));
         meaning
     }
 
     fn compile_box_read(&mut self, node: &BoxRead, tail: bool) -> Vec<Op> {
-        let mut meaning = self.compile(&node.reference, false);
-        meaning.push(Op::BoxGet);
-        meaning
+        let reference = node
+            .reference
+            .downcast_ref::<LocalReference>()
+            .expect("LocalReference");
+        let idx = self.index_of_local(reference.variable().name());
+        vec![Op::BoxGet(idx)]
+    }
+
+    fn index_of_local(&self, name: &Symbol) -> usize {
+        self.env
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|&(_, v)| v == name)
+            .unwrap()
+            .0
     }
 }
