@@ -94,10 +94,11 @@ pub fn repl() {
 
                         let globals = trans.env.globals.clone();
                         let predef = trans.env.predef.clone();
-                        let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
-
                         println!("{:#?}", ast);
+
+                        let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
                         println!("{:?}", code);
+
                         //trans.global_env.update_runtime_globals(&mut sg);
                         //ast.eval(sr, sg);
 

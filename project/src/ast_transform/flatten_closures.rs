@@ -12,7 +12,7 @@ pub struct FlatClosure {
 }
 
 #[derive(Debug, Clone)]
-struct FreeReference {
+pub struct FreeReference {
     var: Variable,
     span: SourceLocation,
 }

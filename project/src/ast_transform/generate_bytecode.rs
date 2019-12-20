@@ -4,7 +4,7 @@ use crate::ast::{
     RegularApplication, Sequence, Transformer, Variable, Visited,
 };
 use crate::ast_transform::boxify::{BoxCreate, BoxRead, BoxWrite};
-use crate::ast_transform::flatten_closures::FlatClosure;
+use crate::ast_transform::flatten_closures::{FlatClosure, FreeReference};
 use crate::bytecode::{CodeObject, Op};
 use crate::env::{Env, Environment, GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::scm::Scm;
@@ -65,6 +65,7 @@ impl BytecodeGenerator {
             s as Sequence => self.compile_sequence(s, tail),
             a as Alternative => self.compile_alternative(a, tail),
             r as LocalReference => self.compile_local_ref(r, tail),
+            r as FreeReference => self.compile_free_ref(r, tail),
             r as GlobalReference => self.compile_global_ref(r, tail),
             r as PredefinedReference => self.compile_predef_ref(r, tail),
             r as GlobalAssignment => self.compile_global_set(r, tail),
@@ -120,6 +121,10 @@ impl BytecodeGenerator {
     fn compile_local_ref(&mut self, node: &LocalReference, tail: bool) -> Vec<Op> {
         let idx = self.index_of_local(node.variable().name());
         vec![Op::LocalRef(idx)]
+    }
+
+    fn compile_free_ref(&mut self, node: &FreeReference, tail: bool) -> Vec<Op> {
+        unimplemented!()
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, tail: bool) -> Vec<Op> {
@@ -242,7 +247,7 @@ impl BytecodeGenerator {
         let reference = node
             .reference
             .downcast_ref::<LocalReference>()
-            .expect("LocalReference");
+            .expect(&format!("expected LocalReference, got {:?}", node.reference));
         let idx = self.index_of_local(reference.variable().name());
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::BoxSet(idx));
@@ -253,7 +258,7 @@ impl BytecodeGenerator {
         let reference = node
             .reference
             .downcast_ref::<LocalReference>()
-            .expect("LocalReference");
+            .expect(&format!("expected LocalReference, got {:?}", node.reference));
         let idx = self.index_of_local(reference.variable().name());
         vec![Op::BoxGet(idx)]
     }
