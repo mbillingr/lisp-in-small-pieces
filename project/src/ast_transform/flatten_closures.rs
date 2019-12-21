@@ -13,7 +13,7 @@ pub struct FlatClosure {
 
 #[derive(Debug, Clone)]
 pub struct FreeReference {
-    var: Variable,
+    pub var: Variable,
     span: SourceLocation,
 }
 
@@ -126,6 +126,11 @@ impl Ast for FlatClosure {
 
     fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
         self.func.body = self.func.body.transform(visitor);
+        self.free_vars = self
+            .free_vars
+            .into_iter()
+            .map(|fv| fv.transform(visitor))
+            .collect();
         self
     }
 

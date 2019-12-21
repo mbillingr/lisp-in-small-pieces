@@ -23,6 +23,7 @@ pub struct CodeObject {
 pub enum Op {
     Constant(usize),
     LocalRef(usize),
+    FreeRef(usize),
     GlobalRef(usize),
     PredefRef(usize),
     GlobalSet(usize),
@@ -110,6 +111,7 @@ impl VirtualMachine {
                 Op::Constant(idx) => val = code.constants[idx],
                 Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
                 Op::GlobalRef(idx) => val = self.globals[idx],
+                Op::FreeRef(idx) => unimplemented!(),
                 Op::PredefRef(idx) => val = self.predef[idx],
                 Op::GlobalSet(idx) => self.globals[idx] = val,
                 Op::Boxify(idx) => {

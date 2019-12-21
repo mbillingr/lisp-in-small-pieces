@@ -1,3 +1,4 @@
+use crate::ast::Variable::Local;
 use crate::ast::{
     Alternative, Arity, Ast, AstNode, Constant, FixLet, Function, GlobalAssignment,
     GlobalReference, LocalReference, PredefinedApplication, PredefinedReference, Ref,
@@ -11,6 +12,7 @@ use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::value::Value;
+use std::ops::Index;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -19,15 +21,21 @@ pub struct BytecodeGenerator {
     predef: Environment,
     constants: Vec<Scm>,
     env: Vec<Symbol>,
+    current_closure_vars: Vec<Symbol>,
 }
 
 impl BytecodeGenerator {
-    pub fn new(globals: Environment, predef: Environment) -> Self {
+    pub fn new(
+        current_closure_vars: Vec<Symbol>,
+        globals: Environment,
+        predef: Environment,
+    ) -> Self {
         BytecodeGenerator {
             globals,
             predef,
             constants: vec![],
             env: vec![],
+            current_closure_vars,
         }
     }
 
@@ -36,7 +44,7 @@ impl BytecodeGenerator {
         globals: Environment,
         predef: Environment,
     ) -> CodeObject {
-        let mut bcgen = Self::new(globals, predef);
+        let mut bcgen = Self::new(vec![], globals, predef);
         let mut code = bcgen.compile(node, true);
         code.push(Op::Return);
         CodeObject::new(
@@ -49,10 +57,11 @@ impl BytecodeGenerator {
 
     pub fn compile_function(
         func: &Function,
+        closure_vars: Vec<Symbol>,
         globals: Environment,
         predef: Environment,
     ) -> CodeObject {
-        let mut bcgen = Self::new(globals, predef);
+        let mut bcgen = Self::new(closure_vars, globals, predef);
         bcgen.env = func.variables.iter().map(Variable::name).copied().collect();
         let mut code = bcgen.compile(&func.body, true);
         code.push(Op::Return);
@@ -124,7 +133,12 @@ impl BytecodeGenerator {
     }
 
     fn compile_free_ref(&mut self, node: &FreeReference, tail: bool) -> Vec<Op> {
-        unimplemented!()
+        let idx = self
+            .current_closure_vars
+            .iter()
+            .position(|fv| fv == node.var.name())
+            .unwrap();
+        vec![Op::FreeRef(idx)]
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, tail: bool) -> Vec<Op> {
@@ -165,8 +179,20 @@ impl BytecodeGenerator {
     }
 
     fn compile_closure(&mut self, node: &FlatClosure, tail: bool) -> Vec<Op> {
+        let free_vars = node
+            .free_vars
+            .iter()
+            .map(|s| {
+                *s.downcast_ref::<LocalReference>()
+                    .unwrap()
+                    .variable()
+                    .name()
+            })
+            .collect();
+
         let function = BytecodeGenerator::compile_function(
             &node.func,
+            free_vars,
             self.globals.clone(),
             self.predef.clone(),
         );
@@ -177,6 +203,7 @@ impl BytecodeGenerator {
         for fv in node.free_vars.iter().rev() {
             let m = self.compile(fv, false);
             meaning.extend(m);
+            meaning.push(Op::PushVal);
         }
 
         let n_free = node.free_vars.len();
@@ -247,7 +274,10 @@ impl BytecodeGenerator {
         let reference = node
             .reference
             .downcast_ref::<LocalReference>()
-            .expect(&format!("expected LocalReference, got {:?}", node.reference));
+            .expect(&format!(
+                "expected LocalReference, got {:?}",
+                node.reference
+            ));
         let idx = self.index_of_local(reference.variable().name());
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::BoxSet(idx));
@@ -258,7 +288,10 @@ impl BytecodeGenerator {
         let reference = node
             .reference
             .downcast_ref::<LocalReference>()
-            .expect(&format!("expected LocalReference, got {:?}", node.reference));
+            .expect(&format!(
+                "expected LocalReference, got {:?}",
+                node.reference
+            ));
         let idx = self.index_of_local(reference.variable().name());
         vec![Op::BoxGet(idx)]
     }
