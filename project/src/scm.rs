@@ -1,5 +1,5 @@
 use crate::ast::RuntimePrimitive;
-use crate::bytecode::CodeObject;
+use crate::bytecode::{Closure, CodeObject};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use std::cell::Cell;
@@ -19,7 +19,7 @@ pub enum Scm {
 
     Pair(&'static (Cell<Scm>, Cell<Scm>)),
 
-    Closure(&'static CodeObject, &'static [Scm]),
+    Closure(&'static Closure),
     Primitive(RuntimePrimitive),
 
     /*Procedure(RuntimeProcedure),
@@ -59,7 +59,7 @@ impl Scm {
     }
 
     pub fn closure(func: &'static CodeObject, free_vars: impl Into<Box<[Scm]>>) -> Self {
-        Scm::Closure(func, Box::leak(free_vars.into()))
+        Scm::Closure(Box::leak(Box::new(Closure::new(func, free_vars.into()))))
     }
 
     pub fn string(s: impl Into<Box<str>>) -> Self {
@@ -176,7 +176,7 @@ impl std::fmt::Display for Scm {
                 }
                 write!(f, ")")
             }
-            Scm::Closure(code, fv) => write!(f, "<closure {:p}>", fv),
+            Scm::Closure(cls) => write!(f, "<closure {:p}>", *cls),
             Scm::Primitive(prim) => write!(f, "<primitive {:p}>", &prim.func),
             Scm::Cell(c) => write!(f, "{}", c.get()),
         }

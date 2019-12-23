@@ -16,7 +16,13 @@ pub struct CodeObject {
     source: SourceLocation,
     arity: Arity,
     constants: Box<[Scm]>,
-    code: Box<[Op]>,
+    ops: Box<[Op]>,
+}
+
+#[derive(Debug)]
+pub struct Closure {
+    code: &'static CodeObject,
+    free_vars: Box<[Scm]>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -49,6 +55,18 @@ pub enum Op {
     Drop(usize),
 }
 
+impl Closure {
+    pub fn new(code: &'static CodeObject, free_vars: Box<[Scm]>) -> Self {
+        Closure { code, free_vars }
+    }
+    pub fn simple(code: &'static CodeObject) -> Self {
+        Closure {
+            code,
+            free_vars: Box::new([]),
+        }
+    }
+}
+
 impl CodeObject {
     pub fn new(
         arity: Arity,
@@ -60,7 +78,7 @@ impl CodeObject {
             source,
             arity,
             constants: constants.into(),
-            code: code.into(),
+            ops: code.into(),
         }
     }
 }
@@ -69,15 +87,18 @@ pub struct VirtualMachine {
     globals: Vec<Scm>,
     predef: Vec<Scm>,
     value_stack: Vec<Scm>,
-    call_stack: Vec<(usize, isize, &'static CodeObject, &'static [Scm])>,
+    call_stack: Vec<(usize, isize, &'static Closure)>,
 }
 
 thread_local! {
-    static HALT: &'static CodeObject = Box::leak(Box::new(CodeObject {
+    static HALT: &'static Closure = Box::leak(Box::new(Closure{
+        code: Box::leak(Box::new(CodeObject {
             arity: Arity::Exact(0),
             source: SourceLocation::NoSource,
             constants: Box::new([]),
-            code: Box::new([Op::Halt]),
+            ops: Box::new([Op::Halt]),
+        })),
+        free_vars: Box::new([]),
         }));
 }
 
@@ -95,23 +116,22 @@ impl VirtualMachine {
         self.globals.resize(n, Scm::uninitialized())
     }
 
-    pub fn eval(&mut self, mut code: &'static CodeObject) -> Result<Scm> {
+    pub fn eval(&mut self, mut cls: &'static Closure) -> Result<Scm> {
         let mut val = Scm::Undefined;
-        let mut free: &[Scm] = &[];
 
         let mut ip: isize = 0;
         let mut frame_offset = 0;
 
-        self.call_stack.push((0, 0, HALT.with(|x| *x), &[]));
+        self.call_stack.push((0, 0, HALT.with(|x| *x)));
 
         loop {
-            let op = &code.code[ip as usize];
+            let op = &cls.code.ops[ip as usize];
             ip += 1;
             match *op {
-                Op::Constant(idx) => val = code.constants[idx],
+                Op::Constant(idx) => val = cls.code.constants[idx],
                 Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
                 Op::GlobalRef(idx) => val = self.globals[idx],
-                Op::FreeRef(idx) => unimplemented!(),
+                Op::FreeRef(idx) => val = cls.free_vars[idx],
                 Op::PredefRef(idx) => val = self.predef[idx],
                 Op::GlobalSet(idx) => self.globals[idx] = val,
                 Op::Boxify(idx) => {
@@ -142,15 +162,15 @@ impl VirtualMachine {
                     val = Scm::closure(func, vars);
                 }
                 Op::Call(nargs) => match val {
-                    Scm::Closure(cc, fv) => {
-                        let n_locals = self.convert_args(cc.arity, nargs);
+                    Scm::Closure(callee) => {
+                        let n_locals = self.convert_args(callee.code.arity, nargs);
 
-                        self.call_stack.push((frame_offset, ip, code, free));
+                        self.call_stack.push((frame_offset, ip, cls));
                         frame_offset = self.value_stack.len() - n_locals;
 
                         ip = 0;
-                        code = cc;
-                        free = fv;
+                        cls = callee;
+                        //free = fv;
                     }
                     Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
@@ -160,8 +180,8 @@ impl VirtualMachine {
                     _ => return Err(Error::NotCallable),
                 },
                 Op::TailCall(nargs) => match val {
-                    Scm::Closure(cc, fv) => {
-                        let n_locals = self.convert_args(cc.arity, nargs);
+                    Scm::Closure(callee) => {
+                        let n_locals = self.convert_args(callee.code.arity, nargs);
 
                         let new_frame_offset = self.value_stack.len() - n_locals;
                         self.value_stack
@@ -169,8 +189,8 @@ impl VirtualMachine {
                         self.value_stack.truncate(frame_offset + n_locals);
 
                         ip = 0;
-                        code = cc;
-                        free = fv;
+                        cls = callee;
+                        //free = fv;
                     }
                     _ => return Err(Error::NotCallable),
                 },
@@ -180,8 +200,7 @@ impl VirtualMachine {
                     let data = self.call_stack.pop().expect("call-stack underflow");
                     frame_offset = data.0;
                     ip = data.1;
-                    code = data.2;
-                    free = data.3;
+                    cls = data.2;
                 }
                 Op::Halt => return Ok(val),
                 Op::Drop(n) => {

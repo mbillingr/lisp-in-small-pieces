@@ -1,7 +1,7 @@
 use crate::ast_transform::boxify::Boxify;
 use crate::ast_transform::flatten_closures::Flatten;
 use crate::ast_transform::generate_bytecode::BytecodeGenerator;
-use crate::bytecode::VirtualMachine;
+use crate::bytecode::{Closure, VirtualMachine};
 use crate::{
     ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
     env::{Env, EnvAccess, EnvChain, GlobalRuntimeEnv},
@@ -103,10 +103,11 @@ pub fn repl() {
                         //ast.eval(sr, sg);
 
                         let code = Box::leak(Box::new(code));
+                        let closure = Box::leak(Box::new(Closure::simple(code)));
 
                         vm.resize_globals(trans.env.globals.len());
 
-                        Ok(vm.eval(code)?)
+                        Ok(vm.eval(closure)?)
                     });
 
                 match val {
