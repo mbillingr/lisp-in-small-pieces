@@ -1,14 +1,66 @@
 pub mod scheme {
     use crate::ast::AstNode;
     use crate::ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive};
+    use crate::ast_transform::boxify::Boxify;
+    use crate::ast_transform::flatten_closures::Flatten;
+    use crate::ast_transform::generate_bytecode::BytecodeGenerator;
+    use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
+    use crate::error::Error;
     use crate::objectify::{car, cdr, Translate};
-    use crate::objectify::{decons, Result};
+    use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
     use crate::scm::Scm;
     use crate::sexpr::TrackedSexpr;
+    use crate::source::Source;
     use crate::value::Value;
     use crate::Variable;
+
+    type Result<T> = std::result::Result<T, Error>;
+
+    pub struct Context {
+        trans: Translate,
+        vm: VirtualMachine,
+    }
+
+    impl Context {
+        pub fn new() -> Self {
+            let (env, runtime_predef) = init_env();
+
+            let mut trans = Translate::new(env);
+
+            let mut vm = VirtualMachine::new(vec![], runtime_predef);
+
+            Context { trans, vm }
+        }
+
+        pub fn eval_str(&mut self, src: &str) -> Result<Scm> {
+            self.eval_source(&src.into())
+        }
+
+        pub fn eval_source(&mut self, src: &Source) -> Result<Scm> {
+            let sexpr = TrackedSexpr::from_source(src)?;
+            self.eval_sexpr(&sexpr)
+        }
+
+        pub fn eval_sexpr(&mut self, sexpr: &TrackedSexpr) -> Result<Scm> {
+            let ast = self
+                .trans
+                .objectify_toplevel(sexpr)?
+                .transform(&mut Boxify)
+                .transform(&mut Flatten::new());
+
+            let globals = self.trans.env.globals.clone();
+            let predef = self.trans.env.predef.clone();
+
+            let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
+            let code = Box::leak(Box::new(code));
+            let closure = Box::leak(Box::new(Closure::simple(code)));
+
+            self.vm.resize_globals(self.trans.env.globals.len());
+            Ok(self.vm.eval(closure)?)
+        }
+    }
 
     macro_rules! predef {
         () => {
@@ -47,24 +99,37 @@ pub mod scheme {
             primitive "-", =2, subtract,
 
             macro "lambda", expand_lambda,
+            macro "begin", expand_begin,
             macro "set!", expand_assign,
             macro "if", expand_alternative,
             macro "quote", expand_quote,
         }
     }
 
-    pub fn expand_lambda(trans: &mut Translate, expr: &TrackedSexpr, env: &Env) -> Result<AstNode> {
+    pub fn expand_lambda(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<AstNode> {
         let def = &cdr(expr)?;
         let names = car(def)?;
         let body = cdr(def)?;
         trans.objectify_function(names, &body, env, expr.source().clone())
     }
 
-    pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr, env: &Env) -> Result<AstNode> {
+    pub fn expand_begin(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<AstNode> {
         trans.objectify_sequence(&cdr(expr)?, env)
     }
 
-    pub fn expand_assign(trans: &mut Translate, expr: &TrackedSexpr, env: &Env) -> Result<AstNode> {
+    pub fn expand_assign(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<AstNode> {
         let parts = expr.as_proper_list().ok_or(ObjectifyError {
             kind: ObjectifyErrorKind::ExpectedList,
             location: expr.source().clone(),
@@ -72,7 +137,11 @@ pub mod scheme {
         trans.objectify_assignment(&parts[1], &parts[2], env, expr.source().clone())
     }
 
-    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr, env: &Env) -> Result<AstNode> {
+    pub fn expand_quote(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<AstNode> {
         let body = &cdr(expr)?;
         trans.objectify_quotation(car(body)?, env)
     }
@@ -81,7 +150,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
-    ) -> Result<AstNode> {
+    ) -> ObjectifyResult<AstNode> {
         let rest = cdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
