@@ -59,3 +59,48 @@ impl std::fmt::Display for ErrorKind {
         }
     }
 }
+
+impl PartialEq<ObjectifyErrorKind> for Error {
+    fn eq(&self, other: &ObjectifyErrorKind) -> bool {
+        match self.kind {
+            ErrorKind::Objectify(ref e) => e == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Error> for ObjectifyErrorKind {
+    fn eq(&self, other: &Error) -> bool {
+        other.eq(self)
+    }
+}
+
+impl PartialEq<ParseErrorKind> for Error {
+    fn eq(&self, other: &ParseErrorKind) -> bool {
+        match self.kind {
+            ErrorKind::Parse(ref e) => e == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Error> for ParseErrorKind {
+    fn eq(&self, other: &Error) -> bool {
+        other.eq(self)
+    }
+}
+
+impl PartialEq<BytecodeError> for Error {
+    fn eq(&self, other: &BytecodeError) -> bool {
+        match self.kind {
+            ErrorKind::Runtime(ref e) => e == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Error> for BytecodeError {
+    fn eq(&self, other: &Error) -> bool {
+        other.eq(self)
+    }
+}

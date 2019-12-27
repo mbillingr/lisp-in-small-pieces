@@ -16,7 +16,7 @@ pub struct ObjectifyError {
     pub location: SourceLocation,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {
     NoPair,
     IncorrectArity,

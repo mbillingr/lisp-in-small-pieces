@@ -238,6 +238,31 @@ pub mod scheme {
             };
         }
 
+        macro_rules! assert_error {
+            ($name:ident: $src:expr, $expect:expr) => {
+                #[test]
+                fn $name() {
+                    match Context::new().eval_str($src) {
+                        Ok(r) => panic!(
+                            r#"assertion failed:
+         expression: `{}`
+       evaluates to: `{}`,
+ but expected error: `{:?}`"#,
+                            $src, r, $expect
+                        ),
+                        Err(e) if e == $expect => {}
+                        Err(e) => panic!(
+                            r#"assertion failed:
+          expression: `{}`
+        causes error: `{:?}`,
+  but expected error: `{:?}`"#,
+                            $src, e.kind, $expect
+                        ),
+                    }
+                }
+            };
+        }
+
         mod self_evaluating {
             use super::*;
             use crate::symbol::Symbol;
@@ -249,7 +274,28 @@ pub mod scheme {
             compare!(float: "3.1415", equals, Scm::Float(3.1415));
             compare!(symbol: "'foobar", ptr_eq, Scm::Symbol(Symbol::new("foobar")));
             compare!(string: "\"text\"", equals, Scm::String("text"));
-            compare!(vector: "#(1 2 3)", equals, Scm::vector(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+            compare!(vector: "#(1 2 3)",
+                     equals, Scm::vector(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+        }
+
+        mod compound {
+            use super::*;
+            use crate::symbol::Symbol;
+
+            assert_error!(empty_sequence: "(begin)", ObjectifyErrorKind::ExpectedList);
+            compare!(unary_sequence: "(begin 1)", equals, Scm::Int(1));
+            compare!(binary_sequence: "(begin 1 2)", equals, Scm::Int(2));
+            compare!(ternary_sequence: "(begin 1 2 3)", equals, Scm::Int(3));
+            compare!(sequence_evaluates_sideeffects:
+                     "((lambda (x) (begin (set! x 42) 2 x)) 0)", equals, Scm::Int(42));
+            compare!(true_branch: "(if #t 1 2)", equals, Scm::Int(1));
+            compare!(false_branch: "(if #f 1 2)", equals, Scm::Int(2));
+            compare!(one_branch: "(if #t 1)", equals, Scm::Int(1));
+            compare!(no_else_branch_is_undefined: "(if #f 1)", equals, Scm::Undefined);
+            compare!(if_does_not_evaluate_first_branch:
+                     "((lambda (x) (if #f (set! x 99) 'f) x) 0)", equals, Scm::Int(0));
+            compare!(if_does_not_evaluate_second_branch:
+                     "((lambda (x) (if #t 't (set! x 99)) x) 0)", equals, Scm::Int(0));
         }
     }
 }

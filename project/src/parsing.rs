@@ -14,7 +14,7 @@ pub struct ParseError<'a> {
     fatal: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ParseErrorKind {
     Context(&'static str),
     Char(Option<char>),
