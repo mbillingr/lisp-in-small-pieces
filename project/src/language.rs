@@ -205,4 +205,51 @@ pub mod scheme {
             _ => unreachable!(),
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        impl PartialEq for Scm {
+            fn eq(&self, rhs: &Self) -> bool {
+                self.equals(rhs)
+            }
+        }
+
+        macro_rules! compare {
+            ($name:ident: $src:expr, $cmp:ident, $expect:expr) => {
+                #[test]
+                fn $name() {
+                    let result = Context::new().eval_str($src).expect(concat!(
+                        "Could not evaluate `",
+                        $src,
+                        "`"
+                    ));
+                    if !result.$cmp(&$expect) {
+                        panic!(
+                            r#"assertion failed: `(eq? actual expected)`
+   expression: `{}`
+ evaluates to: `{}`,
+ but expected: `{}`"#,
+                            $src, result, $expect
+                        )
+                    }
+                }
+            };
+        }
+
+        mod self_evaluating {
+            use super::*;
+            use crate::symbol::Symbol;
+
+            compare!(boolean_true: "#t", equals, Scm::True);
+            compare!(boolean_false: "#f", equals, Scm::False);
+            compare!(nil: "'()", equals, Scm::Nil);
+            compare!(integer: "42", equals, Scm::Int(42));
+            compare!(float: "3.1415", equals, Scm::Float(3.1415));
+            compare!(symbol: "'foobar", ptr_eq, Scm::Symbol(Symbol::new("foobar")));
+            compare!(string: "\"text\"", equals, Scm::String("text"));
+            compare!(vector: "#(1 2 3)", equals, Scm::vector(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+        }
+    }
 }

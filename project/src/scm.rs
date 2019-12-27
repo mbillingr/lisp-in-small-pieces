@@ -66,6 +66,12 @@ impl Scm {
         Scm::String(Box::leak(s.into()))
     }
 
+    pub fn vector(items: impl IntoIterator<Item = Scm>) -> Self {
+        let v: Vec<Cell<Scm>> = items.into_iter().map(Cell::new).collect();
+        let static_data = Box::leak(v.into_boxed_slice());
+        Scm::Vector(static_data)
+    }
+
     pub fn is_false(&self) -> bool {
         match self {
             Scm::False => true,
