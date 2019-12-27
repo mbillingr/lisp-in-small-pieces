@@ -66,16 +66,73 @@ impl Scm {
         Scm::String(Box::leak(s.into()))
     }
 
+    pub fn list(items: impl IntoIterator<Item = Scm>) -> Self {
+        let mut head = Scm::Nil;
+        let mut last_pair = Scm::Nil;
+        for x in items {
+            if last_pair.is_nil() {
+                head = Scm::cons(x, Scm::Nil);
+                last_pair = head;
+            } else {
+                let new_pair = Scm::cons(x, Scm::Nil);
+                last_pair.set_cdr(new_pair);
+                last_pair = new_pair;
+            }
+        }
+        head
+    }
+
     pub fn vector(items: impl IntoIterator<Item = Scm>) -> Self {
         let v: Vec<Cell<Scm>> = items.into_iter().map(Cell::new).collect();
         let static_data = Box::leak(v.into_boxed_slice());
         Scm::Vector(static_data)
     }
 
+    pub fn is_nil(&self) -> bool {
+        match self {
+            Scm::Nil => true,
+            _ => false,
+        }
+    }
+
     pub fn is_false(&self) -> bool {
         match self {
             Scm::False => true,
             _ => false,
+        }
+    }
+
+    pub fn car(&self) -> Option<Scm> {
+        match self {
+            Scm::Pair(p) => Some(p.0.get()),
+            _ => None,
+        }
+    }
+
+    pub fn cdr(&self) -> Option<Scm> {
+        match self {
+            Scm::Pair(p) => Some(p.1.get()),
+            _ => None,
+        }
+    }
+
+    pub fn set_car(&self, x: Scm) -> Option<()> {
+        match self {
+            Scm::Pair(p) => {
+                p.0.set(x);
+                Some(())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn set_cdr(&self, x: Scm) -> Option<()> {
+        match self {
+            Scm::Pair(p) => {
+                p.1.set(x);
+                Some(())
+            }
+            _ => None,
         }
     }
 

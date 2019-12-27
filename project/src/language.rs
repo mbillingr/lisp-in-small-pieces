@@ -276,6 +276,13 @@ pub mod scheme {
             compare!(string: "\"text\"", equals, Scm::String("text"));
             compare!(vector: "#(1 2 3)",
                      equals, Scm::vector(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+            compare!(quoted_pair: "(quote (1 . 2))",
+                     equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+            compare!(quoted_list: "(quote (1 2 3))",
+                     equals, Scm::list(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+            compare!(quote_abbreviation: "(quote 'x)",
+                     equals, Scm::list(vec![Scm::Symbol(Symbol::new("quote")),
+                                            Scm::Symbol(Symbol::new("x"))]));
         }
 
         mod compound {
@@ -288,6 +295,7 @@ pub mod scheme {
             compare!(ternary_sequence: "(begin 1 2 3)", equals, Scm::Int(3));
             compare!(sequence_evaluates_sideeffects:
                      "((lambda (x) (begin (set! x 42) 2 x)) 0)", equals, Scm::Int(42));
+
             compare!(true_branch: "(if #t 1 2)", equals, Scm::Int(1));
             compare!(false_branch: "(if #f 1 2)", equals, Scm::Int(2));
             compare!(one_branch: "(if #t 1)", equals, Scm::Int(1));
@@ -296,6 +304,34 @@ pub mod scheme {
                      "((lambda (x) (if #f (set! x 99) 'f) x) 0)", equals, Scm::Int(0));
             compare!(if_does_not_evaluate_second_branch:
                      "((lambda (x) (if #t 't (set! x 99)) x) 0)", equals, Scm::Int(0));
+        }
+
+        mod abstraction {
+            use super::*;
+            use crate::symbol::Symbol;
+
+            compare!(fix_lambda: "((lambda () 123))", equals, Scm::Int(123));
+            compare!(fix_lambda_with_args: "((lambda (x y) (cons x (cons y '()))) 7 5)",
+                     equals, Scm::list(vec![Scm::Int(7), Scm::Int(5)]));
+            compare!(fix_lambda_with_var_args: "((lambda (x y . z) (cons (cons x y) z)) 1 2 3 4)",
+                     equals,
+                     Scm::list(vec![Scm::cons(Scm::Int(1), Scm::Int(2)), Scm::Int(3), Scm::Int(4)]));
+            compare!(lambda_as_arg: "((lambda (func) (func)) (lambda () 42))",
+                     equals, Scm::Int(42));
+            compare!(assign_lambda: "((lambda (func) (set! func (lambda () 753)) (func)) '*uninit*)",
+                     equals, Scm::Int(753));
+            compare!(assign_lambda_with_args:
+                     "((lambda (func) (set! func (lambda (x y) (+ x y))) (func 5 2)) '*uninit*)",
+                     equals, Scm::Int(7));
+            compare!(assign_lambda_with_var_args:
+                     "((lambda (func) (set! func (lambda abc abc)) (func 5 2)) '*uninit*)",
+                     equals, Scm::list(vec![Scm::Int(5), Scm::Int(2)]));
+            compare!(lambda_finds_free_variable_in_outer_scope:
+                     "((lambda (outer) ((lambda () outer))) 42)", equals, Scm::Int(42));
+            compare!(escaping_lambda_keeps_free_variable_from_outer_scope:
+                     "(((lambda (outer) (lambda () outer)) 42))", equals, Scm::Int(42));
+            compare!(lambda_can_modify_variable_in_outer_scope:
+                     "((lambda (outer) ((lambda () (set! outer 12))) outer) 42)", equals, Scm::Int(12));
         }
     }
 }
