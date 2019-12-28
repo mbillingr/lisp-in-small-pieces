@@ -44,16 +44,18 @@ pub mod scheme {
         }
 
         pub fn eval_sexpr(&mut self, sexpr: &TrackedSexpr) -> Result<Scm> {
-            let ast = self
-                .trans
-                .objectify_toplevel(sexpr)?
-                .transform(&mut Boxify)
-                .transform(&mut Flatten::new());
+            let ast = self.trans.objectify_toplevel(sexpr)?;
+            let ast = ast.transform(&mut Boxify);
+            //println!("{:#?}", ast);
+            let ast = ast.transform(&mut Flatten::new());
+
+            //println!("{:#?}", ast);
 
             let globals = self.trans.env.globals.clone();
             let predef = self.trans.env.predef.clone();
 
             let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
+            //println!("{:?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
@@ -194,7 +196,7 @@ pub mod scheme {
 
     pub fn add(args: &[Scm]) -> Scm {
         match args[..] {
-            [a, b] => (a + b).unwrap(),
+            [a, b] => (a + b).unwrap_or_else(|_| panic!("attempt to add {:?} and {:?}", a, b)),
             _ => unreachable!(),
         }
     }
@@ -357,8 +359,7 @@ pub mod scheme {
             compare!(lambda_can_modify_variable_in_outer_scope:
                      "((lambda (outer) ((lambda () (set! outer 12))) outer) 42)", equals, Scm::Int(12));
             compare!(escaping_lambda_can_modify_free_variable_from_outer_scope:
-                     "((lambda (f init) (set! f (init 0)) (f) (f))
-                       '*uninit* (lambda (n) (lambda () (set! n (+ n 1)) n)))",
+                     "((lambda (f init) (set! f (init 0)) (f) (f)) '*uninit* (lambda (n) (lambda () (set! n (+ n 1)) n)))",
                      equals, Scm::Int(2));
             compare!(shadowed_global_is_restored: "(begin (set! foo 123) ((lambda (foo) foo) 42) foo)", equals, Scm::Int(123));
             compare!(shadowed_local_is_restored: "((lambda (x) ((lambda (x) x) 42) x) 123)", equals, Scm::Int(123));
@@ -382,6 +383,9 @@ pub mod scheme {
             compare!(local_shadows_local: "((lambda (foo) ((lambda (foo) foo) 123)) 42)", equals, Scm::Int(123));
 
             compare!(modify_local: "((lambda (x) (set! x 789) x) 42)", equals, Scm::Int(789));
+
+            compare!(modify_free: "(((lambda (x) (lambda () (set! x 21) (+ x x))) 0))", equals, Scm::Int(42));
+            compare!(access_free_while_setting: "(((lambda (x) (lambda () (set! x x) x)) 0))", equals, Scm::Int(0));
         }
 
         mod application {

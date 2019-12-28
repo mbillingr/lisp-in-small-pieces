@@ -48,10 +48,10 @@ impl Boxify {
         }
     }
 
-    fn transform_local_assignment(&self, node: &LocalAssignment) -> AstNode {
+    fn transform_local_assignment(&mut self, node: &LocalAssignment) -> AstNode {
         BoxWrite::new(
             Ref::new(node.reference.clone()),
-            node.form.clone(),
+            node.form.clone().transform(self),
             node.source().clone(),
         )
     }
