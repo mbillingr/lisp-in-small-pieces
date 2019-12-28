@@ -22,8 +22,6 @@ pub enum Scm {
     Closure(&'static Closure),
     Primitive(RuntimePrimitive),
 
-    /*Procedure(RuntimeProcedure),
-    Primitive(RuntimePrimitive),*/
     Cell(&'static Cell<Scm>),
 }
 

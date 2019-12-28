@@ -13,7 +13,6 @@ pub mod scheme {
     use crate::scm::Scm;
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
-    use crate::value::Value;
     use crate::Variable;
 
     type Result<T> = std::result::Result<T, Error>;

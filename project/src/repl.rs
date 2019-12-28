@@ -4,7 +4,7 @@ use crate::ast_transform::generate_bytecode::BytecodeGenerator;
 use crate::bytecode::{Closure, VirtualMachine};
 use crate::{
     ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
-    env::{Env, EnvAccess, EnvChain, GlobalRuntimeEnv},
+    env::Env,
     error::{Error, ErrorContext},
     language::scheme::Context,
     objectify::Translate,

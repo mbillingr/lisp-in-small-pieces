@@ -12,15 +12,13 @@ mod scm;
 mod sexpr;
 mod source;
 mod symbol;
-mod value;
 
 use crate::ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
-use crate::env::EnvChain;
 use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
 use crate::objectify::Translate;
 use crate::source::SourceLocation::NoSource;
 use ast::{Alternative, AstNode, Constant, Transformer, Visited};
-use env::{Env, EnvAccess, GlobalRuntimeEnv};
+use env::Env;
 use lexpr::sexp;
 use repl::repl;
 use std::collections::HashMap;

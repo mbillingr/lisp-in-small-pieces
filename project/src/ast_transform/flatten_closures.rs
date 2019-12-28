@@ -1,9 +1,7 @@
 use crate::ast::{
     Ast, AstNode, FixLet, Function, LocalReference, Ref, Transformer, Variable, Visited,
 };
-use crate::env::{GlobalRuntimeEnv, LexicalRuntimeEnv};
 use crate::source::SourceLocation;
-use crate::value::Value;
 
 #[derive(Debug, Clone)]
 pub struct FlatClosure {
@@ -137,10 +135,6 @@ impl Ast for FlatClosure {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        unimplemented!()
-    }
 }
 
 impl FreeReference {
@@ -160,9 +154,5 @@ impl Ast for FreeReference {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        unimplemented!()
     }
 }

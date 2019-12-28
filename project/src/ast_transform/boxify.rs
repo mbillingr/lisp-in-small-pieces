@@ -2,9 +2,8 @@ use crate::ast::{
     Ast, AstNode, FixLet, Function, LocalAssignment, LocalReference, Ref, Sequence, Transformer,
     Variable, Visited,
 };
-use crate::env::{GlobalRuntimeEnv, LexicalRuntimeEnv};
+use crate::scm::Scm;
 use crate::source::SourceLocation;
-use crate::value::Value;
 
 #[derive(Debug, Clone)]
 pub struct BoxRead {
@@ -96,10 +95,6 @@ impl Ast for BoxRead {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        self.reference.eval(sr, sg).get()
-    }
 }
 
 impl BoxWrite {
@@ -126,11 +121,6 @@ impl Ast for BoxWrite {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        self.reference.eval(sr, sg).set(self.form.eval(sr, sg));
-        Value::Undefined
-    }
 }
 
 impl BoxCreate {
@@ -150,14 +140,6 @@ impl Ast for BoxCreate {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        let x = sr.get_lexical(self.variable.name());
-        unsafe {
-            sr.set_lexical(self.variable.name(), Value::boxed(x));
-        }
-        Value::Undefined
     }
 }
 

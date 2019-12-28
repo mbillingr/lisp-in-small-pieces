@@ -3,7 +3,7 @@ use crate::ast::{
     LocalAssignment, LocalReference, MagicKeyword, PredefinedApplication, PredefinedReference, Ref,
     RegularApplication, Sequence, Variable,
 };
-use crate::env::{Env, EnvAccess};
+use crate::env::Env;
 use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;

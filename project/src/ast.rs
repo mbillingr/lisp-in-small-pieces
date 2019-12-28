@@ -1,10 +1,9 @@
-use crate::env::{Env, GlobalRuntimeEnv, LexicalRuntimeEnv};
+use crate::env::Env;
 use crate::objectify::{Result, Translate};
 use crate::scm::Scm;
 use crate::sexpr::{self, TrackedSexpr as Sexpr};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
-use crate::value::Value;
 use downcast_rs::{impl_downcast, Downcast};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -19,10 +18,6 @@ pub trait Ast: std::fmt::Debug + Downcast {
     fn default_transform(self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode;
 
     fn deep_clone(&self) -> AstNode;
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        unimplemented!("eval {:?}", self)
-    }
 }
 
 impl_downcast!(Ast);
@@ -240,10 +235,6 @@ impl Ast for LocalReference {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        sr.get_lexical(self.var.name())
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -274,10 +265,6 @@ impl Ast for GlobalReference {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        sg.get_global(self.var.name())
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -307,10 +294,6 @@ impl Ast for PredefinedReference {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        (*sg.get_predefined(self.var.name())).into()
     }
 }
 
@@ -344,10 +327,6 @@ impl Ast for LocalAssignment {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        unimplemented!()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -379,12 +358,6 @@ impl Ast for GlobalAssignment {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        let val = self.form.eval(sr, sg);
-        sg.set_global(self.variable.name(), val);
-        Value::Undefined
     }
 }
 
@@ -440,10 +413,6 @@ impl Ast for Constant {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, _sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        self.value.clone().into()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -472,11 +441,6 @@ impl Ast for Sequence {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        self.first.eval(sr, sg);
-        self.next.eval(sr, sg)
     }
 }
 
@@ -518,14 +482,6 @@ impl Ast for Alternative {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        if self.condition.eval(sr, sg).is_true() {
-            self.consequence.eval(sr, sg)
-        } else {
-            self.alternative.eval(sr, sg)
-        }
     }
 }
 
@@ -572,14 +528,6 @@ impl Ast for Function {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, _sg: &mut GlobalRuntimeEnv) -> Value {
-        Value::Procedure(RuntimeProcedure::new(
-            self.body.clone(),
-            self.variables.clone(),
-            sr.clone(),
-        ))
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -617,12 +565,6 @@ impl Ast for RegularApplication {
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
     }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        let func = self.function.eval(sr, sg);
-        let args: Vec<_> = self.arguments.iter().map(|a| a.eval(sr, sg)).collect();
-        func.invoke(args, sg)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -658,14 +600,6 @@ impl Ast for PredefinedApplication {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        /*let name = self.variable.name();
-        let args: Vec<_> = self.arguments.iter().map(|a| a.eval(sr, sg)).collect();
-        let func = sg.get_predefined(name);
-        func.invoke(&args)*/
-        unimplemented!()
     }
 }
 
@@ -710,20 +644,6 @@ impl Ast for FixLet {
 
     fn deep_clone(&self) -> AstNode {
         Ref::new(self.clone())
-    }
-
-    fn eval(&self, sr: &LexicalRuntimeEnv, sg: &mut GlobalRuntimeEnv) -> Value {
-        let args: Vec<_> = self.arguments.iter().map(|x| x.eval(sr, sg)).collect();
-
-        let mut sr = sr.clone();
-
-        for (var, val) in self.variables.iter().zip(args) {
-            sr = sr.extend(var.name().clone(), val);
-        }
-
-        let result = self.body.eval(&sr, sg);
-
-        result
     }
 }
 
@@ -783,53 +703,5 @@ impl std::fmt::Debug for RuntimePrimitive {
 impl std::fmt::Display for RuntimePrimitive {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "*primitive*")
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RuntimeProcedure {
-    pub body: AstNode,
-    pub variables: Vec<Variable>,
-    pub env: LexicalRuntimeEnv,
-}
-
-impl std::fmt::Display for RuntimeProcedure {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let vars: Vec<_> = self
-            .variables
-            .iter()
-            .map(|var| {
-                if var.is_dotted() {
-                    format!(" . {}", var.name())
-                } else {
-                    var.name().to_string()
-                }
-            })
-            .collect();
-        let vars = vars.join(" ");
-        write!(f, "(lambda ({}) ...)", vars)
-    }
-}
-
-impl RuntimeProcedure {
-    pub fn new(body: AstNode, variables: Vec<Variable>, env: LexicalRuntimeEnv) -> Self {
-        RuntimeProcedure {
-            body,
-            variables,
-            env,
-        }
-    }
-
-    pub fn invoke(&self, args: Vec<Value>, sg: &mut GlobalRuntimeEnv) -> Value {
-        if self.variables.len() != args.len() {
-            panic!("Incorrect arity")
-        }
-
-        let mut env = self.env.clone();
-        for (p, a) in self.variables.iter().zip(args) {
-            env = env.extend(p.name().clone(), a);
-        }
-
-        self.body.eval(&env, sg)
     }
 }

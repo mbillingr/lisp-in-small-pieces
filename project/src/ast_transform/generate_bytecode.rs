@@ -7,11 +7,10 @@ use crate::ast::{
 use crate::ast_transform::boxify::{BoxCreate, BoxRead, BoxWrite};
 use crate::ast_transform::flatten_closures::{FlatClosure, FreeReference};
 use crate::bytecode::{CodeObject, Op};
-use crate::env::{Env, Environment, GlobalRuntimeEnv, LexicalRuntimeEnv};
+use crate::env::{Env, Environment};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
-use crate::value::Value;
 use std::ops::Index;
 use std::rc::Rc;
 
