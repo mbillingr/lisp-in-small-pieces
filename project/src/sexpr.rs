@@ -15,6 +15,7 @@ pub struct TrackedSexpr {
 
 #[derive(Debug, Clone)]
 pub enum Sexpr {
+    Undefined,
     Nil,
     True,
     False,
@@ -36,6 +37,7 @@ impl std::fmt::Display for TrackedSexpr {
 impl std::fmt::Display for Sexpr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Sexpr::Undefined => write!(f, "*undefined*"),
             Sexpr::Nil => write!(f, "'()"),
             Sexpr::True => write!(f, "#t"),
             Sexpr::False => write!(f, "#f"),
@@ -142,6 +144,13 @@ impl TrackedSexpr {
 
     pub fn source(&self) -> &SourceLocation {
         &self.src
+    }
+
+    pub fn undefined() -> Self {
+        TrackedSexpr {
+            sexpr: Sexpr::Undefined,
+            src: SourceLocation::NoSource,
+        }
     }
 
     pub fn nil(src: SourceLocation) -> Self {

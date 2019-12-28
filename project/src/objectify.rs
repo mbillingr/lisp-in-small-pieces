@@ -62,13 +62,16 @@ impl Translate {
         &mut self,
         condition: &Sexpr,
         consequence: &Sexpr,
-        alternative: &Sexpr,
+        alternative: Option<&Sexpr>,
         env: &Env,
         span: SourceLocation,
     ) -> Result<AstNode> {
         let condition = self.objectify(condition, env)?;
         let consequence = self.objectify(consequence, env)?;
-        let alternative = self.objectify(alternative, env)?;
+        let alternative = match alternative {
+            Some(alt) => self.objectify(alt, env)?,
+            None => Constant::new(Sexpr::undefined()),
+        };
         Ok(Alternative::new(condition, consequence, alternative, span))
     }
 

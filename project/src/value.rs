@@ -53,6 +53,7 @@ impl From<Sexpr> for Value {
                 let items: Vec<Value> = v.iter().map(|i| i.clone().into()).collect();
                 Value::Vector(items.into())
             }
+            _ => unimplemented!(),
         }
     }
 }

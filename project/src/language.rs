@@ -154,7 +154,7 @@ pub mod scheme {
         let rest = cdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
-        let (no, _) = decons(&rest)?;
+        let no = decons(&rest).ok().map(|(no, _)| no);
         trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
     }
 
@@ -323,7 +323,7 @@ pub mod scheme {
             compare!(true_branch: "(if #t 1 2)", equals, Scm::Int(1));
             compare!(false_branch: "(if #f 1 2)", equals, Scm::Int(2));
             compare!(one_branch: "(if #t 1)", equals, Scm::Int(1));
-            compare!(no_else_branch_is_undefined: "(if #f 1)", equals, Scm::Undefined);
+            check!(no_else_branch_is_undefined: "(if #f 1)", Scm::is_undefined);
             compare!(if_does_not_evaluate_first_branch:
                      "((lambda (x) (if #f (set! x 99) 'f) x) 0)", equals, Scm::Int(0));
             compare!(if_does_not_evaluate_second_branch:

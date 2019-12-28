@@ -270,6 +270,7 @@ impl std::fmt::Display for Scm {
 impl From<&Sexpr> for Scm {
     fn from(e: &Sexpr) -> Self {
         match e {
+            Sexpr::Undefined => Scm::Undefined,
             Sexpr::Nil => Scm::Nil,
             Sexpr::True => Scm::True,
             Sexpr::False => Scm::False,
