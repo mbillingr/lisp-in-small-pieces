@@ -271,29 +271,17 @@ impl BytecodeGenerator {
     }
 
     fn compile_box_write(&mut self, node: &BoxWrite, tail: bool) -> Vec<Op> {
-        let reference = node
-            .reference
-            .downcast_ref::<LocalReference>()
-            .expect(&format!(
-                "expected LocalReference, got {:?}",
-                node.reference
-            ));
-        let idx = self.index_of_local(reference.variable().name());
-        let mut meaning = self.compile(&node.form, false);
-        meaning.push(Op::BoxSet(idx));
+        let mut meaning = self.compile(&node.reference, false);
+        meaning.push(Op::PushVal);
+        meaning.extend(self.compile(&node.form, false));
+        meaning.push(Op::BoxSet);
         meaning
     }
 
     fn compile_box_read(&mut self, node: &BoxRead, tail: bool) -> Vec<Op> {
-        let reference = node
-            .reference
-            .downcast_ref::<LocalReference>()
-            .expect(&format!(
-                "expected LocalReference, got {:?}",
-                node.reference
-            ));
-        let idx = self.index_of_local(reference.variable().name());
-        vec![Op::BoxGet(idx)]
+        let mut meaning = self.compile(&node.reference, false);
+        meaning.push(Op::BoxGet);
+        meaning
     }
 
     fn index_of_local(&self, name: &Symbol) -> usize {

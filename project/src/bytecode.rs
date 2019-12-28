@@ -35,8 +35,8 @@ pub enum Op {
     GlobalSet(usize),
 
     Boxify(usize),
-    BoxSet(usize),
-    BoxGet(usize),
+    BoxSet,
+    BoxGet,
 
     PushVal,
     PopVal,
@@ -138,13 +138,12 @@ impl VirtualMachine {
                     let x = self.ref_value(idx + frame_offset)?;
                     self.push_value(Scm::boxed(x));
                 }
-                Op::BoxSet(idx) => {
-                    let boxed = self.ref_value(idx + frame_offset)?;
+                Op::BoxSet => {
+                    let boxed = self.pop_value()?;
                     boxed.set(val).expect("setting unboxed value");
                 }
-                Op::BoxGet(idx) => {
-                    let boxed = self.ref_value(idx + frame_offset)?;
-                    val = boxed.get().expect("getting unboxed value");
+                Op::BoxGet => {
+                    val = val.get().expect("getting unboxed value");
                 }
                 Op::PushVal => self.push_value(val),
                 Op::PopVal => val = self.pop_value()?,
