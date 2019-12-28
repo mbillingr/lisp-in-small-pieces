@@ -88,6 +88,20 @@ impl Scm {
         Scm::Vector(static_data)
     }
 
+    pub fn is_undefined(&self) -> bool {
+        match self {
+            Scm::Undefined => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_uninitialized(&self) -> bool {
+        match self {
+            Scm::Uninitialized => true,
+            _ => false,
+        }
+    }
+
     pub fn is_nil(&self) -> bool {
         match self {
             Scm::Nil => true,
@@ -98,6 +112,13 @@ impl Scm {
     pub fn is_false(&self) -> bool {
         match self {
             Scm::False => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            Scm::Primitive(_) => true,
             _ => false,
         }
     }

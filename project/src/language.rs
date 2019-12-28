@@ -216,6 +216,30 @@ pub mod scheme {
             }
         }
 
+        macro_rules! check {
+            ($name:ident: $src:expr, $cmp:path) => {
+                #[test]
+                fn $name() {
+                    let result = Context::new().eval_str($src).expect(concat!(
+                        "Could not evaluate `",
+                        $src,
+                        "`"
+                    ));
+                    if !$cmp(&result) {
+                        panic!(
+                            r#"assertion failed: `(eq? actual expected)`
+   expression: `{}`
+ evaluates to: `{}`,
+ but `{}` returned `false`"#,
+                            $src,
+                            result,
+                            stringify!($cmp)
+                        )
+                    }
+                }
+            };
+        }
+
         macro_rules! compare {
             ($name:ident: $src:expr, $cmp:ident, $expect:expr) => {
                 #[test]
@@ -332,6 +356,72 @@ pub mod scheme {
                      "(((lambda (outer) (lambda () outer)) 42))", equals, Scm::Int(42));
             compare!(lambda_can_modify_variable_in_outer_scope:
                      "((lambda (outer) ((lambda () (set! outer 12))) outer) 42)", equals, Scm::Int(12));
+            compare!(escaping_lambda_can_modify_free_variable_from_outer_scope:
+                     "((lambda (f init) (set! f (init 0)) (f) (f))
+                       '*uninit* (lambda (n) (lambda () (set! n (+ n 1)) n)))",
+                     equals, Scm::Int(2));
+            compare!(shadowed_global_is_restored: "(begin (set! foo 123) ((lambda (foo) foo) 42) foo)", equals, Scm::Int(123));
+            compare!(shadowed_local_is_restored: "((lambda (x) ((lambda (x) x) 42) x) 123)", equals, Scm::Int(123));
+        }
+
+        mod variables {
+            use super::*;
+            use crate::symbol::Symbol;
+
+            check!(get_predefined: "cons", Scm::is_primitive);
+            assert_error!(set_predefined: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
+
+            check!(undefined_global: "flummox", Scm::is_uninitialized);
+            compare!(new_global: "(set! the-answer 42)", equals, Scm::Int(42));
+            compare!(get_global: "(begin (set! the-answer 42) the-answer)", equals, Scm::Int(42));
+            compare!(overwrite_global: "(begin (set! the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
+
+            compare!(return_local: "((lambda (x) x) 42)", equals, Scm::Int(42));
+            compare!(local_shadows_predef: "((lambda (cons) cons) 42)", equals, Scm::Int(42));
+            compare!(local_shadows_global: "(begin (set! foo 123) ((lambda (foo) foo) 42))", equals, Scm::Int(42));
+            compare!(local_shadows_local: "((lambda (foo) ((lambda (foo) foo) 123)) 42)", equals, Scm::Int(123));
+
+            compare!(modify_local: "((lambda (x) (set! x 789) x) 42)", equals, Scm::Int(789));
+        }
+
+        mod application {
+            use super::*;
+            use crate::symbol::Symbol;
+
+            compare!(primitive: "(cons 1 2)", equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+
+            compare!(fixed_nullary: "((lambda () 10))", equals, Scm::Int(10));
+            compare!(fixed_unary: "((lambda (x) x) 20)", equals, Scm::Int(20));
+            compare!(fixed_binary: "((lambda (x y) (cons x y)) 30 40)",
+                     equals, Scm::cons(Scm::Int(30), Scm::Int(40)));
+            compare!(fixed_ternary: "((lambda (x y z) (+ x (+ y z))) 10 20 30)",
+                     equals, Scm::Int(60));
+            compare!(fixed_nullary_vararg0: "((lambda x x))", equals, Scm::Nil);
+            compare!(fixed_nullary_vararg1: "((lambda x x) 1)",
+                     equals, Scm::list(vec![Scm::Int(1)]));
+            compare!(fixed_nullary_vararg2: "((lambda x x) 1 2)",
+                     equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+            compare!(fixed_unary_vararg0: "((lambda (y . x) (cons x y)) 1)",
+                     equals, Scm::cons(Scm::Nil, Scm::Int(1)));
+            compare!(fixed_unary_vararg1: "((lambda (y . x) (cons x y)) 1 2)",
+                     equals, Scm::cons(Scm::list(vec![Scm::Int(2)]), Scm::Int(1)));
+            compare!(fixed_binary_vararg0: "((lambda (z y . x) (cons x (+ y z))) 1 2)",
+                     equals, Scm::cons(Scm::Nil, Scm::Int(3)));
+            compare!(fixed_binary_vararg1: "((lambda (z y . x) (cons x (+ y z))) 1 2 3)",
+                     equals, Scm::cons(Scm::list(vec![Scm::Int(3)]), Scm::Int(3)));
+
+            compare!(lambda_nullary: "(begin (set! func (lambda () 10)) (func))",
+                     equals, Scm::Int(10));
+            compare!(lambda_unary: "(begin (set! func (lambda (x) x)) (func 20))",
+                     equals, Scm::Int(20));
+            compare!(lambda_binary: "(begin (set! func (lambda (x y) (+ x y))) (func 5 25))",
+                     equals, Scm::Int(30));
+            compare!(lambda_nullary_vararg0: "(begin (set! func (lambda x x)) (func))",
+                     equals, Scm::Nil);
+            compare!(lambda_nullary_vararg1: "(begin (set! func (lambda x x)) (func 1))",
+                     equals, Scm::list(vec![Scm::Int(1)]));
+            compare!(lambda_unary_vararg1: "(begin (set! func (lambda (x . y) (cons x y))) (func 1 2))",
+                     equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
         }
     }
 }
