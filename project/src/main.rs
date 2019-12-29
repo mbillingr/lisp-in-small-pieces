@@ -25,6 +25,7 @@ use std::collections::HashMap;
 
 use bdwgc_alloc::Allocator;
 
+#[cfg(not(test))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Allocator = Allocator;
 
