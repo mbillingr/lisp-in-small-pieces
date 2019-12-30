@@ -1,3 +1,6 @@
+#[macro_use]
+mod utils;
+
 mod ast;
 mod ast_transform;
 mod bytecode;
@@ -12,6 +15,7 @@ mod scm;
 mod sexpr;
 mod source;
 mod symbol;
+mod syntax;
 
 use crate::ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
 use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
