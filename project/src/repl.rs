@@ -3,7 +3,8 @@ use crate::ast_transform::flatten_closures::Flatten;
 use crate::ast_transform::generate_bytecode::BytecodeGenerator;
 use crate::bytecode::{Closure, VirtualMachine};
 use crate::{
-    ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable},
+    ast::{MagicKeyword, RuntimePrimitive, Variable},
+    description::{Arity, FunctionDescription},
     env::Env,
     error::{Error, ErrorContext},
     language::scheme::Context,

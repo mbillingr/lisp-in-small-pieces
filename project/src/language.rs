@@ -1,10 +1,11 @@
 pub mod scheme {
     use crate::ast::AstNode;
-    use crate::ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive};
+    use crate::ast::{MagicKeyword, RuntimePrimitive};
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
     use crate::bytecode::{Closure, VirtualMachine};
+    use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
     use crate::error::Error;
     use crate::objectify::{car, cdr, Translate};

@@ -1,5 +1,5 @@
 use super::keyword::MagicKeyword;
-use crate::ast::FunctionDescription;
+use crate::description::FunctionDescription;
 use crate::symbol::Symbol;
 use std::cell::Cell;
 use std::rc::Rc;

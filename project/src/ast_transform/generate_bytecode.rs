@@ -1,12 +1,13 @@
 use crate::ast::Variable::Local;
 use crate::ast::{
-    Alternative, Arity, Ast, AstNode, Constant, FixLet, Function, GlobalAssignment,
-    GlobalReference, LocalReference, PredefinedApplication, PredefinedReference, Ref,
-    RegularApplication, Sequence, Transformer, Variable, Visited,
+    Alternative, Ast, AstNode, Constant, FixLet, Function, GlobalAssignment, GlobalReference,
+    LocalReference, PredefinedApplication, PredefinedReference, Ref, RegularApplication, Sequence,
+    Transformer, Variable, Visited,
 };
 use crate::ast_transform::boxify::{BoxCreate, BoxRead, BoxWrite};
 use crate::ast_transform::flatten_closures::{FlatClosure, FreeReference};
 use crate::bytecode::{CodeObject, Op};
+use crate::description::Arity;
 use crate::env::{Env, Environment};
 use crate::scm::Scm;
 use crate::source::SourceLocation;

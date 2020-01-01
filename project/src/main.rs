@@ -4,6 +4,7 @@ mod utils;
 mod ast;
 mod ast_transform;
 mod bytecode;
+mod description;
 mod env;
 mod error;
 mod eval;
@@ -17,7 +18,8 @@ mod source;
 mod symbol;
 mod syntax;
 
-use crate::ast::{Arity, FunctionDescription, MagicKeyword, RuntimePrimitive, Variable};
+use crate::ast::{MagicKeyword, RuntimePrimitive, Variable};
+use crate::description::{Arity, FunctionDescription};
 use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
 use crate::objectify::Translate;
 use crate::source::SourceLocation::NoSource;

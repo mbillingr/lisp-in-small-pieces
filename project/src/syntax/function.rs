@@ -1,6 +1,6 @@
 use super::expression::Expression;
 use super::variable::{LocalVariable, Variable};
-use crate::ast::Arity;
+use crate::description::Arity;
 use crate::source::SourceLocation;
 use std::convert::TryInto;
 

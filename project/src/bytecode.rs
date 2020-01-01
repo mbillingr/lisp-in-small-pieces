@@ -1,4 +1,4 @@
-use crate::ast::Arity;
+use crate::description::Arity;
 use crate::scm::Scm;
 use crate::source::{Source, SourceLocation};
 use lazy_static::lazy_static;
