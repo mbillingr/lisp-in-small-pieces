@@ -6,11 +6,11 @@ use std::rc::Rc;
 
 sum_types! {
     #[derive(Debug, Clone, PartialEq)]
-    type Variable = LocalVariable
-                  | GlobalVariable
-                  | PredefinedVariable
-                  | MagicKeyword
-                  | FreeVariable;
+    pub type Variable = LocalVariable
+                      | GlobalVariable
+                      | PredefinedVariable
+                      | MagicKeyword
+                      | FreeVariable;
 }
 
 impl Variable {

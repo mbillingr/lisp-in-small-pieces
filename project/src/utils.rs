@@ -48,6 +48,7 @@ macro_rules! sum_type {
         $(
             sum_type! { @impl-from $typename $type }
             sum_type! { @impl-try_from $typename $type }
+            sum_type! { @impl-try_from_ref $typename $type }
         )*
     };
 
@@ -65,6 +66,19 @@ macro_rules! sum_type {
         impl ::std::convert::TryFrom<$typename> for $type {
             type Error = $typename;
             fn try_from(x: $typename) -> Result<$type, Self::Error> {
+                match x {
+                    $typename::$type(value) => Ok(value),
+                    _ => Err(x),
+                }
+            }
+        }
+    };
+
+    // implement `TryFrom` trait for one variant (reference)
+    (@impl-try_from_ref $typename:ident $type:ident) => {
+        impl<'a> ::std::convert::TryFrom<&'a $typename> for &'a $type {
+            type Error = &'a $typename;
+            fn try_from(x: &'a $typename) -> Result<&'a $type, Self::Error> {
                 match x {
                     $typename::$type(value) => Ok(value),
                     _ => Err(x),

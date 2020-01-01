@@ -4,6 +4,7 @@ use super::constant::Constant;
 use super::keyword::MagicKeyword;
 use super::reference::Reference;
 use super::sequence::Sequence;
+use super::function::Function;
 
 sum_types! {
     #[derive(Debug, Clone)]
@@ -12,5 +13,6 @@ sum_types! {
                         | Assignment
                         | Constant
                         | Sequence
-                        | Alternative;
+                        | Alternative
+                        | Function;
 }
