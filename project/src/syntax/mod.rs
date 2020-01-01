@@ -1,5 +1,6 @@
 pub mod alternative;
 pub mod application;
+pub mod boxes;
 pub mod assignment;
 pub mod constant;
 pub mod expression;
