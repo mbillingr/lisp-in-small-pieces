@@ -2,6 +2,7 @@ use super::alternative::Alternative;
 use super::application::Application;
 use super::assignment::Assignment;
 use super::constant::Constant;
+use super::fixlet::FixLet;
 use super::function::Function;
 use super::keyword::MagicKeyword;
 use super::reference::Reference;
@@ -16,5 +17,6 @@ sum_types! {
                         | Sequence
                         | Alternative
                         | Function
-                        | Application;
+                        | Application
+                        | FixLet;
 }

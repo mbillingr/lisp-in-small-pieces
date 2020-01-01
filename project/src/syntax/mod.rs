@@ -3,6 +3,7 @@ pub mod application;
 pub mod assignment;
 pub mod constant;
 pub mod expression;
+pub mod fixlet;
 pub mod function;
 pub mod keyword;
 pub mod reference;
