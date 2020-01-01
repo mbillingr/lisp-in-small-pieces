@@ -1,7 +1,7 @@
-use super::variable::{LocalVariable, Variable};
 use super::expression::Expression;
-use crate::source::SourceLocation;
+use super::variable::{LocalVariable, Variable};
 use crate::ast::Arity;
+use crate::source::SourceLocation;
 use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
@@ -12,7 +12,11 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(variables: Vec<Variable>, body: impl Into<Box<Expression>>, span: SourceLocation) -> Self {
+    pub fn new(
+        variables: Vec<Variable>,
+        body: impl Into<Box<Expression>>,
+        span: SourceLocation,
+    ) -> Self {
         Function {
             variables,
             body: body.into(),
