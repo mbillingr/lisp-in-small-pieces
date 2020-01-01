@@ -1,3 +1,4 @@
+pub mod assignment;
 pub mod expression;
 pub mod keyword;
 pub mod reference;
