@@ -1,3 +1,4 @@
+pub mod alternative;
 pub mod assignment;
 pub mod constant;
 pub mod expression;

@@ -1,3 +1,4 @@
+use super::alternative::Alternative;
 use super::assignment::Assignment;
 use super::constant::Constant;
 use super::keyword::MagicKeyword;
@@ -10,5 +11,6 @@ sum_types! {
                         | Reference
                         | Assignment
                         | Constant
-                        | Sequence;
+                        | Sequence
+                        | Alternative;
 }
