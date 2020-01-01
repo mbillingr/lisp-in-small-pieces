@@ -1,7 +1,8 @@
 pub mod alternative;
 pub mod application;
-pub mod boxes;
 pub mod assignment;
+pub mod boxes;
+pub mod closure;
 pub mod constant;
 pub mod expression;
 pub mod fixlet;

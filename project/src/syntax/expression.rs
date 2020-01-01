@@ -1,6 +1,8 @@
 use super::alternative::Alternative;
 use super::application::Application;
 use super::assignment::Assignment;
+use super::boxes::{BoxCreate, BoxRead, BoxWrite};
+use super::closure::FlatClosure;
 use super::constant::Constant;
 use super::fixlet::FixLet;
 use super::function::Function;
@@ -18,5 +20,9 @@ sum_types! {
                         | Alternative
                         | Function
                         | Application
-                        | FixLet;
+                        | FixLet
+                        | BoxRead
+                        | BoxWrite
+                        | BoxCreate
+                        | FlatClosure;
 }

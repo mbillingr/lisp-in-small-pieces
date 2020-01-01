@@ -1,4 +1,4 @@
-use super::variable::{GlobalVariable, LocalVariable, PredefinedVariable};
+use super::variable::{FreeVariable, GlobalVariable, LocalVariable, PredefinedVariable};
 use crate::source::SourceLocation;
 
 // TODO: are different reference types required, or could we use simply one type and
@@ -6,7 +6,7 @@ use crate::source::SourceLocation;
 
 sum_types! {
     #[derive(Debug, Clone)]
-    pub type Reference = LocalReference | GlobalReference | PredefinedReference;
+    pub type Reference = LocalReference | GlobalReference | PredefinedReference | FreeReference;
 }
 
 #[derive(Debug, Clone)]
@@ -60,5 +60,17 @@ impl PartialEq for PredefinedReference {
 impl PredefinedReference {
     pub fn new(var: PredefinedVariable, span: SourceLocation) -> Self {
         PredefinedReference { var, span }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FreeReference {
+    pub var: FreeVariable,
+    span: SourceLocation,
+}
+
+impl FreeReference {
+    fn new(var: FreeVariable, span: SourceLocation) -> Self {
+        FreeReference { var, span }
     }
 }

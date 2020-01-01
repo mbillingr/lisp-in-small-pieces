@@ -1,8 +1,7 @@
 use super::expression::Expression;
-use super::variable::Variable;
 use super::reference::Reference;
+use super::variable::Variable;
 use crate::source::SourceLocation;
-
 
 #[derive(Debug, Clone)]
 pub struct BoxRead {
@@ -30,7 +29,11 @@ impl BoxRead {
 }
 
 impl BoxWrite {
-    pub fn new(reference: Reference, form: impl Into<Box<Expression>>, span: SourceLocation) -> Self {
+    pub fn new(
+        reference: Reference,
+        form: impl Into<Box<Expression>>,
+        span: SourceLocation,
+    ) -> Self {
         BoxWrite {
             reference,
             form: form.into(),
