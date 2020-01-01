@@ -1,4 +1,5 @@
 use super::Expression;
+use crate::ast_transform::Transformer;
 use crate::env::Env;
 use crate::objectify::{Result, Translate};
 use crate::sexpr::TrackedSexpr;
@@ -28,6 +29,10 @@ impl MagicKeyword {
 
     pub fn name(&self) -> &Symbol {
         &self.name
+    }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
     }
 }
 

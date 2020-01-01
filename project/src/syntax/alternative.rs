@@ -1,4 +1,5 @@
 use super::expression::Expression;
+use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 
 #[derive(Debug, Clone)]
@@ -22,5 +23,12 @@ impl Alternative {
             alternative: alternative.into(),
             span,
         }
+    }
+
+    pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
+        *self.condition = self.condition.transform(visitor);
+        *self.consequence = self.consequence.transform(visitor);
+        *self.alternative = self.alternative.transform(visitor);
+        self
     }
 }

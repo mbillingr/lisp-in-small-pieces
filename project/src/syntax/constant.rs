@@ -1,3 +1,4 @@
+use crate::ast_transform::Transformer;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 
@@ -10,6 +11,10 @@ pub struct Constant {
 impl Constant {
     pub fn new(value: Sexpr, span: SourceLocation) -> Self {
         Constant { value, span }
+    }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
     }
 }
 

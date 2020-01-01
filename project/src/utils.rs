@@ -1,25 +1,16 @@
 /// Shortcut to declare enums of the Form `enum Foo { Bar(Bar), Baz(Baz) }` along with
 /// implementations of `impl From<Bar> for Foo` and `impl TryFrom<Foo> for Bar` for each variant.
 macro_rules! sum_type {
-    // declare enum with decorations such as `#[derive(Debug)]`
-    (#[$($attrs:tt)*] type $typename:ident = $($type:ident)|+;) => {
-        #[$($attrs)*]
-        enum $typename {
-            $(
-                $type($type)
-            ),*
-        }
-        sum_type! {@impls  $typename $($type)*}
+    // declare enum with base
+    (pub type $typename:ident($base:ident) = $($type:ident)|+;) => {
+        sum_type! { pub type $typename = $($type)|+; }
+        sum_type! {@base $base $typename $($type)+ }
     };
 
-    // declare enum
-    (type $typename:ident = $($type:ident)|+;) => {
-        enum $typename {
-            $(
-                $type($type)
-            ),*
-        }
-        sum_type! {@impls  $typename $($type)*}
+    // declare enum with decoration and base
+    (#[$($attrs:tt)*] pub type $typename:ident($base:ident) = $($type:ident)|+;) => {
+        sum_type! { #[$($attrs)*] pub type $typename = $($type)|+; }
+        sum_type! {@base $base $typename $($type)+ }
     };
 
     // declare enum with decorations such as `#[derive(Debug)]`
@@ -41,6 +32,26 @@ macro_rules! sum_type {
             ),*
         }
         sum_type! {@impls  $typename $($type)*}
+    };
+
+    // implement "base" type
+    (@base $base:ident $typename:ident $($type:ident)+) => {
+        $(
+            impl From<$type> for $base {
+                fn from(x: $type) -> Self {
+                    $typename::from(x).into()
+                }
+            }
+            impl ::std::convert::TryFrom<$base> for $type {
+                type Error = $base;
+                fn try_from(x: $base) -> Result<$type, Self::Error> {
+                    match x {
+                        $base::$typename($typename::$type(value)) => Ok(value),
+                        _ => Err(x),
+                    }
+                }
+            }
+        )+
     };
 
     // delegate trait implementation for each variant

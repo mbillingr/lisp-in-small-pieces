@@ -1,12 +1,27 @@
+use super::expression::Expression;
 use super::variable::{FreeVariable, GlobalVariable, LocalVariable, PredefinedVariable};
+use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use std::convert::TryFrom;
 
 // TODO: are different reference types required, or could we use simply one type and
 //       distinguish by the referenced variable's type?
 
-sum_types! {
+sum_type! {
     #[derive(Debug, Clone)]
-    pub type Reference = LocalReference | GlobalReference | PredefinedReference | FreeReference;
+    pub type Reference(Expression) = LocalReference | GlobalReference | PredefinedReference | FreeReference;
+}
+
+impl Reference {
+    pub fn default_transform(self, visitor: &mut impl Transformer) -> Self {
+        use Reference::*;
+        match self {
+            LocalReference(x) => x.default_transform(visitor).into(),
+            GlobalReference(x) => x.default_transform(visitor).into(),
+            PredefinedReference(x) => x.default_transform(visitor).into(),
+            FreeReference(x) => x.default_transform(visitor).into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +39,10 @@ impl PartialEq for LocalReference {
 impl LocalReference {
     pub fn new(var: LocalVariable, span: SourceLocation) -> Self {
         LocalReference { var, span }
+    }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
     }
 }
 
@@ -43,6 +62,10 @@ impl GlobalReference {
     pub fn new(var: GlobalVariable, span: SourceLocation) -> Self {
         GlobalReference { var, span }
     }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +84,10 @@ impl PredefinedReference {
     pub fn new(var: PredefinedVariable, span: SourceLocation) -> Self {
         PredefinedReference { var, span }
     }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -72,5 +99,9 @@ pub struct FreeReference {
 impl FreeReference {
     fn new(var: FreeVariable, span: SourceLocation) -> Self {
         FreeReference { var, span }
+    }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
     }
 }

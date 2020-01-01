@@ -1,10 +1,21 @@
 use super::expression::Expression;
 use super::variable::PredefinedVariable;
+use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 
 sum_type! {
     #[derive(Debug, Clone)]
     pub type Application = RegularApplication | PredefinedApplication;
+}
+
+impl Application {
+    pub fn default_transform(self, visitor: &mut impl Transformer) -> Self {
+        use Application::*;
+        match self {
+            RegularApplication(x) => x.default_transform(visitor).into(),
+            PredefinedApplication(x) => x.default_transform(visitor).into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +37,16 @@ impl RegularApplication {
             span,
         }
     }
+
+    pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
+        *self.function = self.function.transform(visitor);
+        self.arguments = self
+            .arguments
+            .into_iter()
+            .map(|a| a.transform(visitor))
+            .collect();
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -46,5 +67,14 @@ impl PredefinedApplication {
             arguments,
             span,
         }
+    }
+
+    pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
+        self.arguments = self
+            .arguments
+            .into_iter()
+            .map(|a| a.transform(visitor))
+            .collect();
+        self
     }
 }

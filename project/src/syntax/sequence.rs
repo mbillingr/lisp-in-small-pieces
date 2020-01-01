@@ -1,4 +1,5 @@
 use super::expression::Expression;
+use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 
 #[derive(Debug, Clone)]
@@ -19,5 +20,11 @@ impl Sequence {
             next: next.into(),
             span,
         }
+    }
+
+    pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
+        *self.first = self.first.transform(visitor);
+        *self.next = self.next.transform(visitor);
+        self
     }
 }
