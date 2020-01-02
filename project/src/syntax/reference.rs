@@ -2,6 +2,7 @@ use super::expression::Expression;
 use super::variable::{FreeVariable, GlobalVariable, LocalVariable, PredefinedVariable};
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::utils::Sourced;
 use std::convert::TryFrom;
 
 // TODO: are different reference types required, or could we use simply one type and
@@ -24,11 +25,25 @@ impl Reference {
     }
 }
 
+impl Sourced for Reference {
+    fn source(&self) -> &SourceLocation {
+        use Reference::*;
+        match self {
+            LocalReference(x) => x.source(),
+            GlobalReference(x) => x.source(),
+            PredefinedReference(x) => x.source(),
+            FreeReference(x) => x.source(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalReference {
     pub var: LocalVariable,
     pub span: SourceLocation,
 }
+
+impl_sourced!(LocalReference);
 
 impl PartialEq for LocalReference {
     fn eq(&self, other: &Self) -> bool {
@@ -52,6 +67,8 @@ pub struct GlobalReference {
     pub span: SourceLocation,
 }
 
+impl_sourced!(GlobalReference);
+
 impl PartialEq for GlobalReference {
     fn eq(&self, other: &Self) -> bool {
         self.var == other.var
@@ -73,6 +90,8 @@ pub struct PredefinedReference {
     pub var: PredefinedVariable,
     pub span: SourceLocation,
 }
+
+impl_sourced!(PredefinedReference);
 
 impl PartialEq for PredefinedReference {
     fn eq(&self, other: &Self) -> bool {
@@ -96,8 +115,10 @@ pub struct FreeReference {
     span: SourceLocation,
 }
 
+impl_sourced!(FreeReference);
+
 impl FreeReference {
-    fn new(var: FreeVariable, span: SourceLocation) -> Self {
+    pub fn new(var: FreeVariable, span: SourceLocation) -> Self {
         FreeReference { var, span }
     }
 

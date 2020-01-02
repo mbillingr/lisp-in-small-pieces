@@ -5,8 +5,10 @@ use crate::source::SourceLocation;
 #[derive(Debug, Clone)]
 pub struct Constant {
     pub value: Sexpr,
-    span: SourceLocation,
+    pub span: SourceLocation,
 }
+
+impl_sourced!(Constant);
 
 impl Constant {
     pub fn new(value: Sexpr, span: SourceLocation) -> Self {

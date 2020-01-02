@@ -2,10 +2,11 @@ use super::expression::Expression;
 use super::variable::PredefinedVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::utils::Sourced;
 
 sum_type! {
     #[derive(Debug, Clone)]
-    pub type Application = RegularApplication | PredefinedApplication;
+    pub type Application(Expression) = RegularApplication | PredefinedApplication;
 }
 
 impl Application {
@@ -18,12 +19,24 @@ impl Application {
     }
 }
 
+impl Sourced for Application {
+    fn source(&self) -> &SourceLocation {
+        use Application::*;
+        match self {
+            RegularApplication(x) => x.source(),
+            PredefinedApplication(x) => x.source(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RegularApplication {
     pub function: Box<Expression>,
     pub arguments: Vec<Expression>,
     span: SourceLocation,
 }
+
+impl_sourced!(RegularApplication);
 
 impl RegularApplication {
     pub fn new(
@@ -55,6 +68,8 @@ pub struct PredefinedApplication {
     pub arguments: Vec<Expression>,
     span: SourceLocation,
 }
+
+impl_sourced!(PredefinedApplication);
 
 impl PredefinedApplication {
     pub fn new(

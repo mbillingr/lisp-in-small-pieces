@@ -11,6 +11,8 @@ use super::reference::Reference;
 use super::sequence::Sequence;
 
 use crate::ast_transform::{Transformer, Visited};
+use crate::source::SourceLocation;
+use crate::utils::Sourced;
 
 sum_types! {
     #[derive(Debug, Clone)]
@@ -53,6 +55,27 @@ impl Expression {
             BoxWrite(x) => x.default_transform(visitor).into(),
             BoxCreate(x) => x.default_transform(visitor).into(),
             FlatClosure(x) => x.default_transform(visitor).into(),
+        }
+    }
+}
+
+impl Sourced for Expression {
+    fn source(&self) -> &SourceLocation {
+        use Expression::*;
+        match self {
+            MagicKeyword(x) => &SourceLocation::NoSource,
+            Reference(x) => x.source(),
+            Assignment(x) => x.source(),
+            Constant(x) => x.source(),
+            Sequence(x) => x.source(),
+            Alternative(x) => x.source(),
+            Application(x) => x.source(),
+            Function(x) => x.source(),
+            FixLet(x) => x.source(),
+            BoxRead(x) => x.source(),
+            BoxWrite(x) => x.source(),
+            BoxCreate(x) => x.source(),
+            FlatClosure(x) => x.source(),
         }
     }
 }

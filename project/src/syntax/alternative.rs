@@ -10,6 +10,8 @@ pub struct Alternative {
     span: SourceLocation,
 }
 
+impl_sourced!(Alternative);
+
 impl Alternative {
     pub fn new(
         condition: impl Into<Box<Expression>>,

@@ -1,6 +1,7 @@
 use super::keyword::MagicKeyword;
 use crate::description::FunctionDescription;
 use crate::symbol::Symbol;
+use crate::utils::Named;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -13,8 +14,9 @@ sum_types! {
                       | FreeVariable;
 }
 
-impl Variable {
-    pub fn name(&self) -> &Symbol {
+impl Named for Variable {
+    type Name = Symbol;
+    fn name(&self) -> Self::Name {
         use Variable::*;
         match self {
             LocalVariable(v) => v.name(),
@@ -38,10 +40,6 @@ impl LocalVariable {
         )))
     }
 
-    pub fn name(&self) -> &Symbol {
-        &(self.0).0
-    }
-
     pub fn is_dotted(&self) -> bool {
         (self.0).2.get()
     }
@@ -56,6 +54,13 @@ impl LocalVariable {
 
     pub fn set_mutable(&self, d: bool) {
         (self.0).1.set(d)
+    }
+}
+
+impl Named for LocalVariable {
+    type Name = Symbol;
+    fn name(&self) -> Symbol {
+        (self.0).0
     }
 }
 
@@ -84,15 +89,18 @@ impl GlobalVariable {
     pub fn new(name: impl Into<Symbol>) -> Self {
         GlobalVariable(name.into())
     }
+}
 
-    pub fn name(&self) -> &Symbol {
-        &self.0
+impl Named for GlobalVariable {
+    type Name = Symbol;
+    fn name(&self) -> Symbol {
+        self.0
     }
 }
 
 impl PartialEq for GlobalVariable {
     fn eq(&self, other: &Self) -> bool {
-        self.name().ptr_eq(other.name())
+        self.name().ptr_eq(&other.name())
     }
 }
 
@@ -110,18 +118,21 @@ impl PredefinedVariable {
         PredefinedVariable(name.into(), func)
     }
 
-    pub fn name(&self) -> &Symbol {
-        &self.0
-    }
-
     pub fn description(&self) -> &FunctionDescription {
         &self.1
     }
 }
 
+impl Named for PredefinedVariable {
+    type Name = Symbol;
+    fn name(&self) -> Symbol {
+        self.0
+    }
+}
+
 impl PartialEq for PredefinedVariable {
     fn eq(&self, other: &Self) -> bool {
-        self.name().ptr_eq(other.name())
+        self.name().ptr_eq(&other.name())
     }
 }
 
@@ -138,15 +149,18 @@ impl FreeVariable {
     pub fn new(name: impl Into<Symbol>) -> Self {
         FreeVariable(name.into())
     }
+}
 
-    pub fn name(&self) -> &Symbol {
-        &self.0
+impl Named for FreeVariable {
+    type Name = Symbol;
+    fn name(&self) -> Symbol {
+        self.0
     }
 }
 
 impl PartialEq for FreeVariable {
     fn eq(&self, other: &Self) -> bool {
-        self.name().ptr_eq(other.name())
+        self.name().ptr_eq(&other.name())
     }
 }
 

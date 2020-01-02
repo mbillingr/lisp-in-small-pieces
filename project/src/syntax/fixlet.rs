@@ -1,19 +1,21 @@
 use super::expression::Expression;
-use super::variable::Variable;
+use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct FixLet {
-    pub variables: Vec<Variable>,
+    pub variables: Vec<LocalVariable>,
     pub arguments: Vec<Expression>,
     pub body: Box<Expression>,
-    span: SourceLocation,
+    pub span: SourceLocation,
 }
+
+impl_sourced!(FixLet);
 
 impl FixLet {
     pub fn new(
-        variables: Vec<Variable>,
+        variables: Vec<LocalVariable>,
         arguments: Vec<Expression>,
         body: impl Into<Box<Expression>>,
         span: SourceLocation,

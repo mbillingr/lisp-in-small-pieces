@@ -1,31 +1,26 @@
-use crate::ast::{
-    Ast, AstNode, FixLet, Function, LocalReference, Ref, Transformer, Variable, Visited,
-};
+use super::{Transformer, Visited};
 use crate::source::SourceLocation;
-
-#[derive(Debug, Clone)]
-pub struct FlatClosure {
-    pub func: Function,
-    pub free_vars: Vec<AstNode>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FreeReference {
-    pub var: Variable,
-    span: SourceLocation,
-}
+use crate::syntax::{
+    Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, LocalReference,
+    LocalVariable, Variable,
+};
+use crate::utils::Named;
+use std::convert::TryInto;
 
 pub struct Flatten {
     current_function: Option<FlatClosure>,
-    bound_vars: Vec<Variable>,
+    bound_vars: Vec<LocalVariable>,
 }
 
 impl Transformer for Flatten {
-    fn visit(&mut self, node: &AstNode) -> Visited {
-        dispatch! { self on node:
-            LocalReference => Flatten::local_reference,
-            FixLet => Flatten::fixlet,
-            Function => Flatten::function,
+    fn visit(&mut self, expr: Expression) -> Visited {
+        use crate::syntax::Reference::*;
+        use Expression::*;
+        match expr {
+            Reference(LocalReference(x)) => self.local_reference(x),
+            FixLet(x) => self.fixlet(x).into(),
+            Function(x) => self.function(x).into(),
+            x => Visited::Recurse(x),
         }
     }
 }
@@ -38,22 +33,21 @@ impl Flatten {
         }
     }
 
-    fn local_reference(&mut self, node: &LocalReference) -> Visited {
-        if self.bound_vars.contains(node.variable()) {
-            Visited::Identity
+    fn local_reference(&mut self, node: LocalReference) -> Visited {
+        if self.bound_vars.contains(&node.var) {
+            Visited::Recurse(node.into())
         } else {
             self.current_function
                 .as_mut()
                 .unwrap()
-                .adjoin_free_variables(node);
-            Visited::Transformed(FreeReference::new(
-                Variable::Free(*node.variable().name()),
-                node.source().clone(),
-            ))
+                .adjoin_free_variables(&node);
+            Visited::Transformed(
+                FreeReference::new(FreeVariable::new(node.var.name()), node.span).into(),
+            )
         }
     }
 
-    fn fixlet(&mut self, node: &FixLet) -> AstNode {
+    fn fixlet(&mut self, node: FixLet) -> FixLet {
         let arguments = node
             .arguments
             .iter()
@@ -67,15 +61,10 @@ impl Flatten {
 
         self.bound_vars.truncate(n);
 
-        FixLet::new(
-            node.variables.clone(),
-            arguments,
-            body,
-            node.source().clone(),
-        )
+        FixLet::new(node.variables.clone(), arguments, body, node.span)
     }
 
-    fn function(&mut self, node: &Function) -> AstNode {
+    fn function(&mut self, node: Function) -> FlatClosure {
         let newfun = FlatClosure {
             func: node.clone(),
             free_vars: vec![],
@@ -86,7 +75,7 @@ impl Flatten {
             bound_vars: node.variables.clone(),
         };
 
-        let newbody = node.body.clone().transform(&mut trans);
+        let newbody = node.body.transform(&mut trans);
 
         let mut newfun = trans.current_function.unwrap();
 
@@ -94,65 +83,15 @@ impl Flatten {
             .free_vars
             .iter()
             .cloned()
+            .map(Expression::from)
             .map(|r| r.transform(self))
+            .map(Expression::try_into)
+            .map(|r| r.expect("expected local reference"))
             .collect();
 
-        newfun.func.body = newbody;
+        newfun.func.body = Box::new(newbody);
         newfun.free_vars = free_vars;
 
-        Ref::new(newfun)
-    }
-}
-
-impl FlatClosure {
-    fn adjoin_free_variables(&mut self, node: &LocalReference) {
-        if self
-            .free_vars
-            .iter()
-            .find(|fv| fv.downcast_ref::<LocalReference>() == Some(node))
-            .is_none()
-        {
-            self.free_vars.push(Ref::new(node.clone()));
-        }
-    }
-}
-
-impl Ast for FlatClosure {
-    fn source(&self) -> &SourceLocation {
-        self.func.source()
-    }
-
-    fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
-        self.func.body = self.func.body.transform(visitor);
-        self.free_vars = self
-            .free_vars
-            .into_iter()
-            .map(|fv| fv.transform(visitor))
-            .collect();
-        self
-    }
-
-    fn deep_clone(&self) -> AstNode {
-        Ref::new(self.clone())
-    }
-}
-
-impl FreeReference {
-    fn new(var: Variable, span: SourceLocation) -> AstNode {
-        Ref::new(FreeReference { var, span })
-    }
-}
-
-impl Ast for FreeReference {
-    fn source(&self) -> &SourceLocation {
-        &self.span
-    }
-
-    fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
-        self
-    }
-
-    fn deep_clone(&self) -> AstNode {
-        Ref::new(self.clone())
+        newfun
     }
 }

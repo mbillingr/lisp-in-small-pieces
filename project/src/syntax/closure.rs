@@ -10,6 +10,8 @@ pub struct FlatClosure {
     pub free_vars: Vec<LocalReference>,
 }
 
+impl_sourced!(FlatClosure: self.func.span);
+
 impl FlatClosure {
     pub fn adjoin_free_variables(&mut self, node: &LocalReference) {
         if self.free_vars.iter().find(|&fv| fv == node).is_none() {

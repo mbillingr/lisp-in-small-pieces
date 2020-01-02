@@ -4,6 +4,7 @@ use crate::env::Env;
 use crate::objectify::{Result, Translate};
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;
+use crate::utils::Named;
 
 pub type MagicKeywordHandler = fn(&mut Translate, &TrackedSexpr, &Env) -> Result<Expression>;
 
@@ -27,12 +28,15 @@ impl MagicKeyword {
         }
     }
 
-    pub fn name(&self) -> &Symbol {
-        &self.name
-    }
-
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
         self
+    }
+}
+
+impl Named for MagicKeyword {
+    type Name = Symbol;
+    fn name(&self) -> Symbol {
+        self.name
     }
 }
 

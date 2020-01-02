@@ -1,6 +1,4 @@
 pub mod scheme {
-    use crate::ast::AstNode;
-    use crate::ast::{MagicKeyword, RuntimePrimitive};
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
@@ -11,10 +9,12 @@ pub mod scheme {
     use crate::objectify::{car, cdr, Translate};
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
+    use crate::primitive::RuntimePrimitive;
     use crate::scm::Scm;
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
-    use crate::Variable;
+    use crate::syntax::Variable;
+    use crate::syntax::{Expression, MagicKeyword, PredefinedVariable};
 
     type Result<T> = std::result::Result<T, Error>;
 
@@ -44,6 +44,7 @@ pub mod scheme {
         }
 
         pub fn eval_sexpr(&mut self, sexpr: &TrackedSexpr) -> Result<Scm> {
+            //println!("{:?}", self.trans);
             let ast = self.trans.objectify_toplevel(sexpr)?;
             let ast = ast.transform(&mut Boxify);
             //println!("{:#?}", ast);
@@ -55,7 +56,7 @@ pub mod scheme {
             let predef = self.trans.env.predef.clone();
 
             let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
-            //println!("{:?}", code);
+            //println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
@@ -72,10 +73,10 @@ pub mod scheme {
         (primitive $name:expr, =$arity:expr, $func:ident, $($rest:tt)*) => {{
             let (mut env, mut runtime_env) = predef!{$($rest)*};
 
-            env.predef.extend(Variable::predefined(
-                $name,
-                FunctionDescription::new(Arity::Exact(2), $name),
-            ));
+            env.predef.extend(PredefinedVariable::new(
+                                    $name,
+                                    FunctionDescription::new(Arity::Exact(2), $name))
+                                .into());
 
             runtime_env.push(Scm::Primitive(RuntimePrimitive::new(Arity::Exact($arity), $func)));
 
@@ -84,8 +85,7 @@ pub mod scheme {
 
         (macro $name:expr, $func:ident, $($rest:tt)*) => {{
             let (mut env, mut runtime_env) = predef!{$($rest)*};
-            env.predef.extend(Variable::Macro(MagicKeyword::new($name, $func)));
-            runtime_env.push(Scm::Undefined);
+            env.macros.extend(MagicKeyword::new($name, $func).into());
             (env, runtime_env)
         }};
     }
@@ -112,7 +112,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
-    ) -> ObjectifyResult<AstNode> {
+    ) -> ObjectifyResult<Expression> {
         let def = &cdr(expr)?;
         let names = car(def)?;
         let body = cdr(def)?;
@@ -123,7 +123,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
-    ) -> ObjectifyResult<AstNode> {
+    ) -> ObjectifyResult<Expression> {
         trans.objectify_sequence(&cdr(expr)?, env)
     }
 
@@ -131,7 +131,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
-    ) -> ObjectifyResult<AstNode> {
+    ) -> ObjectifyResult<Expression> {
         let parts = expr.as_proper_list().ok_or(ObjectifyError {
             kind: ObjectifyErrorKind::ExpectedList,
             location: expr.source().clone(),
@@ -143,7 +143,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
-    ) -> ObjectifyResult<AstNode> {
+    ) -> ObjectifyResult<Expression> {
         let body = &cdr(expr)?;
         trans.objectify_quotation(car(body)?, env)
     }
@@ -152,7 +152,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
-    ) -> ObjectifyResult<AstNode> {
+    ) -> ObjectifyResult<Expression> {
         let rest = cdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;

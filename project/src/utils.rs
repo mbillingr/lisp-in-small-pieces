@@ -1,3 +1,4 @@
+use crate::source::SourceLocation;
 /// Shortcut to declare enums of the Form `enum Foo { Bar(Bar), Baz(Baz) }` along with
 /// implementations of `impl From<Bar> for Foo` and `impl TryFrom<Foo> for Bar` for each variant.
 macro_rules! sum_type {
@@ -143,5 +144,32 @@ macro_rules! sum_types {
             pub type $typename = $($type)|+;
         }
         sum_types! { $($rest)* }
+    };
+}
+
+pub trait Named {
+    type Name;
+    fn name(&self) -> Self::Name;
+}
+
+pub trait Sourced {
+    fn source(&self) -> &SourceLocation;
+}
+
+macro_rules! impl_sourced {
+    ($t:ty) => {
+        impl_sourced!($t: span);
+    };
+
+    ($t:ty: $field:ident) => {
+        impl_sourced!($t: self.$field);
+    };
+
+    ($t:ty: self.$($tokens:tt)*) => {
+        impl crate::utils::Sourced for $t {
+            fn source(&self) -> &crate::source::SourceLocation {
+                &self.$($tokens)*
+            }
+        }
     };
 }

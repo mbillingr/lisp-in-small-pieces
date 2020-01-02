@@ -3,10 +3,11 @@ use super::reference::LocalReference;
 use super::variable::GlobalVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::utils::Sourced;
 
-sum_types! {
+sum_type! {
     #[derive(Debug, Clone)]
-    pub type Assignment = LocalAssignment | GlobalAssignment;
+    pub type Assignment(Expression) = LocalAssignment | GlobalAssignment;
 }
 
 impl Assignment {
@@ -19,12 +20,24 @@ impl Assignment {
     }
 }
 
+impl Sourced for Assignment {
+    fn source(&self) -> &SourceLocation {
+        use Assignment::*;
+        match self {
+            LocalAssignment(x) => &x.span,
+            GlobalAssignment(x) => &x.span,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalAssignment {
     pub reference: LocalReference,
     pub form: Box<Expression>,
-    span: SourceLocation,
+    pub span: SourceLocation,
 }
+
+impl_sourced!(LocalAssignment);
 
 impl LocalAssignment {
     pub fn new(
@@ -51,6 +64,8 @@ pub struct GlobalAssignment {
     pub form: Box<Expression>,
     span: SourceLocation,
 }
+
+impl_sourced!(GlobalAssignment);
 
 impl GlobalAssignment {
     pub fn new(

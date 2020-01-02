@@ -1,157 +1,72 @@
-use crate::ast::{
-    Ast, AstNode, FixLet, Function, LocalAssignment, LocalReference, Ref, Sequence, Transformer,
-    Variable, Visited,
-};
+use super::{Transformer, Visited};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
-
-#[derive(Debug, Clone)]
-pub struct BoxRead {
-    pub reference: AstNode,
-    span: SourceLocation,
-}
-
-#[derive(Debug, Clone)]
-pub struct BoxWrite {
-    pub reference: AstNode,
-    pub form: AstNode,
-    span: SourceLocation,
-}
-
-#[derive(Debug, Clone)]
-pub struct BoxCreate {
-    pub variable: Variable,
-    span: SourceLocation,
-}
+use crate::syntax::{
+    Assignment, BoxCreate, BoxRead, BoxWrite, Expression, FixLet, Function, LocalAssignment,
+    LocalReference, LocalVariable, Reference, Sequence, Variable,
+};
+use crate::utils::Sourced;
 
 pub struct Boxify;
 
 impl Transformer for Boxify {
-    fn visit(&mut self, node: &AstNode) -> Visited {
-        dispatch! { self on node:
-            LocalReference => Boxify::transform_local_reference,
-            LocalAssignment => Boxify::transform_local_assignment,
-            Function => Boxify::transform_function,
-            FixLet => Boxify::transform_fixlet,
+    fn visit(&mut self, expr: Expression) -> Visited {
+        use crate::syntax::Assignment::*;
+        use crate::syntax::Reference::*;
+        use Expression::*;
+        match expr {
+            Reference(LocalReference(x)) => self.transform_local_reference(x),
+            Assignment(LocalAssignment(x)) => self.transform_local_assignment(x).into(),
+            Function(x) => self.transform_function(x).into(),
+            FixLet(x) => self.transform_fixlet(x).into(),
+            x => Visited::Recurse(x),
         }
     }
 }
 
 impl Boxify {
-    fn transform_local_reference(&self, node: &LocalReference) -> Visited {
-        if node.variable().is_mutable() {
-            let newnode: AstNode = BoxRead::new(Ref::new(node.clone()), node.source().clone());
+    fn transform_local_reference(&self, node: LocalReference) -> Visited {
+        if node.var.is_mutable() {
+            let span = node.span.clone();
+            let newnode = BoxRead::new(node.into(), span);
             newnode.into()
         } else {
-            Visited::Identity
+            Visited::Recurse(node.into())
         }
     }
 
-    fn transform_local_assignment(&mut self, node: &LocalAssignment) -> AstNode {
-        BoxWrite::new(
-            Ref::new(node.reference.clone()),
-            node.form.clone().transform(self),
-            node.source().clone(),
-        )
+    fn transform_local_assignment(&mut self, node: LocalAssignment) -> BoxWrite {
+        BoxWrite::new(node.reference.into(), node.form.transform(self), node.span)
     }
 
-    fn transform_function(&mut self, node: &Function) -> AstNode {
-        Function::new(
-            node.variables.clone(),
-            boxify_mutable_variables(node.body.clone(), &node.variables).transform(self),
-            node.source().clone(),
-        )
+    fn transform_function(&mut self, node: Function) -> Function {
+        let body = boxify_mutable_variables(*node.body, &node.variables).transform(self);
+        Function::new(node.variables, body, node.span)
     }
 
-    fn transform_fixlet(&mut self, node: &FixLet) -> AstNode {
+    fn transform_fixlet(&mut self, node: FixLet) -> FixLet {
         FixLet::new(
             node.variables.clone(),
             node.arguments
                 .iter()
                 .map(|a| a.clone().transform(self))
                 .collect(),
-            boxify_mutable_variables(node.body.clone(), &node.variables).transform(self),
-            node.source().clone(),
+            boxify_mutable_variables(*node.body, &node.variables).transform(self),
+            node.span,
         )
     }
 }
 
-impl BoxRead {
-    pub fn new(reference: AstNode, span: SourceLocation) -> Ref<Self> {
-        Ref::new(BoxRead { reference, span })
-    }
-}
-
-impl Ast for BoxRead {
-    fn source(&self) -> &SourceLocation {
-        &self.span
-    }
-
-    fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
-        self.reference = self.reference.transform(visitor);
-        self
-    }
-
-    fn deep_clone(&self) -> AstNode {
-        Ref::new(self.clone())
-    }
-}
-
-impl BoxWrite {
-    pub fn new(reference: AstNode, form: AstNode, span: SourceLocation) -> Ref<Self> {
-        Ref::new(BoxWrite {
-            reference,
-            form,
-            span,
-        })
-    }
-}
-
-impl Ast for BoxWrite {
-    fn source(&self) -> &SourceLocation {
-        &self.span
-    }
-
-    fn default_transform(mut self: Ref<Self>, visitor: &mut dyn Transformer) -> AstNode {
-        self.reference = self.reference.transform(visitor);
-        self.form = self.form.transform(visitor);
-        self
-    }
-
-    fn deep_clone(&self) -> AstNode {
-        Ref::new(self.clone())
-    }
-}
-
-impl BoxCreate {
-    pub fn new(variable: Variable, span: SourceLocation) -> Ref<Self> {
-        Ref::new(BoxCreate { variable, span })
-    }
-}
-
-impl Ast for BoxCreate {
-    fn source(&self) -> &SourceLocation {
-        &self.span
-    }
-
-    fn default_transform(self: Ref<Self>, _visitor: &mut dyn Transformer) -> AstNode {
-        self
-    }
-
-    fn deep_clone(&self) -> AstNode {
-        Ref::new(self.clone())
-    }
-}
-
-fn boxify_mutable_variables(mut body: AstNode, variables: &[Variable]) -> AstNode {
+fn boxify_mutable_variables(mut body: Expression, variables: &[LocalVariable]) -> Expression {
     for var in variables {
         if var.is_mutable() {
             let span = body.source().clone();
             body = Sequence::new(
-                BoxCreate::new(var.clone(), SourceLocation::NoSource),
+                Expression::from(BoxCreate::new(var.clone(), SourceLocation::NoSource)),
                 body,
                 span,
-            );
+            )
+            .into();
         }
     }
     body

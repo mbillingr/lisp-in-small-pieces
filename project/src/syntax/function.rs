@@ -7,14 +7,16 @@ use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub struct Function {
-    pub variables: Vec<Variable>,
+    pub variables: Vec<LocalVariable>,
     pub body: Box<Expression>,
-    span: SourceLocation,
+    pub span: SourceLocation,
 }
+
+impl_sourced!(Function);
 
 impl Function {
     pub fn new(
-        variables: Vec<Variable>,
+        variables: Vec<LocalVariable>,
         body: impl Into<Box<Expression>>,
         span: SourceLocation,
     ) -> Self {

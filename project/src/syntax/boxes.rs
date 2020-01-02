@@ -1,8 +1,9 @@
 use super::expression::Expression;
-use super::reference::Reference;
-use super::variable::Variable;
+use super::reference::LocalReference;
+use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::syntax::Reference;
 use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
@@ -20,9 +21,13 @@ pub struct BoxWrite {
 
 #[derive(Debug, Clone)]
 pub struct BoxCreate {
-    pub variable: Variable,
+    pub variable: LocalVariable,
     span: SourceLocation,
 }
+
+impl_sourced!(BoxRead);
+impl_sourced!(BoxWrite);
+impl_sourced!(BoxCreate);
 
 impl BoxRead {
     pub fn new(reference: Reference, span: SourceLocation) -> Self {
@@ -33,7 +38,7 @@ impl BoxRead {
         self.reference = Expression::from(self.reference)
             .transform(visitor)
             .try_into()
-            .expect("Expected Reference");
+            .unwrap_or_else(|x| panic!("Expected `LocalReference` but got {:?}", x));
         self
     }
 }
@@ -55,14 +60,14 @@ impl BoxWrite {
         self.reference = Expression::from(self.reference)
             .transform(visitor)
             .try_into()
-            .expect("Expected Reference");
+            .unwrap_or_else(|x| panic!("Expected `LocalReference` but got {:?}", x));
         *self.form = self.form.transform(visitor);
         self
     }
 }
 
 impl BoxCreate {
-    pub fn new(variable: Variable, span: SourceLocation) -> Self {
+    pub fn new(variable: LocalVariable, span: SourceLocation) -> Self {
         BoxCreate { variable, span }
     }
 

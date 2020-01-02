@@ -9,6 +9,8 @@ pub struct Sequence {
     span: SourceLocation,
 }
 
+impl_sourced!(Sequence);
+
 impl Sequence {
     pub fn new(
         first: impl Into<Box<Expression>>,

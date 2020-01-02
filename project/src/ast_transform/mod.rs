@@ -1,4 +1,4 @@
-macro_rules! dispatch {
+/*macro_rules! dispatch {
 
     ($trans:ident on $node:ident: _ => $blk:block) => {$blk};
 
@@ -19,7 +19,7 @@ macro_rules! dispatch {
             dispatch!($trans on $node: $($rest)*)
         }
     };
-}
+}*/
 
 pub mod boxify;
 pub mod flatten_closures;
@@ -34,4 +34,10 @@ pub trait Transformer {
 pub enum Visited {
     Transformed(Expression),
     Recurse(Expression),
+}
+
+impl<T: Into<Expression>> From<T> for Visited {
+    fn from(x: T) -> Self {
+        Visited::Transformed(x.into())
+    }
 }

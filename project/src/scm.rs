@@ -1,5 +1,5 @@
-use crate::ast::RuntimePrimitive;
 use crate::bytecode::{Closure, CodeObject};
+use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use std::cell::Cell;
