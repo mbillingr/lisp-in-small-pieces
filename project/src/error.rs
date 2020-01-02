@@ -1,7 +1,8 @@
-use crate::bytecode::Error as BytecodeError;
 use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
 use crate::parsing::{ParseError, ParseErrorKind};
 use crate::source::{Source, SourceLocation};
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub struct Error {
@@ -13,7 +14,21 @@ pub struct Error {
 pub enum ErrorKind {
     Parse(ParseErrorKind),
     Objectify(ObjectifyErrorKind),
-    Runtime(BytecodeError),
+    Runtime(RuntimeError),
+    TypeError(TypeError),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RuntimeError {
+    ValueStackUnderflow,
+    IncorrectArity,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TypeError {
+    WrongType,
+    NotCallable,
+    NoPair,
 }
 
 #[derive(Debug)]
@@ -31,10 +46,19 @@ impl From<ObjectifyError> for Error {
     }
 }
 
-impl From<BytecodeError> for Error {
-    fn from(err: BytecodeError) -> Self {
+impl From<RuntimeError> for Error {
+    fn from(err: RuntimeError) -> Self {
         Error {
             kind: ErrorKind::Runtime(err),
+            context: ErrorContext::None,
+        }
+    }
+}
+
+impl From<TypeError> for Error {
+    fn from(err: TypeError) -> Self {
+        Error {
+            kind: ErrorKind::TypeError(err),
             context: ErrorContext::None,
         }
     }
@@ -56,6 +80,7 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
             ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
             ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),
+            ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
         }
     }
 }
@@ -90,8 +115,8 @@ impl PartialEq<Error> for ParseErrorKind {
     }
 }
 
-impl PartialEq<BytecodeError> for Error {
-    fn eq(&self, other: &BytecodeError) -> bool {
+impl PartialEq<RuntimeError> for Error {
+    fn eq(&self, other: &RuntimeError) -> bool {
         match self.kind {
             ErrorKind::Runtime(ref e) => e == other,
             _ => false,
@@ -99,7 +124,22 @@ impl PartialEq<BytecodeError> for Error {
     }
 }
 
-impl PartialEq<Error> for BytecodeError {
+impl PartialEq<Error> for RuntimeError {
+    fn eq(&self, other: &Error) -> bool {
+        other.eq(self)
+    }
+}
+
+impl PartialEq<TypeError> for Error {
+    fn eq(&self, other: &TypeError) -> bool {
+        match self.kind {
+            ErrorKind::TypeError(ref e) => e == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Error> for TypeError {
     fn eq(&self, other: &Error) -> bool {
         other.eq(self)
     }

@@ -49,11 +49,11 @@ impl Translate {
                 _ => self.objectify_quotation(expr, env),
             }
         } else {
-            let m = self.objectify(car(expr)?, env)?;
+            let m = self.objectify(ocar(expr)?, env)?;
             if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {
                 handler(self, expr, env)
             } else {
-                self.objectify_application(&m, &cdr(expr)?, env, expr.source().clone())
+                self.objectify_application(&m, &ocdr(expr)?, env, expr.source().clone())
             }
         }
     }
@@ -312,14 +312,14 @@ impl Translate {
     }
 }
 
-pub fn car(e: &Sexpr) -> Result<&Sexpr> {
+pub fn ocar(e: &Sexpr) -> Result<&Sexpr> {
     e.first().ok_or_else(|| ObjectifyError {
         kind: ObjectifyErrorKind::NoPair,
         location: e.source().clone(),
     })
 }
 
-pub fn cdr(e: &Sexpr) -> Result<Sexpr> {
+pub fn ocdr(e: &Sexpr) -> Result<Sexpr> {
     e.tail().ok_or_else(|| ObjectifyError {
         kind: ObjectifyErrorKind::NoPair,
         location: e.source().clone(),

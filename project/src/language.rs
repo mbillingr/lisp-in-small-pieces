@@ -5,18 +5,17 @@ pub mod scheme {
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
-    use crate::error::Error;
-    use crate::objectify::{car, cdr, Translate};
+    use crate::error::{Error, Result, RuntimeError, TypeError};
     use crate::objectify::{decons, Result as ObjectifyResult};
+    use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
+    use crate::primitive;
     use crate::primitive::RuntimePrimitive;
     use crate::scm::Scm;
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::syntax::Variable;
     use crate::syntax::{Expression, MagicKeyword, PredefinedVariable};
-
-    type Result<T> = std::result::Result<T, Error>;
 
     pub struct Context {
         trans: Translate,
@@ -75,10 +74,10 @@ pub mod scheme {
 
             env.predef.extend(PredefinedVariable::new(
                                     $name,
-                                    FunctionDescription::new(Arity::Exact(2), $name))
+                                    FunctionDescription::new(Arity::Exact($arity), $name))
                                 .into());
 
-            runtime_env.push(Scm::Primitive(RuntimePrimitive::new(Arity::Exact($arity), $func)));
+            runtime_env.push(Scm::Primitive(RuntimePrimitive::new($name, Arity::Exact($arity), $func)));
 
             (env, runtime_env)
         }};
@@ -93,6 +92,7 @@ pub mod scheme {
     pub fn init_env() -> (Env, Vec<Scm>) {
         predef! {
             primitive "cons", =2, cons,
+            primitive "car", =1, car,
             primitive "eq?", =2, is_eq,
             primitive "<", =2, is_less,
             primitive "*", =2, multiply,
@@ -113,9 +113,9 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        let def = &cdr(expr)?;
-        let names = car(def)?;
-        let body = cdr(def)?;
+        let def = &ocdr(expr)?;
+        let names = ocar(def)?;
+        let body = ocdr(def)?;
         trans.objectify_function(names, &body, env, expr.source().clone())
     }
 
@@ -124,7 +124,7 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        trans.objectify_sequence(&cdr(expr)?, env)
+        trans.objectify_sequence(&ocdr(expr)?, env)
     }
 
     pub fn expand_assign(
@@ -144,8 +144,8 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        let body = &cdr(expr)?;
-        trans.objectify_quotation(car(body)?, env)
+        let body = &ocdr(expr)?;
+        trans.objectify_quotation(ocar(body)?, env)
     }
 
     pub fn expand_alternative(
@@ -153,57 +153,62 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        let rest = cdr(expr)?;
+        let rest = ocdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
         let no = decons(&rest).ok().map(|(no, _)| no);
         trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
     }
 
-    pub fn cons(mut args: &[Scm]) -> Scm {
+    pub fn cons(mut args: &[Scm]) -> primitive::Result {
         let car = args[0];
         let cdr = args[1];
-        Scm::cons(car, cdr)
+        Ok(Scm::cons(car, cdr))
     }
 
-    pub fn is_eq(args: &[Scm]) -> Scm {
+    pub fn car(mut args: &[Scm]) -> primitive::Result {
+        let pair = args[0];
+        pair.car().ok_or(TypeError::NoPair.into())
+    }
+
+    pub fn is_eq(args: &[Scm]) -> primitive::Result {
         match &args[..] {
-            [a, b] => Scm::bool(Scm::ptr_eq(a, b)),
+            [a, b] => Ok(Scm::bool(Scm::ptr_eq(a, b))),
             _ => unreachable!(),
         }
     }
 
-    pub fn is_less(args: &[Scm]) -> Scm {
+    pub fn is_less(args: &[Scm]) -> primitive::Result {
         match &args[..] {
-            [a, b] => Scm::bool(Scm::num_less(a, b).unwrap()),
+            [a, b] => Ok(Scm::bool(Scm::num_less(a, b).unwrap())),
             _ => unreachable!(),
         }
     }
 
-    pub fn multiply(args: &[Scm]) -> Scm {
+    pub fn multiply(args: &[Scm]) -> primitive::Result {
         match args[..] {
-            [a, b] => (a * b).unwrap(),
+            [a, b] => (a * b),
             _ => unreachable!(),
         }
     }
 
-    pub fn divide(args: &[Scm]) -> Scm {
+    pub fn divide(args: &[Scm]) -> primitive::Result {
         match args[..] {
-            [a, b] => (a / b).unwrap(),
+            [a, b] => (a / b),
             _ => unreachable!(),
         }
     }
 
-    pub fn add(args: &[Scm]) -> Scm {
+    pub fn add(args: &[Scm]) -> primitive::Result {
         match args[..] {
-            [a, b] => (a + b).unwrap_or_else(|_| panic!("attempt to add {:?} and {:?}", a, b)),
+            [a, b] => (a + b),
             _ => unreachable!(),
         }
     }
 
-    pub fn subtract(args: &[Scm]) -> Scm {
+    pub fn subtract(args: &[Scm]) -> primitive::Result {
         match args[..] {
-            [a, b] => (a - b).unwrap(),
+            [a, b] => (a - b),
             _ => unreachable!(),
         }
     }

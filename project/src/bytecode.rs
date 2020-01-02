@@ -1,15 +1,9 @@
 use crate::description::Arity;
+use crate::error::{Error, Result, RuntimeError, TypeError};
+use crate::primitive;
 use crate::scm::Scm;
 use crate::source::{Source, SourceLocation};
 use lazy_static::lazy_static;
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, PartialEq)]
-pub enum Error {
-    ValueStackUnderflow,
-    NotCallable,
-}
 
 #[derive(Debug)]
 pub struct CodeObject {
@@ -173,10 +167,10 @@ impl VirtualMachine {
                     }
                     Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
-                        val = func.invoke(&self.value_stack[n..]);
+                        val = func.invoke(&self.value_stack[n..])?;
                         self.value_stack.truncate(n);
                     }
-                    _ => return Err(Error::NotCallable),
+                    _ => return Err(TypeError::NotCallable.into()),
                 },
                 Op::TailCall(nargs) => match val {
                     Scm::Closure(callee) => {
@@ -191,7 +185,7 @@ impl VirtualMachine {
                         cls = callee;
                         //free = fv;
                     }
-                    _ => return Err(Error::NotCallable),
+                    _ => return Err(TypeError::NotCallable.into()),
                 },
                 Op::CallPrimitive(arity) => unimplemented!(),
                 Op::Return => {
@@ -229,7 +223,9 @@ impl VirtualMachine {
     }
 
     fn pop_value(&mut self) -> Result<Scm> {
-        self.value_stack.pop().ok_or(Error::ValueStackUnderflow)
+        self.value_stack
+            .pop()
+            .ok_or(RuntimeError::ValueStackUnderflow.into())
     }
 
     fn push_value(&mut self, value: Scm) {

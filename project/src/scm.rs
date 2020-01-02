@@ -1,4 +1,5 @@
 use crate::bytecode::{Closure, CodeObject};
+use crate::error::{Result, TypeError};
 use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
@@ -23,13 +24,6 @@ pub enum Scm {
     Primitive(RuntimePrimitive),
 
     Cell(&'static Cell<Scm>),
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug)]
-pub enum Error {
-    TypeError,
 }
 
 impl Scm {
@@ -196,21 +190,21 @@ impl Scm {
             (Int(a), Float(b)) => Ok((a as f64) < b),
             (Float(a), Int(b)) => Ok(a < (b as f64)),
             (Float(a), Float(b)) => Ok(a < b),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 
     pub fn set(&self, value: Scm) -> Result<()> {
         match self {
             Scm::Cell(x) => Ok(x.set(value)),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 
     pub fn get(&self) -> Result<Scm> {
         match self {
             Scm::Cell(x) => Ok(x.get()),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 }
@@ -308,7 +302,7 @@ impl std::ops::Mul for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 * b)),
             (Float(a), Int(b)) => Ok(Float(a * b as f64)),
             (Float(a), Float(b)) => Ok(Float(a * b)),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 }
@@ -322,7 +316,7 @@ impl std::ops::Div for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 / b)),
             (Float(a), Int(b)) => Ok(Float(a / b as f64)),
             (Float(a), Float(b)) => Ok(Float(a / b)),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 }
@@ -336,7 +330,7 @@ impl std::ops::Add for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 + b)),
             (Float(a), Int(b)) => Ok(Float(a + b as f64)),
             (Float(a), Float(b)) => Ok(Float(a + b)),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 }
@@ -350,7 +344,7 @@ impl std::ops::Sub for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 - b)),
             (Float(a), Int(b)) => Ok(Float(a - b as f64)),
             (Float(a), Float(b)) => Ok(Float(a - b)),
-            _ => Err(Error::TypeError),
+            _ => Err(TypeError::WrongType.into()),
         }
     }
 }
