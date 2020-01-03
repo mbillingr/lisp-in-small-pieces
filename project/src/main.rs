@@ -19,7 +19,7 @@ mod symbol;
 mod syntax;
 
 use crate::description::{Arity, FunctionDescription};
-use crate::language::scheme::{cons, expand_assign, expand_begin, expand_lambda};
+use crate::language::scheme::{expand_assign, expand_begin, expand_lambda};
 use crate::objectify::Translate;
 use crate::source::SourceLocation::NoSource;
 use env::Env;

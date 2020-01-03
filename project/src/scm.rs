@@ -67,7 +67,7 @@ impl Scm {
                 last_pair = head;
             } else {
                 let new_pair = Scm::cons(x, Scm::Nil);
-                last_pair.set_cdr(new_pair);
+                last_pair.set_cdr(new_pair).unwrap();
                 last_pair = new_pair;
             }
         }
@@ -115,37 +115,37 @@ impl Scm {
         }
     }
 
-    pub fn car(&self) -> Option<Scm> {
+    pub fn car(&self) -> Result<Scm> {
         match self {
-            Scm::Pair(p) => Some(p.0.get()),
-            _ => None,
+            Scm::Pair(p) => Ok(p.0.get()),
+            _ => Err(TypeError::NoPair.into()),
         }
     }
 
-    pub fn cdr(&self) -> Option<Scm> {
+    pub fn cdr(&self) -> Result<Scm> {
         match self {
-            Scm::Pair(p) => Some(p.1.get()),
-            _ => None,
+            Scm::Pair(p) => Ok(p.1.get()),
+            _ => Err(TypeError::NoPair.into()),
         }
     }
 
-    pub fn set_car(&self, x: Scm) -> Option<()> {
+    pub fn set_car(&self, x: Scm) -> Result<Scm> {
         match self {
             Scm::Pair(p) => {
                 p.0.set(x);
-                Some(())
+                Ok(Scm::Undefined)
             }
-            _ => None,
+            _ => Err(TypeError::NoPair.into()),
         }
     }
 
-    pub fn set_cdr(&self, x: Scm) -> Option<()> {
+    pub fn set_cdr(&self, x: Scm) -> Result<Scm> {
         match self {
             Scm::Pair(p) => {
                 p.1.set(x);
-                Some(())
+                Ok(Scm::Undefined)
             }
-            _ => None,
+            _ => Err(TypeError::NoPair.into()),
         }
     }
 
@@ -259,6 +259,18 @@ impl std::fmt::Display for Scm {
     }
 }
 
+impl From<&Scm> for Scm {
+    fn from(scm: &Scm) -> Scm {
+        *scm
+    }
+}
+
+impl From<bool> for Scm {
+    fn from(b: bool) -> Scm {
+        Scm::bool(b)
+    }
+}
+
 impl From<&Sexpr> for Scm {
     fn from(e: &Sexpr) -> Self {
         match e {
@@ -346,5 +358,27 @@ impl std::ops::Sub for Scm {
             (Float(a), Float(b)) => Ok(Float(a - b)),
             _ => Err(TypeError::WrongType.into()),
         }
+    }
+}
+
+pub trait ResultWrap {
+    fn wrap(self) -> Result<Scm>;
+}
+
+impl<T> ResultWrap for T
+where
+    T: Into<Scm>,
+{
+    fn wrap(self) -> Result<Scm> {
+        Ok(self.into())
+    }
+}
+
+impl<T> ResultWrap for Result<T>
+where
+    T: Into<Scm>,
+{
+    fn wrap(self) -> Result<Scm> {
+        self.map(T::into)
     }
 }

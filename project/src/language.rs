@@ -11,11 +11,12 @@ pub mod scheme {
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
     use crate::primitive;
     use crate::primitive::RuntimePrimitive;
-    use crate::scm::Scm;
+    use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::syntax::Variable;
     use crate::syntax::{Expression, MagicKeyword, PredefinedVariable};
+    use std::ops::{Add, Div, Mul, Sub};
 
     pub struct Context {
         trans: Translate,
@@ -26,9 +27,9 @@ pub mod scheme {
         pub fn new() -> Self {
             let (env, runtime_predef) = init_env();
 
-            let mut trans = Translate::new(env);
+            let trans = Translate::new(env);
 
-            let mut vm = VirtualMachine::new(vec![], runtime_predef);
+            let vm = VirtualMachine::new(vec![], runtime_predef);
 
             Context { trans, vm }
         }
@@ -69,21 +70,84 @@ pub mod scheme {
             (Env::new(), vec![])
         };
 
-        (primitive $name:expr, =$arity:expr, $func:ident, $($rest:tt)*) => {{
-            let (mut env, mut runtime_env) = predef!{$($rest)*};
+        (native $name:expr, =0, $func:expr; $($rest:tt)*) => {{
+            predef!{
+                primitive $name, =0,
+                |args: &[Scm]| {
+                    match &args[..] {
+                        [] => $func(),
+                        _ => unreachable!(),
+                    }
+                };
+                $($rest)*}
+        }};
+
+        (native $name:expr, =1, $func:expr; $($rest:tt)*) => {{
+            predef!{
+                primitive $name, =1,
+                |args: &[Scm]| {
+                    match &args[..] {
+                        [a] => $func(a.into()),
+                        _ => unreachable!(),
+                    }
+                };
+                $($rest)*}
+        }};
+
+        (native $name:expr, =2, $func:expr; $($rest:tt)*) => {{
+            predef!{
+                primitive $name, =2,
+                |args: &[Scm]| {
+                    match &args[..] {
+                        [a, b] => $func(a.into(), b.into()),
+                        _ => unreachable!(),
+                    }
+                };
+                $($rest)*}
+        }};
+
+        (native $name:expr, =3, $func:expr; $($rest:tt)*) => {{
+            predef!{
+                primitive $name, =3,
+                |args: &[Scm]| {
+                    match &args[..] {
+                        [a, b, c] => $func(a.into(), b.into(), c.into()),
+                        _ => unreachable!(),
+                    }
+                };
+                $($rest)*}
+        }};
+
+        (primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
+            let (env, mut runtime_env) = predef!{$($rest)*};
 
             env.predef.extend(PredefinedVariable::new(
                                     $name,
                                     FunctionDescription::new(Arity::Exact($arity), $name))
                                 .into());
 
-            runtime_env.push(Scm::Primitive(RuntimePrimitive::new($name, Arity::Exact($arity), $func)));
+            runtime_env.push(Scm::Primitive(RuntimePrimitive::new($name, Arity::Exact($arity),
+                                                                  |args| $func(args).wrap())));
 
             (env, runtime_env)
         }};
 
-        (macro $name:expr, $func:ident, $($rest:tt)*) => {{
-            let (mut env, mut runtime_env) = predef!{$($rest)*};
+        (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
+            let (env, mut runtime_env) = predef!{$($rest)*};
+
+            env.predef.extend(PredefinedVariable::new(
+                                    $name,
+                                    FunctionDescription::new(Arity::AtLeast($arity), $name))
+                                .into());
+
+            runtime_env.push(Scm::Primitive(RuntimePrimitive::new($name, Arity::AtLeast($arity),
+                                                                  |args| $func(args).wrap())));
+
+            (env, runtime_env)
+        }};
+
+        (macro $name:expr, $func:ident; $($rest:tt)*) => {{
+            let (env, runtime_env) = predef!{$($rest)*};
             env.macros.extend(MagicKeyword::new($name, $func).into());
             (env, runtime_env)
         }};
@@ -91,20 +155,24 @@ pub mod scheme {
 
     pub fn init_env() -> (Env, Vec<Scm>) {
         predef! {
-            primitive "cons", =2, cons,
-            primitive "car", =1, car,
-            primitive "eq?", =2, is_eq,
-            primitive "<", =2, is_less,
-            primitive "*", =2, multiply,
-            primitive "/", =2, divide,
-            primitive "+", =2, add,
-            primitive "-", =2, subtract,
+            native "cons", =2, Scm::cons;
+            native "car", =1, Scm::car;
+            native "cdr", =1, Scm::cdr;
+            native "set-car!", =2, Scm::set_car;
+            native "set-cdr!", =2, Scm::set_cdr;
+            native "eq?", =2, Scm::ptr_eq;
+            native "<", =2, Scm::num_less;
+            native "*", =2, Scm::mul;
+            native "/", =2, Scm::div;
+            native "+", =2, Scm::add;
+            native "-", =2, Scm::sub;
+            primitive "list", >=0, list;
 
-            macro "lambda", expand_lambda,
-            macro "begin", expand_begin,
-            macro "set!", expand_assign,
-            macro "if", expand_alternative,
-            macro "quote", expand_quote,
+            macro "lambda", expand_lambda;
+            macro "begin", expand_begin;
+            macro "set!", expand_assign;
+            macro "if", expand_alternative;
+            macro "quote", expand_quote;
         }
     }
 
@@ -160,57 +228,12 @@ pub mod scheme {
         trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
     }
 
-    pub fn cons(mut args: &[Scm]) -> primitive::Result {
-        let car = args[0];
-        let cdr = args[1];
-        Ok(Scm::cons(car, cdr))
-    }
-
-    pub fn car(mut args: &[Scm]) -> primitive::Result {
-        let pair = args[0];
-        pair.car().ok_or(TypeError::NoPair.into())
-    }
-
-    pub fn is_eq(args: &[Scm]) -> primitive::Result {
-        match &args[..] {
-            [a, b] => Ok(Scm::bool(Scm::ptr_eq(a, b))),
-            _ => unreachable!(),
+    pub fn list(args: &[Scm]) -> Scm {
+        let mut out = Scm::Nil;
+        for &x in args.iter().rev() {
+            out = Scm::cons(x, out);
         }
-    }
-
-    pub fn is_less(args: &[Scm]) -> primitive::Result {
-        match &args[..] {
-            [a, b] => Ok(Scm::bool(Scm::num_less(a, b).unwrap())),
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn multiply(args: &[Scm]) -> primitive::Result {
-        match args[..] {
-            [a, b] => (a * b),
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn divide(args: &[Scm]) -> primitive::Result {
-        match args[..] {
-            [a, b] => (a / b),
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn add(args: &[Scm]) -> primitive::Result {
-        match args[..] {
-            [a, b] => (a + b),
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn subtract(args: &[Scm]) -> primitive::Result {
-        match args[..] {
-            [a, b] => (a - b),
-            _ => unreachable!(),
-        }
+        out
     }
 
     #[cfg(test)]
