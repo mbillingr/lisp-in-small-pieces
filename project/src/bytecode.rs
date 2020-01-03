@@ -15,8 +15,8 @@ pub struct CodeObject {
 
 #[derive(Debug)]
 pub struct Closure {
-    code: &'static CodeObject,
-    free_vars: Box<[Scm]>,
+    pub code: &'static CodeObject,
+    pub free_vars: Box<[Scm]>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -33,7 +33,6 @@ pub enum Op {
     BoxGet,
 
     PushVal,
-    PopVal,
 
     JumpFalse(isize),
     Jump(isize),
@@ -42,7 +41,6 @@ pub enum Op {
 
     Call(usize),
     TailCall(usize),
-    CallPrimitive(usize),
     Return,
     Halt,
 
@@ -140,7 +138,6 @@ impl VirtualMachine {
                     val = val.get().expect("getting unboxed value");
                 }
                 Op::PushVal => self.push_value(val),
-                Op::PopVal => val = self.pop_value()?,
                 Op::Jump(delta) => ip += delta,
                 Op::JumpFalse(delta) => {
                     if val.is_false() {
@@ -187,7 +184,6 @@ impl VirtualMachine {
                     }
                     _ => return Err(TypeError::NotCallable.into()),
                 },
-                Op::CallPrimitive(arity) => unimplemented!(),
                 Op::Return => {
                     self.value_stack.truncate(frame_offset);
                     let data = self.call_stack.pop().expect("call-stack underflow");

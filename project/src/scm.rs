@@ -382,3 +382,9 @@ where
         self.map(T::into)
     }
 }
+
+impl ResultWrap for () {
+    fn wrap(self) -> Result<Scm> {
+        Ok(Scm::Undefined)
+    }
+}

@@ -171,6 +171,8 @@ pub mod scheme {
             // non-standard stuff
             native "primitive?", =1, Scm::is_primitive;
 
+            native "disassemble", =1, disassemble;
+
             macro "lambda", expand_lambda;
             macro "begin", expand_begin;
             macro "set!", expand_assign;
@@ -237,6 +239,13 @@ pub mod scheme {
             out = Scm::cons(x, out);
         }
         out
+    }
+
+    pub fn disassemble(obj: Scm) {
+        if let Scm::Closure(cls) = obj {
+            println!("free variables: {:?}", cls.free_vars);
+            println!("{:#?}", cls.code);
+        }
     }
 
     #[cfg(test)]
