@@ -168,6 +168,9 @@ pub mod scheme {
             native "-", =2, Scm::sub;
             primitive "list", >=0, list;
 
+            // non-standard stuff
+            native "primitive?", =1, Scm::is_primitive;
+
             macro "lambda", expand_lambda;
             macro "begin", expand_begin;
             macro "set!", expand_assign;
