@@ -3,7 +3,6 @@ use super::variable::{FreeVariable, GlobalVariable, LocalVariable, PredefinedVar
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 use crate::utils::Sourced;
-use std::convert::TryFrom;
 
 // TODO: are different reference types required, or could we use simply one type and
 //       distinguish by the referenced variable's type?

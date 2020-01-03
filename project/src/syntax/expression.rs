@@ -63,7 +63,7 @@ impl Sourced for Expression {
     fn source(&self) -> &SourceLocation {
         use Expression::*;
         match self {
-            MagicKeyword(x) => &SourceLocation::NoSource,
+            MagicKeyword(_) => &SourceLocation::NoSource,
             Reference(x) => x.source(),
             Assignment(x) => x.source(),
             Constant(x) => x.source(),

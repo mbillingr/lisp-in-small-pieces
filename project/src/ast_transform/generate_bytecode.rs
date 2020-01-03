@@ -1,18 +1,15 @@
 use crate::bytecode::{CodeObject, Op};
 use crate::description::Arity;
-use crate::env::{Env, Environment};
+use crate::env::Environment;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::{
-    Alternative, Application, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression,
-    FixLet, FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference,
-    GlobalVariable, LocalReference, PredefinedApplication, PredefinedReference, PredefinedVariable,
-    Reference, RegularApplication, Sequence, Variable,
+    Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
+    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, GlobalVariable,
+    LocalReference, PredefinedApplication, PredefinedReference, PredefinedVariable, Reference,
+    RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
-use std::ops::Index;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct BytecodeGenerator {
@@ -107,7 +104,7 @@ impl BytecodeGenerator {
     fn compile_assignment(&mut self, node: &Assignment, tail: bool) -> Vec<Op> {
         use Assignment::*;
         let code: Vec<_> = match node {
-            LocalAssignment(l) => {
+            LocalAssignment(_) => {
                 unimplemented!("Local assignment should happen through a box write")
             }
             GlobalAssignment(g) => self.compile_global_set(g, tail),
@@ -151,12 +148,12 @@ impl BytecodeGenerator {
         meaning
     }
 
-    fn compile_local_ref(&mut self, node: &LocalReference, tail: bool) -> Vec<Op> {
+    fn compile_local_ref(&mut self, node: &LocalReference, _tail: bool) -> Vec<Op> {
         let idx = self.index_of_local(&node.var.name());
         vec![Op::LocalRef(idx)]
     }
 
-    fn compile_free_ref(&mut self, node: &FreeReference, tail: bool) -> Vec<Op> {
+    fn compile_free_ref(&mut self, node: &FreeReference, _tail: bool) -> Vec<Op> {
         let idx = self
             .current_closure_vars
             .iter()
@@ -165,17 +162,17 @@ impl BytecodeGenerator {
         vec![Op::FreeRef(idx)]
     }
 
-    fn compile_global_ref(&mut self, node: &GlobalReference, tail: bool) -> Vec<Op> {
+    fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Vec<Op> {
         let idx = self.globals.find_idx(&node.var.name()).unwrap();
         vec![Op::GlobalRef(idx)]
     }
 
-    fn compile_predef_ref(&mut self, node: &PredefinedReference, tail: bool) -> Vec<Op> {
+    fn compile_predef_ref(&mut self, node: &PredefinedReference, _tail: bool) -> Vec<Op> {
         let idx = self.predef.find_idx(&node.var.name()).unwrap();
         vec![Op::PredefRef(idx)]
     }
 
-    fn compile_global_set(&mut self, node: &GlobalAssignment, tail: bool) -> Vec<Op> {
+    fn compile_global_set(&mut self, node: &GlobalAssignment, _tail: bool) -> Vec<Op> {
         let idx = self.globals.find_idx(&node.variable.name()).unwrap();
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::GlobalSet(idx));
@@ -202,7 +199,7 @@ impl BytecodeGenerator {
         meaning
     }
 
-    fn compile_closure(&mut self, node: &FlatClosure, tail: bool) -> Vec<Op> {
+    fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Vec<Op> {
         let free_vars = node.free_vars.iter().map(|s| s.var.name()).collect();
 
         let function = BytecodeGenerator::compile_function(
@@ -253,7 +250,7 @@ impl BytecodeGenerator {
     fn compile_predefined_application(
         &mut self,
         node: &PredefinedApplication,
-        tail: bool,
+        _tail: bool,
     ) -> Vec<Op> {
         let mut meaning = vec![];
 
@@ -272,7 +269,7 @@ impl BytecodeGenerator {
         meaning
     }
 
-    fn compile_box_create(&mut self, node: &BoxCreate, tail: bool) -> Vec<Op> {
+    fn compile_box_create(&mut self, node: &BoxCreate, _tail: bool) -> Vec<Op> {
         let idx = self
             .env
             .iter()
@@ -285,7 +282,7 @@ impl BytecodeGenerator {
         vec![Op::Boxify(idx)]
     }
 
-    fn compile_box_write(&mut self, node: &BoxWrite, tail: bool) -> Vec<Op> {
+    fn compile_box_write(&mut self, node: &BoxWrite, _tail: bool) -> Vec<Op> {
         let mut meaning = self.compile_reference(&node.reference, false);
         meaning.push(Op::PushVal);
         meaning.extend(self.compile(&node.form, false));
@@ -293,7 +290,7 @@ impl BytecodeGenerator {
         meaning
     }
 
-    fn compile_box_read(&mut self, node: &BoxRead, tail: bool) -> Vec<Op> {
+    fn compile_box_read(&mut self, node: &BoxRead, _tail: bool) -> Vec<Op> {
         let mut meaning = self.compile_reference(&node.reference, false);
         meaning.push(Op::BoxGet);
         meaning

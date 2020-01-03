@@ -3,10 +3,9 @@ use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::{
-    Alternative, Constant, Expression, FixLet, Function, GlobalAssignment, GlobalReference,
-    GlobalVariable, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
-    PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication,
-    Sequence, Variable,
+    Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
+    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, PredefinedApplication,
+    PredefinedReference, PredefinedVariable, Reference, RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::convert::TryInto;

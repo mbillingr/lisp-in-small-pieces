@@ -1,9 +1,7 @@
-use crate::primitive::RuntimePrimitive;
 use crate::symbol::Symbol;
 use crate::syntax::{GlobalVariable, LocalVariable, MagicKeyword, PredefinedVariable, Variable};
 use crate::utils::Named;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]

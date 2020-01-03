@@ -1,5 +1,4 @@
 use super::expression::Expression;
-use super::reference::LocalReference;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;

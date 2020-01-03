@@ -1,22 +1,8 @@
-use crate::ast_transform::boxify::Boxify;
-use crate::ast_transform::flatten_closures::Flatten;
-use crate::ast_transform::generate_bytecode::BytecodeGenerator;
-use crate::bytecode::{Closure, VirtualMachine};
-use crate::{
-    description::{Arity, FunctionDescription},
-    env::Env,
-    error::{Error, ErrorContext},
-    language::scheme::Context,
-    objectify::Translate,
-    primitive::RuntimePrimitive,
-    scm::Scm,
-    sexpr::TrackedSexpr,
-    source::{Source, SourceLocation},
-    syntax::{MagicKeyword, Variable},
-};
+use crate::error::{Error, ErrorContext};
+use crate::language::scheme::Context;
+use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
-use std::collections::HashMap;
 
 pub fn repl() {
     let mut rl = Editor::<()>::new();

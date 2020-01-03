@@ -1,9 +1,7 @@
 use crate::description::Arity;
-use crate::error::{Error, Result, RuntimeError, TypeError};
-use crate::primitive;
+use crate::error::{Result, RuntimeError, TypeError};
 use crate::scm::Scm;
-use crate::source::{Source, SourceLocation};
-use lazy_static::lazy_static;
+use crate::source::SourceLocation;
 
 #[derive(Debug)]
 pub struct CodeObject {
@@ -208,7 +206,7 @@ impl VirtualMachine {
             Arity::AtLeast(n) => {
                 assert!(n_passed >= n as usize);
                 self.push_value(Scm::nil());
-                for _ in (0..n_passed - n as usize) {
+                for _ in 0..n_passed - n as usize {
                     let b = self.pop_value().unwrap();
                     let a = self.pop_value().unwrap();
                     self.push_value(Scm::cons(a, b));

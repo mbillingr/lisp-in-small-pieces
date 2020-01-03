@@ -5,16 +5,14 @@ pub mod scheme {
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
-    use crate::error::{Error, Result, RuntimeError, TypeError};
+    use crate::error::Result;
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
-    use crate::primitive;
     use crate::primitive::RuntimePrimitive;
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
-    use crate::syntax::Variable;
     use crate::syntax::{Expression, MagicKeyword, PredefinedVariable};
     use std::ops::{Add, Div, Mul, Sub};
 
@@ -161,15 +159,19 @@ pub mod scheme {
             native "set-car!", =2, Scm::set_car;
             native "set-cdr!", =2, Scm::set_cdr;
             native "eq?", =2, Scm::ptr_eq;
+            native "null?", =1, Scm::is_nil;
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;
             native "+", =2, Scm::add;
             native "-", =2, Scm::sub;
             primitive "list", >=0, list;
+            primitive "vector", >=0, vector;
 
             // non-standard stuff
             native "primitive?", =1, Scm::is_primitive;
+            native "uninitialized?", =1, Scm::is_uninitialized;
+            native "undefined?", =1, Scm::is_undefined;
 
             native "disassemble", =1, disassemble;
 
@@ -234,11 +236,11 @@ pub mod scheme {
     }
 
     pub fn list(args: &[Scm]) -> Scm {
-        let mut out = Scm::Nil;
-        for &x in args.iter().rev() {
-            out = Scm::cons(x, out);
-        }
-        out
+        Scm::list(args.iter().copied())
+    }
+
+    pub fn vector(args: &[Scm]) -> Scm {
+        Scm::vector(args.iter().copied())
     }
 
     pub fn disassemble(obj: Scm) {
@@ -353,7 +355,6 @@ pub mod scheme {
 
         mod compound {
             use super::*;
-            use crate::symbol::Symbol;
 
             assert_error!(empty_sequence: "(begin)", ObjectifyErrorKind::ExpectedList);
             compare!(unary_sequence: "(begin 1)", equals, Scm::Int(1));
@@ -374,7 +375,6 @@ pub mod scheme {
 
         mod abstraction {
             use super::*;
-            use crate::symbol::Symbol;
 
             compare!(fix_lambda: "((lambda () 123))", equals, Scm::Int(123));
             compare!(fix_lambda_with_args: "((lambda (x y) (cons x (cons y '()))) 7 5)",
@@ -407,7 +407,6 @@ pub mod scheme {
 
         mod variables {
             use super::*;
-            use crate::symbol::Symbol;
 
             check!(get_predefined: "cons", Scm::is_primitive);
             assert_error!(set_predefined: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
@@ -430,7 +429,6 @@ pub mod scheme {
 
         mod application {
             use super::*;
-            use crate::symbol::Symbol;
 
             compare!(primitive: "(cons 1 2)", equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
 

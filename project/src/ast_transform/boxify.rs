@@ -1,9 +1,8 @@
 use super::{Transformer, Visited};
-use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::syntax::{
-    Assignment, BoxCreate, BoxRead, BoxWrite, Expression, FixLet, Function, LocalAssignment,
-    LocalReference, LocalVariable, Reference, Sequence, Variable,
+    BoxCreate, BoxRead, BoxWrite, Expression, FixLet, Function, LocalAssignment, LocalReference,
+    LocalVariable, Sequence,
 };
 use crate::utils::Sourced;
 

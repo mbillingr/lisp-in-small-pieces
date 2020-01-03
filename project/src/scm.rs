@@ -58,20 +58,16 @@ impl Scm {
         Scm::String(Box::leak(s.into()))
     }
 
-    pub fn list(items: impl IntoIterator<Item = Scm>) -> Self {
-        let mut head = Scm::Nil;
-        let mut last_pair = Scm::Nil;
-        for x in items {
-            if last_pair.is_nil() {
-                head = Scm::cons(x, Scm::Nil);
-                last_pair = head;
-            } else {
-                let new_pair = Scm::cons(x, Scm::Nil);
-                last_pair.set_cdr(new_pair).unwrap();
-                last_pair = new_pair;
-            }
+    pub fn list<T, I>(items: T) -> Self
+    where
+        T: IntoIterator<Item = Scm, IntoIter = I>,
+        I: DoubleEndedIterator<Item = Scm>,
+    {
+        let mut out = Scm::Nil;
+        for x in items.into_iter().rev() {
+            out = Scm::cons(x, out);
         }
-        head
+        out
     }
 
     pub fn vector(items: impl IntoIterator<Item = Scm>) -> Self {
@@ -294,7 +290,6 @@ impl From<&Sexpr> for Scm {
                 let items = items.into_boxed_slice();
                 Scm::Vector(Box::leak(items))
             }
-            _ => unimplemented!(),
         }
     }
 }
