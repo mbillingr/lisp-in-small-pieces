@@ -24,6 +24,7 @@
 pub mod boxify;
 pub mod flatten_closures;
 pub mod generate_bytecode;
+pub mod transform_defines;
 
 use super::syntax::Expression;
 

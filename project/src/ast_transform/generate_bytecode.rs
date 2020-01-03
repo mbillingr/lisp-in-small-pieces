@@ -3,6 +3,7 @@ use crate::description::Arity;
 use crate::env::Environment;
 use crate::scm::Scm;
 use crate::symbol::Symbol;
+use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
     FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, GlobalVariable,
@@ -80,6 +81,7 @@ impl BytecodeGenerator {
             BoxCreate(b) => self.compile_box_create(b, tail),
             BoxWrite(b) => self.compile_box_write(b, tail),
             BoxRead(b) => self.compile_box_read(b, tail),
+            GlobalDefine(d) => self.compile_global_def(d),
             _ => unimplemented!(
                 "Byte code compilation of:\n {:#?}\n {:?}",
                 node.source(),
@@ -176,6 +178,13 @@ impl BytecodeGenerator {
         let idx = self.globals.find_idx(&node.variable.name()).unwrap();
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::GlobalSet(idx));
+        meaning
+    }
+
+    fn compile_global_def(&mut self, node: &GlobalDefine) -> Vec<Op> {
+        let idx = self.globals.find_idx(&node.variable.name()).unwrap();
+        let mut meaning = self.compile(&node.form, false);
+        meaning.push(Op::GlobalDef(idx));
         meaning
     }
 

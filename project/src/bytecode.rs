@@ -25,6 +25,7 @@ pub enum Op {
     GlobalRef(usize),
     PredefRef(usize),
     GlobalSet(usize),
+    GlobalDef(usize),
 
     Boxify(usize),
     BoxSet,
@@ -102,6 +103,10 @@ impl VirtualMachine {
         }
     }
 
+    pub fn globals(&self) -> &[Scm] {
+        &self.globals
+    }
+
     pub fn resize_globals(&mut self, n: usize) {
         self.globals.resize(n, Scm::uninitialized())
     }
@@ -120,10 +125,23 @@ impl VirtualMachine {
             match *op {
                 Op::Constant(idx) => val = cls.code.constants[idx],
                 Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
-                Op::GlobalRef(idx) => val = self.globals[idx],
+                Op::GlobalRef(idx) => {
+                    val = self.globals[idx];
+                    if val.is_uninitialized() {
+                        return Err(RuntimeError::UndefinedGlobal.into());
+                    }
+                }
                 Op::FreeRef(idx) => val = cls.free_vars[idx],
                 Op::PredefRef(idx) => val = self.predef[idx],
-                Op::GlobalSet(idx) => self.globals[idx] = val,
+                Op::GlobalSet(idx) => {
+                    if self.globals[idx].is_uninitialized() {
+                        return Err(RuntimeError::UndefinedGlobal.into());
+                    }
+                    self.globals[idx] = val;
+                }
+                Op::GlobalDef(idx) => {
+                    self.globals[idx] = val;
+                }
                 Op::Boxify(idx) => {
                     let x = self.ref_value(idx + frame_offset)?;
                     self.push_value(Scm::boxed(x));

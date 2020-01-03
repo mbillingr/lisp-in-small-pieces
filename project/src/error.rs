@@ -22,6 +22,7 @@ pub enum ErrorKind {
 pub enum RuntimeError {
     ValueStackUnderflow,
     IncorrectArity,
+    UndefinedGlobal,
 }
 
 #[derive(Debug, PartialEq)]

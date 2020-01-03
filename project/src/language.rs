@@ -2,6 +2,7 @@ pub mod scheme {
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
+    use crate::ast_transform::transform_defines::TransformDefines;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
@@ -44,6 +45,7 @@ pub mod scheme {
         pub fn eval_sexpr(&mut self, sexpr: &TrackedSexpr) -> Result<Scm> {
             //println!("{:?}", self.trans);
             let ast = self.trans.objectify_toplevel(sexpr)?;
+            let ast = ast.transform(&mut TransformDefines::new(self.trans.env.globals.clone()));
             let ast = ast.transform(&mut Boxify);
             //println!("{:#?}", ast);
             let ast = ast.transform(&mut Flatten::new());
@@ -180,6 +182,7 @@ pub mod scheme {
             macro "set!", expand_assign;
             macro "if", expand_alternative;
             macro "quote", expand_quote;
+            macro "define", expand_define;
         }
     }
 
@@ -233,6 +236,22 @@ pub mod scheme {
         let (yes, rest) = decons(&rest)?;
         let no = decons(&rest).ok().map(|(no, _)| no);
         trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
+    }
+
+    pub fn expand_define(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<Expression> {
+        let def = ocdr(expr)?;
+        let definee = ocar(&def)?;
+        let form = ocdr(&def)?;
+
+        if definee.is_symbol() {
+            trans.objectify_definition(definee, ocar(&form)?, env, expr.source().clone())
+        } else {
+            unimplemented!()
+        }
     }
 
     pub fn list(args: &[Scm]) -> Scm {
@@ -401,24 +420,26 @@ pub mod scheme {
             compare!(escaping_lambda_can_modify_free_variable_from_outer_scope:
                      "((lambda (f init) (set! f (init 0)) (f) (f)) '*uninit* (lambda (n) (lambda () (set! n (+ n 1)) n)))",
                      equals, Scm::Int(2));
-            compare!(shadowed_global_is_restored: "(begin (set! foo 123) ((lambda (foo) foo) 42) foo)", equals, Scm::Int(123));
+            compare!(shadowed_global_is_restored: "(begin (define foo 123) ((lambda (foo) foo) 42) foo)", equals, Scm::Int(123));
             compare!(shadowed_local_is_restored: "((lambda (x) ((lambda (x) x) 42) x) 123)", equals, Scm::Int(123));
         }
 
         mod variables {
             use super::*;
+            use crate::error::RuntimeError;
 
             check!(get_predefined: "cons", Scm::is_primitive);
             assert_error!(set_predefined: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
 
-            check!(undefined_global: "flummox", Scm::is_uninitialized);
-            compare!(new_global: "(set! the-answer 42)", equals, Scm::Int(42));
-            compare!(get_global: "(begin (set! the-answer 42) the-answer)", equals, Scm::Int(42));
-            compare!(overwrite_global: "(begin (set! the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
+            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal);
+            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal);
+            compare!(new_global: "(define the-answer 42)", equals, Scm::Int(42));
+            compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
+            compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
 
             compare!(return_local: "((lambda (x) x) 42)", equals, Scm::Int(42));
             compare!(local_shadows_predef: "((lambda (cons) cons) 42)", equals, Scm::Int(42));
-            compare!(local_shadows_global: "(begin (set! foo 123) ((lambda (foo) foo) 42))", equals, Scm::Int(42));
+            compare!(local_shadows_global: "(begin (define foo 123) ((lambda (foo) foo) 42))", equals, Scm::Int(42));
             compare!(local_shadows_local: "((lambda (foo) ((lambda (foo) foo) 123)) 42)", equals, Scm::Int(123));
 
             compare!(modify_local: "((lambda (x) (set! x 789) x) 42)", equals, Scm::Int(789));
@@ -452,18 +473,29 @@ pub mod scheme {
             compare!(fixed_binary_vararg1: "((lambda (z y . x) (cons x (+ y z))) 1 2 3)",
                      equals, Scm::cons(Scm::list(vec![Scm::Int(3)]), Scm::Int(3)));
 
-            compare!(lambda_nullary: "(begin (set! func (lambda () 10)) (func))",
+            compare!(lambda_nullary: "(begin (define func (lambda () 10)) (func))",
                      equals, Scm::Int(10));
-            compare!(lambda_unary: "(begin (set! func (lambda (x) x)) (func 20))",
+            compare!(lambda_unary: "(begin (define func (lambda (x) x)) (func 20))",
                      equals, Scm::Int(20));
-            compare!(lambda_binary: "(begin (set! func (lambda (x y) (+ x y))) (func 5 25))",
+            compare!(lambda_binary: "(begin (define func (lambda (x y) (+ x y))) (func 5 25))",
                      equals, Scm::Int(30));
-            compare!(lambda_nullary_vararg0: "(begin (set! func (lambda x x)) (func))",
+            compare!(lambda_nullary_vararg0: "(begin (define func (lambda x x)) (func))",
                      equals, Scm::Nil);
-            compare!(lambda_nullary_vararg1: "(begin (set! func (lambda x x)) (func 1))",
+            compare!(lambda_nullary_vararg1: "(begin (define func (lambda x x)) (func 1))",
                      equals, Scm::list(vec![Scm::Int(1)]));
-            compare!(lambda_unary_vararg1: "(begin (set! func (lambda (x . y) (cons x y))) (func 1 2))",
+            compare!(lambda_unary_vararg1: "(begin (define func (lambda (x . y) (cons x y))) (func 1 2))",
                      equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+        }
+
+        mod definition {
+            use super::*;
+
+            #[test]
+            fn global_definition() {
+                let mut ctx = Context::new();
+                ctx.eval_str("(define x 42)").unwrap();
+                assert_eq!(ctx.vm.globals()[0], Scm::Int(42));
+            }
         }
     }
 }

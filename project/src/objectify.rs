@@ -3,9 +3,10 @@ use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::{
-    Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, PredefinedApplication,
-    PredefinedReference, PredefinedVariable, Reference, RegularApplication, Sequence, Variable,
+    Alternative, Definition, Expression, FixLet, Function, GlobalAssignment, GlobalReference,
+    GlobalVariable, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
+    PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication,
+    Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::convert::TryInto;
@@ -285,6 +286,18 @@ impl Translate {
         }
     }
 
+    pub fn objectify_definition(
+        &mut self,
+        variable: &Sexpr,
+        expr: &Sexpr,
+        env: &Env,
+        span: SourceLocation,
+    ) -> Result<Expression> {
+        let var_name = *variable.as_symbol().unwrap();
+        let form = self.objectify(expr, env)?;
+        Ok(Definition::new(var_name, form, span).into())
+    }
+
     pub fn objectify_assignment(
         &mut self,
         variable: &Sexpr,
@@ -292,7 +305,7 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let ov = self.objectify(variable, env)?;
+        let ov = self.objectify_symbol(variable, env)?;
         let of = self.objectify(expr, env)?;
 
         match ov {
