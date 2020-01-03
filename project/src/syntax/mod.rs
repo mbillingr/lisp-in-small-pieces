@@ -9,6 +9,7 @@ pub mod expression;
 pub mod fixlet;
 pub mod function;
 pub mod keyword;
+pub mod noop;
 pub mod reference;
 pub mod sequence;
 pub mod variable;
@@ -24,6 +25,7 @@ pub use expression::Expression;
 pub use fixlet::FixLet;
 pub use function::Function;
 pub use keyword::{MagicKeyword, MagicKeywordHandler};
+pub use noop::NoOp;
 pub use reference::{
     FreeReference, GlobalReference, LocalReference, PredefinedReference, Reference,
 };

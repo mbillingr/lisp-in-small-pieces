@@ -8,6 +8,7 @@ use super::definition::{Definition, GlobalDefine};
 use super::fixlet::FixLet;
 use super::function::Function;
 use super::keyword::MagicKeyword;
+use super::noop::NoOp;
 use super::reference::Reference;
 use super::sequence::Sequence;
 
@@ -17,7 +18,8 @@ use crate::utils::Sourced;
 
 sum_types! {
     #[derive(Debug, Clone)]
-    pub type Expression = MagicKeyword
+    pub type Expression = NoOp
+                        | MagicKeyword
                         | Reference
                         | Assignment
                         | Constant
@@ -60,6 +62,7 @@ impl Expression {
             FlatClosure(x) => x.default_transform(visitor).into(),
             Definition(x) => x.default_transform(visitor).into(),
             GlobalDefine(x) => x.default_transform(visitor).into(),
+            NoOp(x) => x.default_transform(visitor).into(),
         }
     }
 }
@@ -83,6 +86,7 @@ impl Sourced for Expression {
             FlatClosure(x) => x.source(),
             Definition(x) => x.source(),
             GlobalDefine(x) => x.source(),
+            NoOp(x) => x.source(),
         }
     }
 }

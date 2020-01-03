@@ -496,6 +496,16 @@ pub mod scheme {
                 ctx.eval_str("(define x 42)").unwrap();
                 assert_eq!(ctx.vm.globals()[0], Scm::Int(42));
             }
+
+            #[test]
+            fn local_definition() {
+                let mut ctx = Context::new();
+                assert_eq!(
+                    ctx.eval_str("((lambda () (define x 42) x))").unwrap(),
+                    Scm::Int(42)
+                );
+                assert!(ctx.vm.globals().is_empty());
+            }
         }
     }
 }

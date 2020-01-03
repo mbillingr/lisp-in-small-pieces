@@ -1,7 +1,7 @@
 use crate::ast_transform::{Transformer, Visited};
 use crate::env::Environment;
 use crate::syntax::definition::GlobalDefine;
-use crate::syntax::{Definition, Expression, GlobalAssignment, GlobalVariable};
+use crate::syntax::{Definition, Expression, FixLet, Function, GlobalVariable};
 
 pub struct TransformDefines {
     globals: Environment<GlobalVariable>,
@@ -14,6 +14,7 @@ impl Transformer for TransformDefines {
         match (expr, &self.current_context) {
             (Definition(x), Context::Global) => self.transform_global_define(x),
             (Definition(x), _) => unimplemented!(),
+            (Function(x), _) => self.transform_function(x),
             (x, _) => Visited::Recurse(x),
         }
     }
@@ -29,7 +30,6 @@ impl TransformDefines {
 
     fn transform_global_define(&mut self, node: Definition) -> Visited {
         let form = node.form.transform(self);
-
         match self.globals.find_variable(&node.var_name) {
             Some(var) => GlobalDefine::new(var, form, node.span).into(),
             None => {
@@ -38,6 +38,44 @@ impl TransformDefines {
                 GlobalDefine::new(var, form, node.span).into()
             }
         }
+    }
+
+    fn transform_function(&mut self, node: Function) -> Visited {
+        let mut scan = ScanOutDefines::new();
+        let body = node.body.transform(&mut scan);
+
+        //let body = FixLet::new()
+        unimplemented!();
+
+        Function::new(node.variables, body, node.span).into()
+    }
+}
+
+struct ScanOutDefines {
+    defines: Vec<Definition>,
+}
+
+impl Transformer for ScanOutDefines {
+    fn visit(&mut self, expr: Expression) -> Visited {
+        use Expression::*;
+        match expr {
+            Definition(x) => {
+                self.defines.push(x);
+                crate::syntax::NoOp.into()
+            }
+            Sequence(mut x) => {
+                *x.first = x.first.transform(self);
+                *x.next = x.next.transform(self);
+                x.into()
+            }
+            x => x.into(),
+        }
+    }
+}
+
+impl ScanOutDefines {
+    fn new() -> Self {
+        ScanOutDefines { defines: vec![] }
     }
 }
 
