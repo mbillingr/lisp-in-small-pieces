@@ -11,7 +11,7 @@ impl crate::utils::Sourced for NoOp {
 }
 
 impl NoOp {
-    pub fn default_transform(mut self, _visitor: &mut impl Transformer) -> Self {
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
         self
     }
 }

@@ -4,7 +4,7 @@ use super::assignment::Assignment;
 use super::boxes::{BoxCreate, BoxRead, BoxWrite};
 use super::closure::FlatClosure;
 use super::constant::Constant;
-use super::definition::{Definition, GlobalDefine};
+use super::definition::GlobalDefine;
 use super::fixlet::FixLet;
 use super::function::Function;
 use super::keyword::MagicKeyword;
@@ -32,7 +32,6 @@ sum_types! {
                         | BoxWrite
                         | BoxCreate
                         | FlatClosure
-                        | Definition
                         | GlobalDefine;
 }
 
@@ -60,7 +59,6 @@ impl Expression {
             BoxWrite(x) => x.default_transform(visitor).into(),
             BoxCreate(x) => x.default_transform(visitor).into(),
             FlatClosure(x) => x.default_transform(visitor).into(),
-            Definition(x) => x.default_transform(visitor).into(),
             GlobalDefine(x) => x.default_transform(visitor).into(),
             NoOp(x) => x.default_transform(visitor).into(),
         }
@@ -84,7 +82,6 @@ impl Sourced for Expression {
             BoxWrite(x) => x.source(),
             BoxCreate(x) => x.source(),
             FlatClosure(x) => x.source(),
-            Definition(x) => x.source(),
             GlobalDefine(x) => x.source(),
             NoOp(x) => x.source(),
         }

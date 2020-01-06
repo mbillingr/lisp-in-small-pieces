@@ -271,6 +271,7 @@ impl From<&Sexpr> for Scm {
     fn from(e: &Sexpr) -> Self {
         match e {
             Sexpr::Undefined => Scm::Undefined,
+            Sexpr::Uninitialized => Scm::Uninitialized,
             Sexpr::Nil => Scm::Nil,
             Sexpr::True => Scm::True,
             Sexpr::False => Scm::False,

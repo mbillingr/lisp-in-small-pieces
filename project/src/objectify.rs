@@ -2,11 +2,11 @@ use crate::env::Env;
 use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
+use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
-    Alternative, Definition, Expression, FixLet, Function, GlobalAssignment, GlobalReference,
-    GlobalVariable, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
-    PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication,
-    Sequence, Variable,
+    Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
+    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, PredefinedApplication,
+    PredefinedReference, PredefinedVariable, Reference, RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::convert::TryInto;
@@ -129,9 +129,14 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
+        let v = self.adjoin_global_variable(name, env);
+        Ok(GlobalReference::new(v, span).into())
+    }
+
+    fn adjoin_global_variable(&mut self, name: Symbol, env: &Env) -> GlobalVariable {
         let v = GlobalVariable::new(name);
         env.globals.extend(v.clone().into());
-        Ok(GlobalReference::new(v, span).into())
+        v
     }
 
     fn objectify_application(
@@ -293,9 +298,16 @@ impl Translate {
         env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let var_name = *variable.as_symbol().unwrap();
         let form = self.objectify(expr, env)?;
-        Ok(Definition::new(var_name, form, span).into())
+
+        let var_name = Sexpr::as_symbol(variable).unwrap();
+        let gvar = match env.find_variable(var_name) {
+            Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
+            Some(Variable::GlobalVariable(v)) => v,
+            _ => self.adjoin_global_variable(*var_name, env),
+        };
+
+        Ok(GlobalDefine::new(gvar, form, span).into())
     }
 
     pub fn objectify_assignment(

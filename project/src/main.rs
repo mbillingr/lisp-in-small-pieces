@@ -2,7 +2,7 @@
 mod utils;
 
 mod ast_transform;
-mod bytecode;
+pub mod bytecode;
 mod description;
 mod env;
 mod error;
@@ -12,6 +12,7 @@ mod objectify;
 mod parsing;
 mod primitive;
 mod repl;
+mod scan_out_defines;
 mod scm;
 mod sexpr;
 mod source;

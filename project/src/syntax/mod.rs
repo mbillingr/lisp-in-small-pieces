@@ -20,7 +20,6 @@ pub use assignment::{Assignment, GlobalAssignment, LocalAssignment};
 pub use boxes::{BoxCreate, BoxRead, BoxWrite};
 pub use closure::FlatClosure;
 pub use constant::Constant;
-pub use definition::Definition;
 pub use expression::Expression;
 pub use fixlet::FixLet;
 pub use function::Function;

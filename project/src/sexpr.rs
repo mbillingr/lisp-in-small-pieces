@@ -13,9 +13,10 @@ pub struct TrackedSexpr {
 
 // TODO: Should we intern symbols and string?
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Sexpr {
     Undefined,
+    Uninitialized,
     Nil,
     True,
     False,
@@ -38,6 +39,7 @@ impl std::fmt::Display for Sexpr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Sexpr::Undefined => write!(f, "*undefined*"),
+            Sexpr::Uninitialized => write!(f, "*uninitialized*"),
             Sexpr::Nil => write!(f, "'()"),
             Sexpr::True => write!(f, "#t"),
             Sexpr::False => write!(f, "#f"),
@@ -235,6 +237,10 @@ impl TrackedSexpr {
         car.into_iter().zip(cdr).next()
     }
 
+    pub fn is_list(&self) -> bool {
+        self.as_list().is_some()
+    }
+
     pub fn as_list(&self) -> Option<(&RcSlice<Self>, Option<Self>)> {
         match &self.sexpr {
             Sexpr::List(l, dotted) => Some((l, dotted.as_ref().map(|s| (**s).clone()))),
@@ -286,6 +292,42 @@ impl From<lexpr::Value> for TrackedSexpr {
     }
 }
 
+impl From<Sexpr> for TrackedSexpr {
+    fn from(sexpr: Sexpr) -> Self {
+        TrackedSexpr {
+            sexpr,
+            src: SourceLocation::NoSource,
+        }
+    }
+}
+
+impl PartialEq<str> for TrackedSexpr {
+    fn eq(&self, other: &str) -> bool {
+        match &self.sexpr {
+            Sexpr::Symbol(s) => s == other,
+            Sexpr::String(s) if other.starts_with('"') && other.ends_with('"') => {
+                **s == other[1..other.len() - 1]
+            }
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq for TrackedSexpr {
+    fn eq(&self, other: &Self) -> bool {
+        self.sexpr == other.sexpr
+    }
+}
+
+impl From<Vec<TrackedSexpr>> for TrackedSexpr {
+    fn from(v: Vec<TrackedSexpr>) -> Self {
+        TrackedSexpr {
+            src: SourceLocation::NoSource,
+            sexpr: Sexpr::List(v.into(), None),
+        }
+    }
+}
+
 pub struct RcSlice<T> {
     base: Rc<[T]>,
     slice: *const [T],
@@ -294,6 +336,12 @@ pub struct RcSlice<T> {
 impl<T: std::fmt::Debug> std::fmt::Debug for RcSlice<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?}", &**self)
+    }
+}
+
+impl<T> PartialEq for RcSlice<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.slice == other.slice
     }
 }
 
@@ -351,16 +399,5 @@ impl<T> RcSlice<T> {
         *self = self.clone().slice_to(n);
 
         unsafe { Some(&*item) }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn try_it() {
-        let src = Source::from("( x )");
-        println!("{:?}", TrackedSexpr::from_source(&src));
     }
 }

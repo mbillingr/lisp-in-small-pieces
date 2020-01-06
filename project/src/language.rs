@@ -2,7 +2,6 @@ pub mod scheme {
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
-    use crate::ast_transform::transform_defines::TransformDefines;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
@@ -11,6 +10,7 @@ pub mod scheme {
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
     use crate::primitive::RuntimePrimitive;
+    use crate::scan_out_defines::scan_out_defines;
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
@@ -45,9 +45,7 @@ pub mod scheme {
         pub fn eval_sexpr(&mut self, sexpr: &TrackedSexpr) -> Result<Scm> {
             //println!("{:?}", self.trans);
             let ast = self.trans.objectify_toplevel(sexpr)?;
-            let ast = ast.transform(&mut TransformDefines::new(self.trans.env.globals.clone()));
             let ast = ast.transform(&mut Boxify);
-            //println!("{:#?}", ast);
             let ast = ast.transform(&mut Flatten::new());
 
             //println!("{:#?}", ast);
@@ -194,6 +192,7 @@ pub mod scheme {
         let def = &ocdr(expr)?;
         let names = ocar(def)?;
         let body = ocdr(def)?;
+        let body = scan_out_defines(body)?;
         trans.objectify_function(names, &body, env, expr.source().clone())
     }
 
@@ -505,6 +504,13 @@ pub mod scheme {
                     Scm::Int(42)
                 );
                 assert!(ctx.vm.globals().is_empty());
+            }
+
+            #[test]
+            fn define_syntax() {
+                let mut ctx = Context::new();
+                ctx.eval_str("(define (x) 42)").unwrap();
+                assert_eq!(ctx.vm.globals()[0], Scm::Int(42));
             }
         }
     }
