@@ -61,7 +61,9 @@ impl BytecodeGenerator {
         let mut bcgen = Self::new(closure_vars, globals, predef);
         bcgen.env = func.variables.iter().map(|var| var.name()).collect();
         let mut code = bcgen.compile(&func.body, true);
-        code.push(Op::Return);
+        if !code.last().map(Op::is_terminal).unwrap_or(false) {
+            code.push(Op::Return);
+        }
         CodeObject::new(func.arity(), func.span.clone(), code, bcgen.constants)
     }
 
@@ -203,7 +205,11 @@ impl BytecodeGenerator {
         meaning.extend(m);
 
         self.env.truncate(n);
-        meaning.push(Op::Drop(node.variables.len()));
+        if !meaning.last().map(Op::is_terminal).unwrap_or(false) {
+            // No need to generate instructions after a terminal instruction.
+            // Tail calls should truncate the value stack correctly.
+            meaning.push(Op::Drop(node.variables.len()));
+        }
 
         meaning
     }

@@ -46,6 +46,15 @@ pub enum Op {
     Drop(usize),
 }
 
+impl Op {
+    pub fn is_terminal(&self) -> bool {
+        match self {
+            Op::Jump(_) | Op::TailCall(_) | Op::Return | Op::Halt => true,
+            _ => false,
+        }
+    }
+}
+
 impl Closure {
     pub fn new(code: &'static CodeObject, free_vars: Box<[Scm]>) -> Self {
         Closure { code, free_vars }
