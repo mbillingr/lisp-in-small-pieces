@@ -228,7 +228,7 @@ impl BytecodeGenerator {
         }
 
         let n_free = node.free_vars.len();
-        meaning.push(Op::MakeClosure(function, n_free));
+        meaning.push(Op::MakeClosure(n_free, function));
 
         meaning
     }

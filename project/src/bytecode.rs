@@ -17,7 +17,7 @@ pub struct Closure {
     pub free_vars: Box<[Scm]>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum Op {
     Constant(usize),
     LocalRef(usize),
@@ -36,7 +36,7 @@ pub enum Op {
     JumpFalse(isize),
     Jump(isize),
 
-    MakeClosure(&'static CodeObject, usize),
+    MakeClosure(usize, &'static CodeObject),
 
     Call(usize),
     TailCall(usize),
@@ -160,7 +160,7 @@ impl VirtualMachine {
                         ip += delta
                     }
                 }
-                Op::MakeClosure(func, n_free) => {
+                Op::MakeClosure(n_free, func) => {
                     let mut vars = Vec::with_capacity(n_free);
                     for _ in 0..n_free {
                         vars.push(self.pop_value()?);
@@ -246,5 +246,37 @@ impl VirtualMachine {
 
     fn ref_value(&mut self, idx: usize) -> Result<Scm> {
         Ok(self.value_stack[idx])
+    }
+}
+
+impl std::fmt::Debug for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Op::Constant(c) => write!(f, "(constant {})", c),
+            Op::LocalRef(r) => write!(f, "(local-ref {})", r),
+            Op::FreeRef(r) => write!(f, "(free-ref {})", r),
+            Op::GlobalRef(r) => write!(f, "(global-ref {})", r),
+            Op::PredefRef(r) => write!(f, "(predef-ref {})", r),
+            Op::GlobalSet(r) => write!(f, "(global-set {})", r),
+            Op::GlobalDef(r) => write!(f, "(global-def {})", r),
+            Op::Boxify(r) => write!(f, "(boxify {})", r),
+            Op::BoxSet => write!(f, "(box-set)"),
+            Op::BoxGet => write!(f, "(box-get)"),
+            Op::PushVal => write!(f, "(push-val)"),
+            Op::JumpFalse(loc) => write!(f, "(jump-false {})", loc),
+            Op::Jump(loc) => write!(f, "(jump {})", loc),
+            Op::MakeClosure(n_free, code) => {
+                if f.alternate() {
+                    write!(f, "(make-closure {} {:#?})", n_free, *code)
+                } else {
+                    write!(f, "(make-closure {} {:p})", n_free, *code)
+                }
+            }
+            Op::Call(n_args) => write!(f, "(call {})", n_args),
+            Op::TailCall(n_args) => write!(f, "(tail-call {})", n_args),
+            Op::Return => write!(f, "(return)"),
+            Op::Halt => write!(f, "(halt)"),
+            Op::Drop(n) => write!(f, "(drop {})", n),
+        }
     }
 }
