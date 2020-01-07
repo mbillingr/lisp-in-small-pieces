@@ -10,7 +10,7 @@ pub mod scheme {
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
     use crate::primitive::RuntimePrimitive;
-    use crate::scan_out_defines::scan_out_defines;
+    use crate::scan_out_defines::{definition_value, definition_variable, scan_out_defines};
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
@@ -243,14 +243,9 @@ pub mod scheme {
         env: &Env,
     ) -> ObjectifyResult<Expression> {
         let def = ocdr(expr)?;
-        let definee = ocar(&def)?;
-        let form = ocdr(&def)?;
-
-        if definee.is_symbol() {
-            trans.objectify_definition(definee, ocar(&form)?, env, expr.source().clone())
-        } else {
-            unimplemented!()
-        }
+        let definee = definition_variable(expr)?;
+        let form = definition_value(expr)?;
+        trans.objectify_definition(definee, &form, env, expr.source().clone())
     }
 
     pub fn list(args: &[Scm]) -> Scm {
@@ -509,8 +504,16 @@ pub mod scheme {
             #[test]
             fn define_syntax() {
                 let mut ctx = Context::new();
-                ctx.eval_str("(define (x) 42)").unwrap();
-                assert_eq!(ctx.vm.globals()[0], Scm::Int(42));
+                ctx.eval_str("(define (foo) 42)").unwrap();
+                assert_eq!(ctx.eval_str("(foo)").unwrap(), Scm::Int(42));
+            }
+
+            #[test]
+            fn define_syntax_local() {
+                let mut ctx = Context::new();
+                ctx.eval_str("(define (foo) (define (bar x) (* x 2)))")
+                    .unwrap();
+                assert_eq!(ctx.eval_str("((foo) 21)").unwrap(), Scm::Int(42));
             }
         }
     }

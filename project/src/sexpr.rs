@@ -162,6 +162,20 @@ impl TrackedSexpr {
         }
     }
 
+    pub fn cons(car: Self, cdr: Self) -> Self {
+        let sexpr = match cdr.sexpr {
+            Sexpr::List(l, d) => {
+                let mut list = vec![car];
+                list.extend(l.iter().cloned());
+                Sexpr::List(list.into(), d)
+            }
+            Sexpr::Nil => Sexpr::List(vec![car].into(), None),
+            _ => Sexpr::List(vec![car].into(), Some(Box::new(cdr))),
+        };
+
+        sexpr.into()
+    }
+
     pub fn first(&self) -> Option<&Self> {
         match &self.sexpr {
             Sexpr::List(l, _) if l.len() == 0 => panic!("invalid list"),
@@ -177,7 +191,7 @@ impl TrackedSexpr {
             Sexpr::List(l, Some(dot)) if l.len() == 1 => Some((**dot).clone()),
             Sexpr::List(l, d) => Some(TrackedSexpr {
                 sexpr: Sexpr::List(l.clone().slice_from(1), d.clone()),
-                src: self.src.clone().start_at(&l[0].src),
+                src: self.src.clone().start_at(&l[1].src),
             }),
             _ => None,
         }

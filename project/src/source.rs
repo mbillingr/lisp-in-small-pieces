@@ -125,7 +125,10 @@ impl SourceLocation {
             (NoSource, NoSource) => return NoSource,
             _ => {}
         }
-        panic!("detected attempt to combine spans from different sources")
+        panic!(
+            "detected attempt to combine spans from different sources:\n    {:?}\n    {:?}",
+            self, other
+        )
     }
 }
 
