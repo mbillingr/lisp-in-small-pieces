@@ -162,6 +162,13 @@ impl TrackedSexpr {
         }
     }
 
+    pub fn list(data: Vec<TrackedSexpr>, src: SourceLocation) -> Self {
+        TrackedSexpr {
+            sexpr: Sexpr::List(data.into(), None),
+            src,
+        }
+    }
+
     pub fn cons(car: Self, cdr: Self) -> Self {
         let sexpr = match cdr.sexpr {
             Sexpr::List(l, d) => {

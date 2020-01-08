@@ -10,7 +10,9 @@ pub mod scheme {
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
     use crate::primitive::RuntimePrimitive;
-    use crate::scan_out_defines::{definition_value, definition_variable, scan_out_defines};
+    use crate::scan_out_defines::{
+        definition_value, definition_variable, make_function, scan_out_defines,
+    };
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
@@ -176,6 +178,7 @@ pub mod scheme {
             native "disassemble", =1, disassemble;
 
             macro "lambda", expand_lambda;
+            macro "let", expand_let;
             macro "begin", expand_begin;
             macro "set!", expand_assign;
             macro "if", expand_alternative;
@@ -194,6 +197,41 @@ pub mod scheme {
         let body = ocdr(def)?;
         let body = scan_out_defines(body)?;
         trans.objectify_function(names, &body, env, expr.source().clone())
+    }
+
+    pub fn expand_let(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<Expression> {
+        let def = &ocdr(expr)?;
+        let vars = ocar(def)?;
+        let body = ocdr(def)?;
+
+        vars.as_proper_list()
+            .and_then(|varlist| {
+                let var_names: Vec<_> = varlist
+                    .iter()
+                    .map(|v| v.at(0).cloned())
+                    .collect::<Option<_>>()?;
+                let var_forms: Vec<_> = varlist
+                    .iter()
+                    .map(|v| v.at(1).cloned())
+                    .collect::<Option<_>>()?;
+
+                let param_list = TrackedSexpr::list(var_names, vars.src.clone());
+                let func = make_function(param_list, body, expr.src.clone());
+
+                let mut call = vec![func];
+                call.extend(var_forms);
+
+                Some(TrackedSexpr::list(call, expr.src.clone()))
+            })
+            .ok_or_else(|| ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedList,
+                location: vars.source().clone(),
+            })
+            .and_then(|new_expr| trans.objectify(&new_expr, env))
     }
 
     pub fn expand_begin(
@@ -242,7 +280,6 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        let def = ocdr(expr)?;
         let definee = definition_variable(expr)?;
         let form = definition_value(expr)?;
         trans.objectify_definition(definee, &form, env, expr.source().clone())
@@ -479,6 +516,12 @@ pub mod scheme {
                      equals, Scm::list(vec![Scm::Int(1)]));
             compare!(lambda_unary_vararg1: "(begin (define func (lambda (x . y) (cons x y))) (func 1 2))",
                      equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+        }
+
+        mod extra_syntax {
+            use super::*;
+
+            compare!(primitive: "(let ((x 1) (y 2)) (+ x y))", equals, Scm::Int(3));
         }
 
         mod definition {

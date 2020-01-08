@@ -80,7 +80,11 @@ fn make_assignment(variable: TrackedSexpr, value: TrackedSexpr) -> TrackedSexpr 
     vec![Sexpr::Symbol(Symbol::new("set!")).into(), variable, value].into()
 }
 
-fn make_function(variables: TrackedSexpr, body: TrackedSexpr, src: SourceLocation) -> TrackedSexpr {
+pub fn make_function(
+    variables: TrackedSexpr,
+    body: TrackedSexpr,
+    src: SourceLocation,
+) -> TrackedSexpr {
     let mut func = TrackedSexpr::cons(
         Sexpr::Symbol(Symbol::new("lambda")).into(),
         TrackedSexpr::cons(variables, body),
