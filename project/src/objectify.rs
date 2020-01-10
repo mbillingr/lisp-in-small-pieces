@@ -21,6 +21,7 @@ pub struct ObjectifyError {
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {
+    SyntaxError,
     NoPair,
     IncorrectArity,
     ImmutableAssignment,

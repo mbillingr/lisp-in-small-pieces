@@ -5,8 +5,10 @@ use crate::objectify::{Result, Translate};
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;
 use crate::utils::Named;
+use std::rc::Rc;
 
-pub type MagicKeywordHandler = fn(&mut Translate, &TrackedSexpr, &Env) -> Result<Expression>;
+pub type MagicKeywordHandler =
+    Rc<dyn Fn(&mut Translate, &TrackedSexpr, &Env) -> Result<Expression>>;
 
 #[derive(Clone)]
 pub struct MagicKeyword {
@@ -21,10 +23,13 @@ impl std::fmt::Debug for MagicKeyword {
 }
 
 impl MagicKeyword {
-    pub fn new(name: impl Into<Symbol>, handler: MagicKeywordHandler) -> Self {
+    pub fn new(
+        name: impl Into<Symbol>,
+        handler: impl Fn(&mut Translate, &TrackedSexpr, &Env) -> Result<Expression> + 'static,
+    ) -> Self {
         MagicKeyword {
             name: name.into(),
-            handler,
+            handler: Rc::new(handler),
         }
     }
 
@@ -42,6 +47,6 @@ impl Named for MagicKeyword {
 
 impl PartialEq for MagicKeyword {
     fn eq(&self, other: &Self) -> bool {
-        self.name.ptr_eq(&other.name) && self.handler as *const u8 == other.handler as *const u8
+        self.name.ptr_eq(&other.name) && Rc::ptr_eq(&self.handler, &other.handler)
     }
 }

@@ -6,6 +6,7 @@ pub mod scheme {
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
     use crate::error::Result;
+    use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
@@ -16,7 +17,7 @@ pub mod scheme {
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
-    use crate::syntax::{Expression, MagicKeyword, PredefinedVariable};
+    use crate::syntax::{Expression, MagicKeyword, NoOp, PredefinedVariable};
     use std::ops::{Add, Div, Mul, Sub};
 
     pub struct Context {
@@ -184,6 +185,7 @@ pub mod scheme {
             macro "if", expand_alternative;
             macro "quote", expand_quote;
             macro "define", expand_define;
+            macro "define-syntax", expand_define_syntax;
         }
     }
 
@@ -283,6 +285,25 @@ pub mod scheme {
         let definee = definition_variable(expr)?;
         let form = definition_value(expr)?;
         trans.objectify_definition(definee, &form, env, expr.source().clone())
+    }
+
+    pub fn expand_define_syntax(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        env: &Env,
+    ) -> ObjectifyResult<Expression> {
+        let (name, syntax) = expr
+            .at(1)
+            .and_then(|name| name.as_symbol().copied())
+            .and_then(|name| expr.at(2).map(|syntax| (name, syntax)))
+            .ok_or_else(|| ObjectifyError {
+                kind: ObjectifyErrorKind::SyntaxError,
+                location: expr.source().clone(),
+            })?;
+        let handler = eval_syntax(syntax, env)?;
+        let macro_binding = MagicKeyword { name, handler };
+        env.macros.extend(macro_binding);
+        Ok(Expression::NoOp(NoOp))
     }
 
     pub fn list(args: &[Scm]) -> Scm {
@@ -522,6 +543,12 @@ pub mod scheme {
             use super::*;
 
             compare!(primitive: "(let ((x 1) (y 2)) (+ x y))", equals, Scm::Int(3));
+        }
+
+        mod macros {
+            use super::*;
+
+            compare!(primitive: "(define-syntax force (syntax-rules () ((force x) (x))))", equals, Scm::Int(3));
         }
 
         mod definition {

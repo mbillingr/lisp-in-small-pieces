@@ -8,6 +8,7 @@ mod env;
 mod error;
 mod eval;
 mod language;
+mod macro_language;
 mod objectify;
 mod parsing;
 mod primitive;
