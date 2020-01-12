@@ -260,24 +260,6 @@ impl TrackedSexpr {
         }
     }
 
-    /*pub fn is_list(&self) -> bool {
-        self.as_list().is_some()
-    }*/
-
-    /*pub fn as_list(&self) -> Option<(&RcSlice<Self>, Option<Self>)> {
-        match &self.sexpr {
-            Sexpr::List(l, dotted) => Some((l, dotted.as_ref().map(|s| (**s).clone()))),
-            _ => None,
-        }
-    }
-
-    pub fn as_proper_list(&self) -> Option<&RcSlice<Self>> {
-        match &self.sexpr {
-            Sexpr::List(l, None) => Some(l),
-            _ => None,
-        }
-    }*/
-
     pub fn scan<E>(&self, mut f: impl FnMut(&Self) -> Result<(), E>) -> Result<&Self, E> {
         let mut x = self;
         while x.is_pair() {
@@ -285,6 +267,15 @@ impl TrackedSexpr {
             x = x.cdr().unwrap();
         }
         Ok(x)
+    }
+
+    pub fn contains(&self, x: &Sexpr) -> bool {
+        match &self.sexpr {
+            Sexpr::Vector(v) => v.iter().find(|item| &item.sexpr == x).is_some(),
+            Sexpr::Pair(p) if &p.0.sexpr == x => true,
+            Sexpr::Pair(p) => p.1.contains(x),
+            _ => false,
+        }
     }
 }
 

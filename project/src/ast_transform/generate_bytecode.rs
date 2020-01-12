@@ -71,6 +71,7 @@ impl BytecodeGenerator {
         use crate::syntax::Application::*;
         use Expression::*;
         let code: Vec<_> = match node {
+            NoOp(_) => vec![],
             Constant(c) => self.compile_constant(c, tail),
             Sequence(s) => self.compile_sequence(s, tail),
             Alternative(a) => self.compile_alternative(a, tail),

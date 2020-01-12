@@ -51,7 +51,7 @@ pub mod scheme {
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
-            println!("{:#?}", ast);
+            //println!("{:#?}", ast);
 
             let globals = self.trans.env.globals.clone();
             let predef = self.trans.env.predef.clone();
@@ -551,7 +551,7 @@ pub mod scheme {
         mod macros {
             use super::*;
 
-            compare!(primitive: "(define-syntax force (syntax-rules () ((force x) (x))))", equals, Scm::Int(3));
+            compare!(primitive: "(begin (define-syntax force (syntax-rules () ((force x) (x)))) (force (lambda () 3)))", equals, Scm::Int(3));
         }
 
         mod definition {
