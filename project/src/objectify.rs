@@ -54,7 +54,7 @@ impl Translate {
             if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {
                 handler(self, expr, env)
             } else {
-                self.objectify_application(&m, &ocdr(expr)?, env, expr.source().clone())
+                self.objectify_application(&m, ocdr(expr)?, env, expr.source().clone())
             }
         }
     }
@@ -81,27 +81,22 @@ impl Translate {
     }
 
     pub fn objectify_sequence(&mut self, exprs: &Sexpr, env: &Env) -> Result<Expression> {
-        let mut sequence = exprs
-            .as_proper_list()
-            .ok_or_else(|| ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedList,
-                location: exprs.source().clone(),
-            })?
-            .clone();
-
-        let last = if let Some(x) = sequence.pop() {
-            x
+        if exprs.is_pair() {
+            let car = exprs.car().unwrap();
+            let cdr = exprs.cdr().unwrap();
+            if cdr.is_pair() {
+                let this = self.objectify(car, env)?;
+                let next = self.objectify_sequence(cdr, env)?;
+                Ok(Sequence::new(this, next, exprs.src.clone()).into())
+            } else {
+                self.objectify(car, env)
+            }
         } else {
-            unimplemented!("empty sequence")
-        };
-
-        let mut result = self.objectify(last, env)?;
-
-        for e in sequence.iter().rev() {
-            result = Sequence::new(self.objectify(e, env)?, result, exprs.source().clone()).into();
+            Err(ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedList,
+                location: exprs.src.clone(),
+            })
         }
-
-        Ok(result)
     }
 
     fn objectify_symbol(&mut self, expr: &Sexpr, env: &Env) -> Result<Expression> {
@@ -143,30 +138,27 @@ impl Translate {
     fn objectify_application(
         &mut self,
         func: &Expression,
-        args: &Sexpr,
+        mut args: &Sexpr,
         env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let args = if args.is_null() {
-            vec![]
-        } else {
-            args.as_proper_list()
-                .ok_or_else(|| ObjectifyError {
-                    kind: ObjectifyErrorKind::ExpectedList,
-                    location: args.source().clone(),
-                })?
-                .iter()
-                .map(|e| self.objectify(e, env))
-                .collect::<Result<_>>()?
-        };
+        let mut args_list = vec![];
+        while !args.is_null() {
+            let car = args.car().ok_or_else(|| ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedList,
+                location: args.source().clone(),
+            })?;
+            args_list.push(self.objectify(car, env)?);
+            args = args.cdr().unwrap();
+        }
 
         match func {
-            Expression::Function(f) => self.process_closed_application(f.clone(), args, span),
+            Expression::Function(f) => self.process_closed_application(f.clone(), args_list, span),
             Expression::Reference(Reference::PredefinedReference(p)) => {
                 let fvf = p.var.clone();
                 let desc = fvf.description();
-                if desc.arity.check(args.len()) {
-                    Ok(PredefinedApplication::new(fvf, args, span).into())
+                if desc.arity.check(args_list.len()) {
+                    Ok(PredefinedApplication::new(fvf, args_list, span).into())
                 } else {
                     Err(ObjectifyError {
                         kind: ObjectifyErrorKind::IncorrectArity,
@@ -174,7 +166,7 @@ impl Translate {
                     })
                 }
             }
-            _ => Ok(RegularApplication::new(func.clone(), args, span).into()),
+            _ => Ok(RegularApplication::new(func.clone(), args_list, span).into()),
         }
     }
 
@@ -259,37 +251,27 @@ impl Translate {
         Ok(Function::new(vars, bdy, span).into())
     }
 
-    fn objectify_variables_list(&mut self, names: &Sexpr) -> Result<Vec<LocalVariable>> {
-        if let Some((l, dotted)) = names.as_list() {
-            let mut list: Vec<_> = (**l)
-                .iter()
-                .map(|x| {
-                    x.as_symbol().ok_or_else(|| ObjectifyError {
-                        kind: ObjectifyErrorKind::ExpectedSymbol,
-                        location: x.source().clone(),
-                    })
-                })
-                .map(|s| Ok(s?.clone()))
-                .map(|s| Ok(LocalVariable::new(s?, false, false)))
-                .collect::<Result<_>>()?;
-            if let Some(x) = dotted {
-                let s = x.as_symbol().ok_or_else(|| ObjectifyError {
-                    kind: ObjectifyErrorKind::ExpectedSymbol,
-                    location: x.source().clone(),
-                })?;
-                list.push(LocalVariable::new(s.clone(), false, true))
-            }
-            Ok(list)
-        } else if let Some(s) = names.as_symbol() {
-            Ok(vec![LocalVariable::new(s.clone(), false, true)])
-        } else if names.is_null() {
-            Ok(vec![])
-        } else {
-            Err(ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedList,
-                location: names.source().clone(),
-            })
+    fn objectify_variables_list(&mut self, mut names: &Sexpr) -> Result<Vec<LocalVariable>> {
+        let mut vars = vec![];
+        while let Some(car) = names.car() {
+            let name = car.as_symbol().ok_or_else(|| ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedSymbol,
+                location: car.source().clone(),
+            })?;
+            vars.push(LocalVariable::new(*name, false, false));
+
+            names = names.cdr().unwrap();
         }
+
+        if !names.is_null() {
+            let name = names.as_symbol().ok_or_else(|| ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedSymbol,
+                location: names.source().clone(),
+            })?;
+            vars.push(LocalVariable::new(*name, false, true));
+        }
+
+        Ok(vars)
     }
 
     pub fn objectify_definition(
@@ -338,22 +320,19 @@ impl Translate {
 }
 
 pub fn ocar(e: &Sexpr) -> Result<&Sexpr> {
-    e.first().ok_or_else(|| ObjectifyError {
+    e.car().ok_or_else(|| ObjectifyError {
         kind: ObjectifyErrorKind::NoPair,
         location: e.source().clone(),
     })
 }
 
-pub fn ocdr(e: &Sexpr) -> Result<Sexpr> {
-    e.tail().ok_or_else(|| ObjectifyError {
+pub fn ocdr(e: &Sexpr) -> Result<&Sexpr> {
+    e.cdr().ok_or_else(|| ObjectifyError {
         kind: ObjectifyErrorKind::NoPair,
         location: e.source().clone(),
     })
 }
 
-pub fn decons(e: &Sexpr) -> Result<(&Sexpr, Sexpr)> {
-    e.decons().ok_or_else(|| ObjectifyError {
-        kind: ObjectifyErrorKind::NoPair,
-        location: e.source().clone(),
-    })
+pub fn decons(e: &Sexpr) -> Result<(&Sexpr, &Sexpr)> {
+    ocar(e).and_then(|car| ocdr(e).map(|cdr| (car, cdr)))
 }

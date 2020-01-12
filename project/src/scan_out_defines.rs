@@ -2,44 +2,53 @@ use crate::objectify::{ObjectifyError, ObjectifyErrorKind, Result};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
+use SourceLocation::NoSource;
 
 pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
-    let body_list = body.as_proper_list().ok_or_else(|| ObjectifyError {
-        kind: ObjectifyErrorKind::ExpectedList,
-        location: body.source().clone(),
+    let uninit: TrackedSexpr = Sexpr::Uninitialized.into();
+
+    let mut variables = TrackedSexpr::nil(NoSource);
+    let mut values = TrackedSexpr::nil(NoSource);
+    body.scan(|expr| {
+        if is_definition(expr) {
+            let vars = std::mem::replace(&mut variables, TrackedSexpr::nil(NoSource));
+            variables = TrackedSexpr::cons(definition_variable(expr)?.clone(), vars, NoSource);
+            values = TrackedSexpr::cons(uninit.clone(), TrackedSexpr::nil(NoSource), NoSource);
+        }
+        Ok(())
     })?;
 
-    let variables: Vec<_> = body_list
-        .iter()
-        .filter(is_definition)
-        .map(definition_variable)
-        .map(|rv| rv.map(Clone::clone))
-        .collect::<Result<_>>()?;
-
-    if variables.is_empty() {
+    if variables.is_null() {
         return Ok(body);
     }
 
-    let new_body_list: Vec<_> = body_list
-        .iter()
-        .cloned()
-        .map(|expr| {
-            if is_definition(&&expr) {
-                Ok(make_assignment(
-                    definition_variable(&expr)?.clone(),
-                    definition_value(&expr)?.clone(),
-                ))
-            } else {
-                Ok(expr)
+    fn transform(body: TrackedSexpr) -> Result<TrackedSexpr> {
+        match body.decons() {
+            Ok((mut expr, rest)) => {
+                let src = rest.src.start_at(&expr.src);
+                if is_definition(&expr) {
+                    expr = make_assignment(
+                        definition_variable(&expr)?.clone(),
+                        definition_value(&expr)?.clone(),
+                    )
+                }
+                transform(rest)
+                    .map(|transformed_rest| TrackedSexpr::cons(expr, transformed_rest, src))
             }
-        })
-        .collect::<Result<_>>()?;
+            Err(body) => Ok(body),
+        }
+    }
 
-    Ok(vec![make_let(variables, new_body_list)].into())
+    let new_body = make_let(variables, values, transform(body)?);
+    Ok(TrackedSexpr::cons(
+        new_body,
+        TrackedSexpr::nil(NoSource),
+        NoSource,
+    ))
 }
 
-fn is_definition(expr: &&TrackedSexpr) -> bool {
-    expr.is_list() && expr.at(0).map(|sx| sx == "define").unwrap_or(false)
+fn is_definition(expr: &TrackedSexpr) -> bool {
+    expr.at(0).map(|sx| sx == "define").unwrap_or(false)
 }
 
 pub fn definition_variable(expr: &TrackedSexpr) -> Result<&TrackedSexpr> {
@@ -48,7 +57,7 @@ pub fn definition_variable(expr: &TrackedSexpr) -> Result<&TrackedSexpr> {
             if var.is_symbol() {
                 Some(var)
             } else {
-                var.first()
+                var.car()
             }
         })
         .ok_or_else(|| ObjectifyError {
@@ -64,8 +73,8 @@ pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
                 expr.at(2).cloned()
             } else {
                 Some(make_function(
-                    expr.at(1).unwrap().tail()?,
-                    expr.tail().unwrap().tail()?,
+                    expr.at(1).unwrap().cdr()?.clone(),
+                    expr.cdr().unwrap().cdr()?.clone(),
                     expr.src.clone(),
                 ))
             }
@@ -77,7 +86,16 @@ pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
 }
 
 fn make_assignment(variable: TrackedSexpr, value: TrackedSexpr) -> TrackedSexpr {
-    vec![Sexpr::Symbol(Symbol::new("set!")).into(), variable, value].into()
+    use TrackedSexpr as S;
+    S::cons(
+        Sexpr::Symbol(Symbol::new("set!")).into(),
+        S::cons(
+            variable,
+            S::cons(value, TrackedSexpr::nil(NoSource), NoSource),
+            NoSource,
+        ),
+        NoSource,
+    )
 }
 
 pub fn make_function(
@@ -85,23 +103,24 @@ pub fn make_function(
     body: TrackedSexpr,
     src: SourceLocation,
 ) -> TrackedSexpr {
-    let mut func = TrackedSexpr::cons(
+    let part_src = body.src.start_at(&variables.src);
+    TrackedSexpr::cons(
         Sexpr::Symbol(Symbol::new("lambda")).into(),
-        TrackedSexpr::cons(variables, body),
-    );
-    func.src = src;
-    func
+        TrackedSexpr::cons(variables, body, part_src),
+        src,
+    )
 }
 
-fn make_let(variables: Vec<TrackedSexpr>, body: Vec<TrackedSexpr>) -> TrackedSexpr {
-    let mut func = vec![
+fn make_let(variables: TrackedSexpr, values: TrackedSexpr, body: TrackedSexpr) -> TrackedSexpr {
+    let var_and_body = TrackedSexpr::cons(variables, body, NoSource);
+
+    let func = TrackedSexpr::cons(
         Sexpr::Symbol(Symbol::new("lambda")).into(),
-        variables.into(),
-    ];
-    func.extend(body);
+        var_and_body,
+        NoSource,
+    );
 
-    let mut call = vec![func.into()];
-    call.extend(vec![Sexpr::Uninitialized.into()]);
+    let call = TrackedSexpr::cons(func, values, NoSource);
 
-    call.into()
+    call
 }

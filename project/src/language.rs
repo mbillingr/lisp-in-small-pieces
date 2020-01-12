@@ -51,7 +51,7 @@ pub mod scheme {
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
-            //println!("{:#?}", ast);
+            println!("{:#?}", ast);
 
             let globals = self.trans.env.globals.clone();
             let predef = self.trans.env.predef.clone();
@@ -197,7 +197,7 @@ pub mod scheme {
         let def = &ocdr(expr)?;
         let names = ocar(def)?;
         let body = ocdr(def)?;
-        let body = scan_out_defines(body)?;
+        let body = scan_out_defines(body.clone())?;
         trans.objectify_function(names, &body, env, expr.source().clone())
     }
 
@@ -206,34 +206,33 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        let def = &ocdr(expr)?;
+        let def = ocdr(expr)?;
         let vars = ocar(def)?;
         let body = ocdr(def)?;
 
-        vars.as_proper_list()
-            .and_then(|varlist| {
-                let var_names: Vec<_> = varlist
-                    .iter()
-                    .map(|v| v.at(0).cloned())
-                    .collect::<Option<_>>()?;
-                let var_forms: Vec<_> = varlist
-                    .iter()
-                    .map(|v| v.at(1).cloned())
-                    .collect::<Option<_>>()?;
+        let mut var_names = vec![];
+        let mut var_forms = vec![];
+        vars.scan(|v| {
+            v.at(0)
+                .and_then(|name| v.at(1).map(|form| (name, form)))
+                .ok_or_else(|| ObjectifyError {
+                    kind: ObjectifyErrorKind::SyntaxError,
+                    location: body.source().clone(),
+                })
+                .map(|(name, form)| {
+                    var_names.push(name.clone());
+                    var_forms.push(form.clone());
+                })
+        })?;
 
-                let param_list = TrackedSexpr::list(var_names, vars.src.clone());
-                let func = make_function(param_list, body, expr.src.clone());
+        let param_list = TrackedSexpr::list(var_names, vars.src.clone());
+        let func = make_function(param_list, body.clone(), expr.src.clone());
 
-                let mut call = vec![func];
-                call.extend(var_forms);
+        let mut call = vec![func];
+        call.extend(var_forms);
 
-                Some(TrackedSexpr::list(call, expr.src.clone()))
-            })
-            .ok_or_else(|| ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedList,
-                location: vars.source().clone(),
-            })
-            .and_then(|new_expr| trans.objectify(&new_expr, env))
+        let new_expr = TrackedSexpr::list(call, expr.src.clone());
+        trans.objectify(&new_expr, env)
     }
 
     pub fn expand_begin(
@@ -241,7 +240,7 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        trans.objectify_sequence(&ocdr(expr)?, env)
+        trans.objectify_sequence(ocdr(expr)?, env)
     }
 
     pub fn expand_assign(
@@ -249,11 +248,15 @@ pub mod scheme {
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {
-        let parts = expr.as_proper_list().ok_or(ObjectifyError {
-            kind: ObjectifyErrorKind::ExpectedList,
-            location: expr.source().clone(),
-        })?;
-        trans.objectify_assignment(&parts[1], &parts[2], env, expr.source().clone())
+        expr.at(1)
+            .and_then(|variable| expr.at(2).map(|expr| (variable, expr)))
+            .ok_or(ObjectifyError {
+                kind: ObjectifyErrorKind::ExpectedList,
+                location: expr.source().clone(),
+            })
+            .and_then(|(variable, expr)| {
+                trans.objectify_assignment(variable, expr, env, expr.source().clone())
+            })
     }
 
     pub fn expand_quote(
@@ -288,7 +291,7 @@ pub mod scheme {
     }
 
     pub fn expand_define_syntax(
-        trans: &mut Translate,
+        _trans: &mut Translate,
         expr: &TrackedSexpr,
         env: &Env,
     ) -> ObjectifyResult<Expression> {

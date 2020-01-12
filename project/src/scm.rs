@@ -279,13 +279,7 @@ impl From<&Sexpr> for Scm {
             Sexpr::Float(f) => Scm::Float(*f),
             Sexpr::Symbol(s) => Scm::Symbol(*s),
             Sexpr::String(s) => Scm::string(&**s),
-            Sexpr::List(l, dot) => {
-                let mut x = dot.as_ref().map(|d| (&d.sexpr).into()).unwrap_or(Scm::Nil);
-                for item in l.iter().rev() {
-                    x = Scm::cons(item.into(), x);
-                }
-                x
-            }
+            Sexpr::Pair(p) => Scm::cons((&p.0).into(), (&p.1).into()),
             Sexpr::Vector(v) => {
                 let items: Vec<Cell<Scm>> = v.iter().map(|i| Cell::new(i.into())).collect();
                 let items = items.into_boxed_slice();
