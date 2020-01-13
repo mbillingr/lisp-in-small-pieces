@@ -6,7 +6,7 @@ pub mod scheme {
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
     use crate::error::Result;
-    use crate::macro_language::{eval_syntax, expand_captured_binding, CAPTURED_BINDING_MARKER};
+    use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
