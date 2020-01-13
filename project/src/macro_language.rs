@@ -3,9 +3,14 @@ use crate::objectify::{ObjectifyError, ObjectifyErrorKind, Result, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
-use crate::syntax::{Expression, MagicKeywordHandler};
+use crate::syntax::{
+    Expression, GlobalReference, LocalReference, MagicKeywordHandler, PredefinedReference,
+};
+use crate::utils::Named;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+pub static CAPTURED_BINDING_MARKER: Symbol = Symbol::uninterned("bound-syntax");
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
     match expr.at(0) {
@@ -13,7 +18,7 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
             if let Some(ellipsis) = expr.at(1).unwrap().as_symbol() {
                 let literals = expr.at(2).unwrap();
                 let rules = expr.cdr().unwrap().cdr().unwrap().cdr().unwrap();
-                eval_syntax_rules(*ellipsis, literals.clone(), rules.clone(), env.clone())
+                eval_syntax_rules(*ellipsis, literals.clone(), rules.clone(), env.deep_clone())
             } else {
                 let literals = expr.at(1).unwrap();
                 let rules = expr.cdr().unwrap().cdr().unwrap();
@@ -21,7 +26,7 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
                     Symbol::new("..."),
                     literals.clone(),
                     rules.clone(),
-                    env.clone(),
+                    env.deep_clone(),
                 )
             }
         }
@@ -33,12 +38,37 @@ pub fn eval_syntax_rules(
     ellipsis: Symbol,
     literals: TrackedSexpr,
     rules: TrackedSexpr,
-    _definition_env: Env,
+    definition_env: Env,
 ) -> Result<MagicKeywordHandler> {
     Ok(Rc::new(
         move |trans: &mut Translate, expr: &TrackedSexpr, env: &Env| -> Result<Expression> {
-            let sexpr = apply_syntax_rules(expr, ellipsis, &literals, &rules, env)?;
-            trans.objectify(&sexpr, env)
+            let sexpr =
+                apply_syntax_rules(expr, ellipsis, &literals, &rules, env, &definition_env)?;
+            //println!("{} -> {}", expr, sexpr);
+
+            let n = env.syntax.len();
+
+            for i in 0..definition_env.macros.len() {
+                env.syntax.extend(definition_env.macros.at(i).into())
+            }
+
+            for i in 0..definition_env.predef.len() {
+                env.syntax.extend(definition_env.predef.at(i).into())
+            }
+
+            for i in 0..definition_env.globals.len() {
+                env.syntax.extend(definition_env.globals.at(i).into())
+            }
+
+            for i in 0..definition_env.locals.len() {
+                env.syntax.extend(definition_env.locals.at(i).into())
+            }
+
+            let result = trans.objectify(&sexpr, env);
+
+            env.syntax.pop_frame(env.syntax.len() - n);
+
+            result
         },
     ))
 }
@@ -49,6 +79,7 @@ fn apply_syntax_rules(
     literals: &TrackedSexpr,
     rules: &TrackedSexpr,
     env: &Env,
+    definition_env: &Env,
 ) -> Result<TrackedSexpr> {
     if rules.is_pair() {
         let rule = rules.car().unwrap();
@@ -61,9 +92,16 @@ fn apply_syntax_rules(
             literals,
             pattern.cdr().unwrap(),
         ) {
-            realize_template(template, &bound_vars)
+            realize_template(template, &bound_vars, definition_env)
         } else {
-            apply_syntax_rules(expr, ellipsis, literals, rules.cdr().unwrap(), env)
+            apply_syntax_rules(
+                expr,
+                ellipsis,
+                literals,
+                rules.cdr().unwrap(),
+                env,
+                definition_env,
+            )
         }
     } else {
         Err(ObjectifyError {
@@ -114,15 +152,68 @@ fn match_rule(
 fn realize_template(
     template: &TrackedSexpr,
     bound_vars: &HashMap<Symbol, TrackedSexpr>,
+    definition_env: &Env,
 ) -> Result<TrackedSexpr> {
     use Sexpr::*;
     match &template.sexpr {
-        Symbol(s) => Ok(bound_vars.get(&s).expect("unbound macro variable").clone()),
+        Symbol(s) => Ok(bound_vars
+            .get(&s)
+            .cloned()
+            .or_else(|| {
+                definition_env
+                    .find_variable(s)
+                    .map(|var| mark_captured_binding(template.clone()))
+                    .or_else(|| {
+                        Some(TrackedSexpr {
+                            sexpr: Symbol(s.as_uninterned()),
+                            src: NoSource,
+                        })
+                    })
+            })
+            .unwrap()
+            .with_src(NoSource)),
         Pair(p) => Ok(TrackedSexpr::cons(
-            realize_template(&p.0, bound_vars)?,
-            realize_template(&p.1, bound_vars)?,
+            realize_template(&p.0, bound_vars, definition_env)?,
+            realize_template(&p.1, bound_vars, definition_env)?,
             NoSource,
         )),
         _ => Ok(template.clone()),
+    }
+}
+
+fn mark_captured_binding(keyword: TrackedSexpr) -> TrackedSexpr {
+    TrackedSexpr::cons(
+        TrackedSexpr {
+            sexpr: Sexpr::Symbol(CAPTURED_BINDING_MARKER),
+            src: NoSource,
+        },
+        keyword,
+        NoSource,
+    )
+}
+
+pub fn is_captured_binding(expr: &TrackedSexpr) -> bool {
+    expr.car()
+        .and_then(TrackedSexpr::as_symbol)
+        .map(|&s| s == CAPTURED_BINDING_MARKER)
+        .unwrap_or(false)
+}
+
+pub fn expand_captured_binding(
+    trans: &mut Translate,
+    expr: &TrackedSexpr,
+    env: &Env,
+) -> Result<Expression> {
+    use crate::syntax::Variable::*;
+    let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
+    match env.syntax.find_variable(name) {
+        Some(LocalVariable(v)) => Ok(LocalReference::new(v, expr.source().clone()).into()),
+        Some(GlobalVariable(v)) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
+        Some(PredefinedVariable(v)) => {
+            Ok(PredefinedReference::new(v, expr.source().clone()).into())
+        }
+        Some(MagicKeyword(mkw)) => Ok((mkw).into()),
+        Some(FreeVariable(_)) => unreachable!(),
+        None => unimplemented!("{}", expr),
     }
 }

@@ -15,6 +15,10 @@ impl Symbol {
         Self::interned(s, |s| s)
     }
 
+    pub fn from_str(s: &str) -> Self {
+        Self::interned(s, |s| Box::leak(Box::new(s.to_owned())))
+    }
+
     pub fn from_string(s: String) -> Self {
         Self::interned(s, |s| Box::leak(Box::new(s)))
     }
@@ -44,7 +48,7 @@ impl Symbol {
         }
     }
 
-    pub fn uninterned(s: &'static str) -> Self {
+    pub const fn uninterned(s: &'static str) -> Self {
         Symbol(s)
     }
 
@@ -68,7 +72,7 @@ impl Eq for Symbol {}
 
 impl From<&str> for Symbol {
     fn from(s: &str) -> Symbol {
-        Symbol::from_string(s.to_string())
+        Symbol::from_str(s)
     }
 }
 
@@ -99,9 +103,9 @@ impl std::fmt::Display for Symbol {
 impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if f.alternate() {
-            write!(f, "{}", self.0)
+            write!(f, "({} {:p})", self.0, self.0)
         } else {
-            write!(f, "Symbol({})", self.0)
+            write!(f, "Symbol({} {:p})", self.0, self.0)
         }
     }
 }

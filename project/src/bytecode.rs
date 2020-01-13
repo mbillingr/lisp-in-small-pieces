@@ -1,7 +1,11 @@
 use crate::description::Arity;
+use crate::env::Environment;
 use crate::error::{Result, RuntimeError, TypeError};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
+use crate::symbol::Symbol;
+use crate::syntax::GlobalVariable;
+use crate::utils::Named;
 
 #[derive(Debug)]
 pub struct CodeObject {
@@ -84,7 +88,7 @@ impl CodeObject {
 }
 
 pub struct VirtualMachine {
-    globals: Vec<Scm>,
+    globals: Vec<(Scm, Symbol)>,
     predef: Vec<Scm>,
     value_stack: Vec<Scm>,
     call_stack: Vec<(usize, isize, &'static Closure)>,
@@ -103,7 +107,7 @@ thread_local! {
 }
 
 impl VirtualMachine {
-    pub fn new(globals: Vec<Scm>, predef: Vec<Scm>) -> Self {
+    pub fn new(globals: Vec<(Scm, Symbol)>, predef: Vec<Scm>) -> Self {
         VirtualMachine {
             globals,
             predef,
@@ -112,13 +116,19 @@ impl VirtualMachine {
         }
     }
 
-    pub fn globals(&self) -> &[Scm] {
+    pub fn globals(&self) -> &[(Scm, Symbol)] {
         &self.globals
     }
 
-    pub fn resize_globals(&mut self, n: usize) {
-        self.globals.resize(n, Scm::uninitialized())
+    pub fn add_globals(&mut self, env: &Environment<GlobalVariable>) {
+        for i in self.globals.len()..env.len() {
+            self.globals.push((Scm::uninitialized(), env.at(i).name()));
+        }
     }
+
+    /*pub fn resize_globals(&mut self, n: usize) {
+        self.globals.resize(n, Scm::uninitialized())
+    }*/
 
     pub fn eval(&mut self, mut cls: &'static Closure) -> Result<Scm> {
         let mut val = Scm::Undefined;
@@ -135,21 +145,23 @@ impl VirtualMachine {
                 Op::Constant(idx) => val = cls.code.constants[idx],
                 Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
                 Op::GlobalRef(idx) => {
-                    val = self.globals[idx];
+                    val = self.globals[idx].0;
                     if val.is_uninitialized() {
-                        return Err(RuntimeError::UndefinedGlobal.into());
+                        return Err(
+                            RuntimeError::UndefinedGlobal(self.globals[idx].1.clone()).into()
+                        );
                     }
                 }
                 Op::FreeRef(idx) => val = cls.free_vars[idx],
                 Op::PredefRef(idx) => val = self.predef[idx],
                 Op::GlobalSet(idx) => {
-                    if self.globals[idx].is_uninitialized() {
-                        return Err(RuntimeError::UndefinedGlobal.into());
+                    if self.globals[idx].0.is_uninitialized() {
+                        return Err(RuntimeError::UndefinedGlobal(self.globals[idx].1).into());
                     }
-                    self.globals[idx] = val;
+                    self.globals[idx].0 = val;
                 }
                 Op::GlobalDef(idx) => {
-                    self.globals[idx] = val;
+                    self.globals[idx].0 = val;
                 }
                 Op::Boxify(idx) => {
                     let x = self.ref_value(idx + frame_offset)?;

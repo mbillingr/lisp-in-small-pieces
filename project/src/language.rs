@@ -6,7 +6,7 @@ pub mod scheme {
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
     use crate::error::Result;
-    use crate::macro_language::eval_syntax;
+    use crate::macro_language::{eval_syntax, expand_captured_binding, CAPTURED_BINDING_MARKER};
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
@@ -61,7 +61,7 @@ pub mod scheme {
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
-            self.vm.resize_globals(self.trans.env.globals.len());
+            self.vm.add_globals(&self.trans.env.globals);
             Ok(self.vm.eval(closure)?)
         }
     }
@@ -482,12 +482,13 @@ pub mod scheme {
         mod variables {
             use super::*;
             use crate::error::RuntimeError;
+            use crate::symbol::Symbol;
 
             check!(get_predefined: "cons", Scm::is_primitive);
             assert_error!(set_predefined: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
 
-            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal);
-            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal);
+            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Symbol::new("flummox")));
+            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Symbol::new("foo")));
             compare!(new_global: "(define the-answer 42)", equals, Scm::Int(42));
             compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
             compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
@@ -550,18 +551,39 @@ pub mod scheme {
 
         mod macros {
             use super::*;
+            use crate::error::RuntimeError;
+            use crate::symbol::Symbol;
 
-            compare!(primitive: "(begin (define-syntax force (syntax-rules () ((force x) (x)))) (force (lambda () 3)))", equals, Scm::Int(3));
+            compare!(primitive:
+                r#"(begin
+                        (define-syntax force (syntax-rules () ((force x) (x))))
+                        (force (lambda () 3)))"#,
+                 equals, Scm::Int(3));
+
+            assert_error!(hygiene_new_binding:
+                r#"(begin
+                        (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
+                        (foo x))"#,
+                RuntimeError::UndefinedGlobal(Symbol::new("x")));
+
+            compare!(hygiene_preserve_definition_environment:
+                r#"(begin
+                        (define foo 42)
+                        (define-syntax bar (syntax-rules () ((bar) foo)))
+                        (let ((foo 0))
+                             (bar)))"#,
+                 equals, Scm::Int(42));
         }
 
         mod definition {
             use super::*;
+            use crate::symbol::Symbol;
 
             #[test]
             fn global_definition() {
                 let mut ctx = Context::new();
                 ctx.eval_str("(define x 42)").unwrap();
-                assert_eq!(ctx.vm.globals()[0], Scm::Int(42));
+                assert_eq!(ctx.vm.globals()[0], (Scm::Int(42), Symbol::new("x")));
             }
 
             #[test]

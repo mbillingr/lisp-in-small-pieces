@@ -153,6 +153,11 @@ impl TrackedSexpr {
         }
     }
 
+    pub fn with_src(mut self, src: SourceLocation) -> Self {
+        self.src = src;
+        self
+    }
+
     pub fn new(sexpr: Sexpr, src: SourceLocation) -> Self {
         TrackedSexpr { sexpr, src }
     }

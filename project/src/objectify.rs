@@ -1,4 +1,5 @@
 use crate::env::Env;
+use crate::macro_language::{expand_captured_binding, is_captured_binding};
 use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
@@ -49,6 +50,8 @@ impl Translate {
                 _ if expr.is_symbol() => self.objectify_symbol(expr, env),
                 _ => self.objectify_quotation(expr, env),
             }
+        } else if is_captured_binding(expr) {
+            expand_captured_binding(self, expr, env)
         } else {
             let m = self.objectify(ocar(expr)?, env)?;
             if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {

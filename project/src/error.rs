@@ -1,6 +1,7 @@
 use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
 use crate::parsing::{ParseError, ParseErrorKind};
 use crate::source::{Source, SourceLocation};
+use crate::symbol::Symbol;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -22,7 +23,7 @@ pub enum ErrorKind {
 pub enum RuntimeError {
     ValueStackUnderflow,
     IncorrectArity,
-    UndefinedGlobal,
+    UndefinedGlobal(Symbol),
 }
 
 #[derive(Debug, PartialEq)]
