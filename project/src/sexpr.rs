@@ -86,9 +86,9 @@ impl std::fmt::Display for Sexpr {
 }
 
 impl TrackedSexpr {
-    pub fn from_source(source: &Source) -> Result<Self, Error> {
+    pub fn from_source(source: &Source) -> Result<Vec<Self>, Error> {
         parse(&source.content)
-            .map(|sexpr| Self::from_spanned(sexpr, source.clone()))
+            .map(|sexprs| sexprs.into_iter().map(|sexpr| Self::from_spanned(sexpr, source.clone())).collect())
             .map_err(|e| Error::from_parse_error_and_source(e, source.clone()))
     }
 

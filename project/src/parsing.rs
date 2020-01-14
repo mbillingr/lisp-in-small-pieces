@@ -138,12 +138,17 @@ pub enum Sexpr<'a> {
     Dot,
 }
 
-pub fn parse(src: &str) -> Result<SpannedSexpr> {
-    let rest = Span::new(src);
-    let (_, rest) = opt(whitespace)(rest)?;
-    let (expr, rest) = parse_sexpr(rest)?;
-    let _ = all((map(opt(whitespace), |_| Span::default()), eof))(rest);
-    Ok(expr)
+pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
+    let mut exprs = vec![];
+    let src = Span::new(src);
+    let (_, mut src) = opt(whitespace)(src)?;
+    while !src.is_empty() {
+        let (expr, rest) = parse_sexpr(src)?;
+        let (_, rest) = opt(whitespace)(rest)?;
+        src = rest;
+        exprs.push(expr);
+    }
+    Ok(exprs)
 }
 
 fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {

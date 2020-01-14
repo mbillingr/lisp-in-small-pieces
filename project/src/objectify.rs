@@ -40,8 +40,8 @@ impl Translate {
         Translate { env }
     }
 
-    pub fn objectify_toplevel(&mut self, expr: &Sexpr) -> Result<Expression> {
-        self.objectify(expr, &self.env.clone())
+    pub fn objectify_toplevel(&mut self, exprs: &[Sexpr]) -> Result<Expression> {
+        self.objectify(&exprs[0], &self.env.clone())
     }
 
     pub fn objectify(&mut self, expr: &Sexpr, env: &Env) -> Result<Expression> {
