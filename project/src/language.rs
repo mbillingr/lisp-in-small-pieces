@@ -573,6 +573,27 @@ pub mod scheme {
                         (let ((foo 0))
                              (bar)))"#,
                  equals, Scm::Int(42));
+
+            compare!(conflicting_identifiers:
+                // this macro invocation should expand to (cons x x), where both x are different bindings.
+                r#"(begin
+                        (define x 1)
+                        (define-syntax foo (syntax-rules () ((foo y) (cons x y))))
+                        (let ((x 2))
+                             (foo x)))"#,
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+
+            compare!(literals:
+                r#"(begin
+                        (define-syntax foo (syntax-rules (bar) ((foo bar) #t) ((foo _) #f)))
+                        (cons (foo bar) (foo foo)))"#,
+                 equals, Scm::cons(Scm::True, Scm::False));
+
+            compare!(syntax_alternatives:
+                r#"(begin
+                        (define-syntax count (syntax-rules () ((_ a) 1) ((count a b) 2)))
+                        (cons (count x) (count 7 8)))"#,
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
         }
 
         mod definition {
