@@ -41,6 +41,8 @@ impl Translate {
     }
 
     pub fn objectify_toplevel(&mut self, exprs: &[Sexpr]) -> Result<Expression> {
+        unimplemented!("objectify sequence of Sexprs");
+        unimplemented!("objectify simport statements");
         self.objectify(&exprs[0], &self.env.clone())
     }
 

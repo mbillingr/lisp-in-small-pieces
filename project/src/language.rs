@@ -45,9 +45,10 @@ pub mod scheme {
             self.eval_sexpr(&sexpr)
         }
 
-        pub fn eval_sexpr(&mut self, sexpr: &TrackedSexpr) -> Result<Scm> {
+        pub fn eval_sexpr(&mut self, sexprs: &[TrackedSexpr]) -> Result<Scm> {
+            //println!("{:?} =>", sexprs);
             //println!("{:?}", self.trans);
-            let ast = self.trans.objectify_toplevel(sexpr)?;
+            let ast = self.trans.objectify_toplevel(sexprs)?;
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
