@@ -6,6 +6,7 @@ pub mod scheme {
     use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
     use crate::error::Result;
+    use crate::library::Library;
     use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ocar, ocdr, Translate};
@@ -19,8 +20,8 @@ pub mod scheme {
     use crate::source::Source;
     use crate::syntax::{Expression, MagicKeyword, NoOp, PredefinedVariable};
     use std::ops::{Add, Div, Mul, Sub};
-    use crate::library::Library;
     use std::path::PathBuf;
+    use std::rc::Rc;
 
     pub struct Context {
         trans: Translate,
@@ -69,7 +70,9 @@ pub mod scheme {
         }
 
         fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
-            self.trans.add_library(library_name, library);
+            let lib = Rc::new(library);
+            self.trans.add_library(library_name, lib.clone());
+            self.vm.add_library(lib);
         }
     }
 
@@ -343,11 +346,7 @@ pub mod scheme {
         }
 
         fn create_testing_libraries(mut ctx: Context) -> Context {
-            ctx.add_library(
-                "testing/1",
-                LibraryBuilder::new()
-                    .add_value("a", 1)
-                    .build());
+            ctx.add_library("testing/1", LibraryBuilder::new().add_value("a", 1).build());
             ctx
         }
 
@@ -355,11 +354,9 @@ pub mod scheme {
             ($name:ident: $src:expr, $cmp:path) => {
                 #[test]
                 fn $name() {
-                    let result = create_testing_libraries(Context::new()).eval_str($src).expect(concat!(
-                        "Could not evaluate `",
-                        $src,
-                        "`"
-                    ));
+                    let result = create_testing_libraries(Context::new())
+                        .eval_str($src)
+                        .expect(concat!("Could not evaluate `", $src, "`"));
                     if !$cmp(&result) {
                         panic!(
                             r#"assertion failed: `(eq? actual expected)`
@@ -379,11 +376,9 @@ pub mod scheme {
             ($name:ident: $src:expr, $cmp:ident, $expect:expr) => {
                 #[test]
                 fn $name() {
-                    let result = create_testing_libraries(Context::new()).eval_str($src).expect(concat!(
-                        "Could not evaluate `",
-                        $src,
-                        "`"
-                    ));
+                    let result = create_testing_libraries(Context::new())
+                        .eval_str($src)
+                        .expect(concat!("Could not evaluate `", $src, "`"));
                     if !result.$cmp(&$expect) {
                         panic!(
                             r#"assertion failed: `(eq? actual expected)`
@@ -615,8 +610,8 @@ pub mod scheme {
 
         mod libraries {
             use super::*;
-            use crate::symbol::Symbol;
             use crate::source::SourceLocation::NoSource;
+            use crate::symbol::Symbol;
             use std::path::Path;
 
             assert_error!(nonexisting_library: "(import (foo bar)) #f",

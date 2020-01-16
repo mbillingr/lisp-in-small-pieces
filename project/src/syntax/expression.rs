@@ -7,6 +7,7 @@ use super::constant::Constant;
 use super::definition::GlobalDefine;
 use super::fixlet::FixLet;
 use super::function::Function;
+use super::import::Import;
 use super::keyword::MagicKeyword;
 use super::noop::NoOp;
 use super::reference::Reference;
@@ -32,7 +33,8 @@ sum_types! {
                         | BoxWrite
                         | BoxCreate
                         | FlatClosure
-                        | GlobalDefine;
+                        | GlobalDefine
+                        | Import;
 }
 
 impl Expression {
@@ -61,6 +63,7 @@ impl Expression {
             FlatClosure(x) => x.default_transform(visitor).into(),
             GlobalDefine(x) => x.default_transform(visitor).into(),
             NoOp(x) => x.default_transform(visitor).into(),
+            Import(x) => x.default_transform(visitor).into(),
         }
     }
 }
@@ -84,6 +87,7 @@ impl Sourced for Expression {
             FlatClosure(x) => x.source(),
             GlobalDefine(x) => x.source(),
             NoOp(x) => x.source(),
+            Import(x) => x.source(),
         }
     }
 }

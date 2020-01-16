@@ -1,11 +1,14 @@
 use crate::description::Arity;
 use crate::env::Environment;
 use crate::error::{Result, RuntimeError, TypeError};
+use crate::library::ExportItem;
+use crate::library::Library;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::GlobalVariable;
 use crate::utils::Named;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct CodeObject {
@@ -48,6 +51,8 @@ pub enum Op {
     Halt,
 
     Drop(usize),
+
+    Import(usize),
 }
 
 impl Op {
@@ -90,6 +95,7 @@ impl CodeObject {
 pub struct VirtualMachine {
     globals: Vec<(Scm, Symbol)>,
     predef: Vec<Scm>,
+    libraries: Vec<Rc<Library>>,
     value_stack: Vec<Scm>,
     call_stack: Vec<(usize, isize, &'static Closure)>,
 }
@@ -111,6 +117,7 @@ impl VirtualMachine {
         VirtualMachine {
             globals,
             predef,
+            libraries: vec![],
             value_stack: vec![],
             call_stack: vec![],
         }
@@ -124,6 +131,10 @@ impl VirtualMachine {
         for i in self.globals.len()..env.len() {
             self.globals.push((Scm::uninitialized(), env.at(i).name()));
         }
+    }
+
+    pub fn add_library(&mut self, library: Rc<Library>) {
+        self.libraries.push(library);
     }
 
     /*pub fn resize_globals(&mut self, n: usize) {
@@ -240,6 +251,17 @@ impl VirtualMachine {
                 Op::Drop(n) => {
                     self.value_stack.truncate(self.value_stack.len() - n);
                 }
+                Op::Import(l) => {
+                    // intended use:
+                    //   (constant c)   ; load identifier name
+                    //   (import l)     ; import value of identifier from library l
+                    //   (global-def g) ; store into global variable
+                    let identifier = val.as_symbol()?;
+                    match self.libraries[l].lookup(identifier) {
+                        Some(ExportItem::Value(v)) => val = *v,
+                        _ => panic!("Invalid import"),
+                    }
+                }
             }
         }
     }
@@ -306,6 +328,7 @@ impl std::fmt::Debug for Op {
             Op::Return => write!(f, "(return)"),
             Op::Halt => write!(f, "(halt)"),
             Op::Drop(n) => write!(f, "(drop {})", n),
+            Op::Import(l) => write!(f, "(import {})", l),
         }
     }
 }

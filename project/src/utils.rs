@@ -148,7 +148,7 @@ macro_rules! sum_types {
 }
 
 pub trait Named {
-    type Name;
+    type Name: PartialEq;
     fn name(&self) -> Self::Name;
 }
 

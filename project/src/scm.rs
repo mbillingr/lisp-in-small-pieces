@@ -118,6 +118,13 @@ impl Scm {
         }
     }
 
+    pub fn as_symbol(&self) -> Result<Symbol> {
+        match self {
+            Scm::Symbol(s) => Ok(*s),
+            _ => Err(TypeError::NoSymbol.into()),
+        }
+    }
+
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),

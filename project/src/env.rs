@@ -79,6 +79,12 @@ impl<V: Clone + Named> Environment<V> {
             .map(|(idx, _)| idx)
     }
 
+    pub fn ensure_variable(&self, var: V) {
+        if self.find_variable(&var.name()).is_none() {
+            self.extend(var)
+        }
+    }
+
     pub fn at(&self, idx: usize) -> V {
         self.0.borrow()[idx].clone()
     }

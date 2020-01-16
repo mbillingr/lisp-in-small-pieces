@@ -8,6 +8,7 @@ pub mod definition;
 pub mod expression;
 pub mod fixlet;
 pub mod function;
+pub mod import;
 pub mod keyword;
 pub mod noop;
 pub mod reference;
@@ -23,6 +24,7 @@ pub use constant::Constant;
 pub use expression::Expression;
 pub use fixlet::FixLet;
 pub use function::Function;
+pub use import::Import;
 pub use keyword::{MagicKeyword, MagicKeywordHandler};
 pub use noop::NoOp;
 pub use reference::{
