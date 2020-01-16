@@ -70,6 +70,12 @@ impl PartialEq for Symbol {
 
 impl Eq for Symbol {}
 
+impl From<&Symbol> for Symbol {
+    fn from(s: &Symbol) -> Symbol {
+        *s
+    }
+}
+
 impl From<&str> for Symbol {
     fn from(s: &str) -> Symbol {
         Symbol::from_str(s)

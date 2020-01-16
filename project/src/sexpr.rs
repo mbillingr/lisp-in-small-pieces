@@ -88,7 +88,12 @@ impl std::fmt::Display for Sexpr {
 impl TrackedSexpr {
     pub fn from_source(source: &Source) -> Result<Vec<Self>, Error> {
         parse(&source.content)
-            .map(|sexprs| sexprs.into_iter().map(|sexpr| Self::from_spanned(sexpr, source.clone())).collect())
+            .map(|sexprs| {
+                sexprs
+                    .into_iter()
+                    .map(|sexpr| Self::from_spanned(sexpr, source.clone()))
+                    .collect()
+            })
             .map_err(|e| Error::from_parse_error_and_source(e, source.clone()))
     }
 
@@ -180,6 +185,13 @@ impl TrackedSexpr {
     pub fn nil(src: SourceLocation) -> Self {
         TrackedSexpr {
             sexpr: Sexpr::Nil,
+            src,
+        }
+    }
+
+    pub fn symbol(s: impl Into<Symbol>, src: SourceLocation) -> Self {
+        TrackedSexpr {
+            sexpr: Sexpr::Symbol(s.into()),
             src,
         }
     }

@@ -19,6 +19,8 @@ pub mod scheme {
     use crate::source::Source;
     use crate::syntax::{Expression, MagicKeyword, NoOp, PredefinedVariable};
     use std::ops::{Add, Div, Mul, Sub};
+    use crate::library::Library;
+    use std::path::PathBuf;
 
     pub struct Context {
         trans: Translate,
@@ -64,6 +66,10 @@ pub mod scheme {
 
             self.vm.add_globals(&self.trans.env.globals);
             Ok(self.vm.eval(closure)?)
+        }
+
+        fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
+            self.trans.add_library(library_name, library);
         }
     }
 
@@ -328,6 +334,7 @@ pub mod scheme {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::library::LibraryBuilder;
 
         impl PartialEq for Scm {
             fn eq(&self, rhs: &Self) -> bool {
@@ -335,11 +342,20 @@ pub mod scheme {
             }
         }
 
+        fn create_testing_libraries(mut ctx: Context) -> Context {
+            ctx.add_library(
+                "testing/1",
+                LibraryBuilder::new()
+                    .add_value("a", 1)
+                    .build());
+            ctx
+        }
+
         macro_rules! check {
             ($name:ident: $src:expr, $cmp:path) => {
                 #[test]
                 fn $name() {
-                    let result = Context::new().eval_str($src).expect(concat!(
+                    let result = create_testing_libraries(Context::new()).eval_str($src).expect(concat!(
                         "Could not evaluate `",
                         $src,
                         "`"
@@ -363,7 +379,7 @@ pub mod scheme {
             ($name:ident: $src:expr, $cmp:ident, $expect:expr) => {
                 #[test]
                 fn $name() {
-                    let result = Context::new().eval_str($src).expect(concat!(
+                    let result = create_testing_libraries(Context::new()).eval_str($src).expect(concat!(
                         "Could not evaluate `",
                         $src,
                         "`"
@@ -385,7 +401,7 @@ pub mod scheme {
             ($name:ident: $src:expr, $expect:expr) => {
                 #[test]
                 fn $name() {
-                    match Context::new().eval_str($src) {
+                    match create_testing_libraries(Context::new()).eval_str($src) {
                         Ok(r) => panic!(
                             r#"assertion failed:
          expression: `{}`
@@ -594,6 +610,20 @@ pub mod scheme {
                 r#"(begin
                         (define-syntax count (syntax-rules () ((_ a) 1) ((count a b) 2)))
                         (cons (count x) (count 7 8)))"#,
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+        }
+
+        mod libraries {
+            use super::*;
+            use crate::symbol::Symbol;
+            use crate::source::SourceLocation::NoSource;
+            use std::path::Path;
+
+            assert_error!(nonexisting_library: "(import (foo bar)) #f",
+                ObjectifyErrorKind::UnknownLibrary(["foo", "bar"].iter().collect()));
+
+            compare!(import_and_do_nothing:
+                r#"(import (testing 1)) #f"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
         }
 

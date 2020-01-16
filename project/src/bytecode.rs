@@ -151,6 +151,9 @@ impl VirtualMachine {
                             RuntimeError::UndefinedGlobal(self.globals[idx].1.clone()).into()
                         );
                     }
+                    if val.is_cell() {
+                        val = val.get().unwrap();
+                    }
                 }
                 Op::FreeRef(idx) => val = cls.free_vars[idx],
                 Op::PredefRef(idx) => val = self.predef[idx],
@@ -158,7 +161,12 @@ impl VirtualMachine {
                     if self.globals[idx].0.is_uninitialized() {
                         return Err(RuntimeError::UndefinedGlobal(self.globals[idx].1).into());
                     }
-                    self.globals[idx].0 = val;
+                    let glob = &mut self.globals[idx].0;
+                    if glob.is_cell() {
+                        glob.set(val).unwrap();
+                    } else {
+                        *glob = val;
+                    }
                 }
                 Op::GlobalDef(idx) => {
                     self.globals[idx].0 = val;

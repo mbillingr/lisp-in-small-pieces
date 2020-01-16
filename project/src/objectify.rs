@@ -2,15 +2,17 @@ use crate::env::Env;
 use crate::macro_language::{expand_captured_binding, is_captured_binding};
 use crate::sexpr::TrackedSexpr as Sexpr;
 use crate::source::SourceLocation;
+use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
-use crate::syntax::{
-    Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, PredefinedApplication,
-    PredefinedReference, PredefinedVariable, Reference, RegularApplication, Sequence, Variable,
-};
+use crate::syntax::{Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable, LocalAssignment, LocalReference, LocalVariable, MagicKeyword, PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication, Sequence, Variable, NoOp};
 use crate::utils::Sourced;
 use std::convert::TryInto;
+use crate::library::{is_import, Library};
+use crate::objectify::ObjectifyErrorKind::UnknownLibrary;
+use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 pub type Result<T> = std::result::Result<T, ObjectifyError>;
 
@@ -28,22 +30,34 @@ pub enum ObjectifyErrorKind {
     ImmutableAssignment,
     ExpectedList,
     ExpectedSymbol,
+    UnknownLibrary(PathBuf),
 }
 
 #[derive(Debug)]
 pub struct Translate {
     pub env: Env,
+    pub libs: HashMap<PathBuf, Library>,
 }
 
 impl Translate {
     pub fn new(env: Env) -> Self {
-        Translate { env }
+        Translate { env,
+        libs: HashMap::new()}
     }
 
     pub fn objectify_toplevel(&mut self, exprs: &[Sexpr]) -> Result<Expression> {
-        unimplemented!("objectify sequence of Sexprs");
-        unimplemented!("objectify simport statements");
-        self.objectify(&exprs[0], &self.env.clone())
+        let n_imports = exprs.iter().take_while(|&expr| is_import(expr)).count();
+
+        for expr in exprs[..n_imports].iter() {
+            self.import(expr.cdr().unwrap())?;
+        }
+
+        let mut sequence = Sexpr::nil(NoSource);
+        for expr in exprs[n_imports..].iter().rev() {
+            sequence = Sexpr::cons(expr.clone(), sequence, NoSource);
+        }
+        sequence = Sexpr::cons(Sexpr::symbol("begin", NoSource), sequence, NoSource);
+        self.objectify(&sequence, &self.env.clone())
     }
 
     pub fn objectify(&mut self, expr: &Sexpr, env: &Env) -> Result<Expression> {
@@ -62,6 +76,13 @@ impl Translate {
                 self.objectify_application(&m, ocdr(expr)?, env, expr.source().clone())
             }
         }
+    }
+
+    fn import(&mut self, import_set: &Sexpr) -> Result<Expression> {
+        let library_name = import_set.car().unwrap();
+        let lib = self.library(library_name)?;
+        lib.import_into_environment(&mut self.env);
+        Ok(unimplemented!())
     }
 
     pub fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<Expression> {
@@ -321,6 +342,30 @@ impl Translate {
                 location: span,
             }),
         }
+    }
+
+    fn library(&mut self, library_name: &Sexpr) -> Result<Library> {
+        let mut path = PathBuf::new();
+
+        let mut next_part = library_name;
+        while next_part.is_pair() {
+            path.push(format!("{}", next_part.car().unwrap()));
+            next_part = next_part.cdr().unwrap();
+        }
+
+        match self.libs.entry(path) {
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
+            Entry::Vacant(entry) => {
+                Err(ObjectifyError{
+                    kind: ObjectifyErrorKind::UnknownLibrary(entry.into_key()).into(),
+                    location: library_name.src.clone()
+                })
+            }
+        }
+    }
+
+    pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
+        self.libs.insert(library_name.into(), library);
     }
 }
 

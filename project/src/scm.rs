@@ -111,6 +111,13 @@ impl Scm {
         }
     }
 
+    pub fn is_cell(&self) -> bool {
+        match self {
+            Scm::Cell(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),
@@ -264,6 +271,12 @@ impl From<&Scm> for Scm {
 impl From<bool> for Scm {
     fn from(b: bool) -> Scm {
         Scm::bool(b)
+    }
+}
+
+impl From<i64> for Scm {
+    fn from(x: i64) -> Scm {
+        Scm::Int(x)
     }
 }
 
