@@ -60,7 +60,7 @@ pub mod scheme {
             let globals = self.trans.env.globals.clone();
             let predef = self.trans.env.predef.clone();
 
-            let code = BytecodeGenerator::compile_toplevel(&ast, globals, predef);
+            let code = BytecodeGenerator::compile_toplevel(&ast, &self.trans);
             //println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));

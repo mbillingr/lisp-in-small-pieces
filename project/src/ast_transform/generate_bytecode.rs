@@ -1,6 +1,7 @@
 use crate::bytecode::{CodeObject, Op};
 use crate::description::Arity;
 use crate::env::Environment;
+use crate::objectify::Translate;
 use crate::scm::Scm;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
@@ -13,35 +14,25 @@ use crate::syntax::{
 use crate::utils::{Named, Sourced};
 
 #[derive(Debug)]
-pub struct BytecodeGenerator {
-    globals: Environment<GlobalVariable>,
-    predef: Environment<PredefinedVariable>,
+pub struct BytecodeGenerator<'a> {
+    trans: &'a Translate,
     constants: Vec<Scm>,
     env: Vec<Symbol>,
     current_closure_vars: Vec<Symbol>,
 }
 
-impl BytecodeGenerator {
-    pub fn new(
-        current_closure_vars: Vec<Symbol>,
-        globals: Environment<GlobalVariable>,
-        predef: Environment<PredefinedVariable>,
-    ) -> Self {
+impl<'a> BytecodeGenerator<'a> {
+    pub fn new(current_closure_vars: Vec<Symbol>, trans: &'a Translate) -> Self {
         BytecodeGenerator {
-            globals,
-            predef,
+            trans,
             constants: vec![],
             env: vec![],
             current_closure_vars,
         }
     }
 
-    pub fn compile_toplevel(
-        expr: &Expression,
-        globals: Environment<GlobalVariable>,
-        predef: Environment<PredefinedVariable>,
-    ) -> CodeObject {
-        let mut bcgen = Self::new(vec![], globals, predef);
+    pub fn compile_toplevel(expr: &Expression, trans: &'a Translate) -> CodeObject {
+        let mut bcgen = Self::new(vec![], trans);
         let mut code = bcgen.compile(expr, true);
         code.push(Op::Return);
         CodeObject::new(
@@ -55,10 +46,9 @@ impl BytecodeGenerator {
     pub fn compile_function(
         func: &Function,
         closure_vars: Vec<Symbol>,
-        globals: Environment<GlobalVariable>,
-        predef: Environment<PredefinedVariable>,
+        trans: &'a Translate,
     ) -> CodeObject {
-        let mut bcgen = Self::new(closure_vars, globals, predef);
+        let mut bcgen = Self::new(closure_vars, trans);
         bcgen.env = func.variables.iter().map(|var| var.name()).collect();
         let mut code = bcgen.compile(&func.body, true);
         if !code.last().map(Op::is_terminal).unwrap_or(false) {
@@ -169,24 +159,34 @@ impl BytecodeGenerator {
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Vec<Op> {
-        let idx = self.globals.find_idx(&node.var.name()).unwrap();
+        let idx = self.trans.env.globals.find_idx(&node.var.name()).unwrap();
         vec![Op::GlobalRef(idx)]
     }
 
     fn compile_predef_ref(&mut self, node: &PredefinedReference, _tail: bool) -> Vec<Op> {
-        let idx = self.predef.find_idx(&node.var.name()).unwrap();
+        let idx = self.trans.env.predef.find_idx(&node.var.name()).unwrap();
         vec![Op::PredefRef(idx)]
     }
 
     fn compile_global_set(&mut self, node: &GlobalAssignment, _tail: bool) -> Vec<Op> {
-        let idx = self.globals.find_idx(&node.variable.name()).unwrap();
+        let idx = self
+            .trans
+            .env
+            .globals
+            .find_idx(&node.variable.name())
+            .unwrap();
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::GlobalSet(idx));
         meaning
     }
 
     fn compile_global_def(&mut self, node: &GlobalDefine) -> Vec<Op> {
-        let idx = self.globals.find_idx(&node.variable.name()).unwrap();
+        let idx = self
+            .trans
+            .env
+            .globals
+            .find_idx(&node.variable.name())
+            .unwrap();
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::GlobalDef(idx));
         meaning
@@ -219,12 +219,7 @@ impl BytecodeGenerator {
     fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Vec<Op> {
         let free_vars = node.free_vars.iter().map(|s| s.var.name()).collect();
 
-        let function = BytecodeGenerator::compile_function(
-            &node.func,
-            free_vars,
-            self.globals.clone(),
-            self.predef.clone(),
-        );
+        let function = BytecodeGenerator::compile_function(&node.func, free_vars, self.trans);
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];
@@ -277,7 +272,12 @@ impl BytecodeGenerator {
             meaning.push(Op::PushVal);
         }
 
-        let idx = self.predef.find_idx(&node.variable.name()).unwrap();
+        let idx = self
+            .trans
+            .env
+            .predef
+            .find_idx(&node.variable.name())
+            .unwrap();
         meaning.push(Op::PredefRef(idx));
 
         let arity = node.arguments.len();
