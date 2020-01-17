@@ -132,8 +132,8 @@ impl ImportPrefix {
 
 #[derive(Debug, Clone)]
 pub struct ImportRename {
-    library_name: PathBuf,
-    mapping: HashMap<Symbol, Symbol>,
+    pub library_name: PathBuf,
+    pub mapping: HashMap<Symbol, Symbol>,
     pub span: SourceLocation,
 }
 impl_sourced!(ImportRename);

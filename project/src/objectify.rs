@@ -2,12 +2,12 @@ use crate::env::Env;
 use crate::library::{is_import, libname_to_path, ExportItem, Library};
 use crate::macro_language::{expand_captured_binding, is_captured_binding};
 use crate::objectify::ObjectifyErrorKind::UnknownLibrary;
-use crate::sexpr::TrackedSexpr as Sexpr;
+use crate::sexpr::{TrackedSexpr as Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
-use crate::syntax::import::ImportAll;
+use crate::syntax::import::{ImportAll, ImportRename};
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
     Import, LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp,
@@ -355,8 +355,22 @@ impl Translate {
         }
     }
 
-    fn objectify_import(&mut self, import_set: &Sexpr) -> Result<Expression> {
-        let library_name = import_set.car().unwrap();
+    fn objectify_import(&mut self, import_sets: &Sexpr) -> Result<Expression> {
+        let import_set = import_sets.car().unwrap();
+        let modifier = import_set.car().unwrap().as_symbol();
+        match modifier {
+            Some(s) if s == "rename" => {
+                self.objectify_import_rename(import_set, import_set.source().clone())
+            }
+            _ => self.objectify_import_all(import_set, import_set.source().clone()),
+        }
+    }
+
+    fn objectify_import_all(
+        &mut self,
+        library_name: &TrackedSexpr,
+        span: SourceLocation,
+    ) -> Result<Expression> {
         let library_path = libname_to_path(library_name)?;
         let lib = self.load_library(library_name)?;
 
@@ -378,18 +392,66 @@ impl Translate {
         }
 
         Ok(Expression::Import(
-            ImportAll::new(library_path, import_set.source().clone()).into(),
+            ImportAll::new(library_path, span).into(),
         ))
     }
 
-    fn load_library(&mut self, library_name: &Sexpr) -> Result<&Library> {
-        let path = libname_to_path(library_name)?;
+    fn objectify_import_rename(
+        &mut self,
+        import_set: &TrackedSexpr,
+        span: SourceLocation,
+    ) -> Result<Expression> {
+        let library_name = import_set.cdr().unwrap().car().unwrap();
+        let library_path = libname_to_path(library_name)?;
+        let lib = self.load_library(library_name)?;
 
-        if self.libs.contains_key(&path) {
-            Ok(&self.libs[&path].1)
+        let mut renames = import_set.cdr().unwrap().cdr().unwrap();
+        let mut mapping = HashMap::new();
+        while renames.is_pair() {
+            let original = renames.car().unwrap().car().unwrap().as_symbol().unwrap();
+            let newname = renames
+                .car()
+                .unwrap()
+                .cdr()
+                .unwrap()
+                .car()
+                .unwrap()
+                .as_symbol()
+                .unwrap();
+            mapping.insert(*original, *newname);
+            renames = renames.cdr().unwrap();
+        }
+
+        let mut import_vars = vec![];
+        let mut import_macros = vec![];
+        for (name, item) in lib.all_exports() {
+            let name = *mapping.get(&name).unwrap_or(&name);
+            match item {
+                ExportItem::Value(_) => import_vars.push(GlobalVariable::new(name)),
+                ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
+            }
+        }
+
+        for var in import_vars {
+            self.env.globals.ensure_variable(var);
+        }
+
+        for mac in import_macros {
+            self.env.macros.extend(mac);
+        }
+
+        Ok(Expression::Import(
+            ImportRename::new(library_path, mapping, span).into(),
+        ))
+    }
+
+    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<&Library> {
+        let library_path = libname_to_path(library_name)?;
+        if self.libs.contains_key(&library_path) {
+            Ok(&self.libs[&library_path].1)
         } else {
             Err(ObjectifyError {
-                kind: ObjectifyErrorKind::UnknownLibrary(path).into(),
+                kind: ObjectifyErrorKind::UnknownLibrary(library_path).into(),
                 location: library_name.src.clone(),
             })
         }

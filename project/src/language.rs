@@ -646,6 +646,10 @@ pub mod scheme {
             compare!(import_macros:
                 r#"(import (testing 2)) (invoke (lambda () 0))"#,
                  equals, Scm::Int(0));
+
+            compare!(import_renamed_value:
+                r#"(import (rename (testing 1) (b c))) (cons a c)"#,
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
         }
 
         mod definition {

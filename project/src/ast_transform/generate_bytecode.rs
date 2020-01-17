@@ -338,6 +338,18 @@ impl<'a> BytecodeGenerator<'a> {
                     }
                 }
             }
+            Import::ImportRename(ir) => {
+                let (lib_idx, lib) = &self.trans.libs[&ir.library_name];
+
+                for (name, item) in lib.all_exports() {
+                    let varname = *ir.mapping.get(&name).unwrap_or(&name);
+                    if let ExportItem::Value(_) = item {
+                        ops.push(self.build_constant(Scm::Symbol(name)));
+                        ops.push(Op::Import(*lib_idx));
+                        ops.push(self.build_global_def(varname));
+                    }
+                }
+            }
             _ => unimplemented!(),
         }
         ops
