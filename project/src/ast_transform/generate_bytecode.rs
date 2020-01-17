@@ -1,6 +1,7 @@
 use crate::bytecode::{CodeObject, Op};
 use crate::description::Arity;
 use crate::env::Environment;
+use crate::library::ExportItem;
 use crate::objectify::Translate;
 use crate::scm::Scm;
 use crate::symbol::Symbol;
@@ -329,10 +330,12 @@ impl<'a> BytecodeGenerator<'a> {
             Import::ImportAll(ia) => {
                 let (lib_idx, lib) = &self.trans.libs[&ia.library_name];
 
-                for (name, _) in lib.all_exports() {
-                    ops.push(self.build_constant(Scm::Symbol(name)));
-                    ops.push(Op::Import(*lib_idx));
-                    ops.push(self.build_global_def(name))
+                for (name, item) in lib.all_exports() {
+                    if let ExportItem::Value(_) = item {
+                        ops.push(self.build_constant(Scm::Symbol(name)));
+                        ops.push(Op::Import(*lib_idx));
+                        ops.push(self.build_global_def(name));
+                    }
                 }
             }
             _ => unimplemented!(),

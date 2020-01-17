@@ -338,6 +338,7 @@ pub mod scheme {
     mod tests {
         use super::*;
         use crate::library::LibraryBuilder;
+        use crate::source::SourceLocation::NoSource;
 
         impl PartialEq for Scm {
             fn eq(&self, rhs: &Self) -> bool {
@@ -351,6 +352,17 @@ pub mod scheme {
                 LibraryBuilder::new()
                     .add_value("a", 1)
                     .add_value("b", 2)
+                    .build(),
+            );
+            ctx.add_library(
+                "testing/2",
+                LibraryBuilder::new()
+                    .add_macro(
+                        "invoke",
+                        MagicKeyword::new("invoke", |trans, expr, env| {
+                            trans.objectify(expr.cdr().unwrap(), env)
+                        }),
+                    )
                     .build(),
             );
             ctx
@@ -626,6 +638,14 @@ pub mod scheme {
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
                  equals, Scm::False);
+
+            compare!(import_values:
+                r#"(import (testing 1)) (cons a b)"#,
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+
+            compare!(import_macros:
+                r#"(import (testing 2)) (invoke (lambda () 0))"#,
+                 equals, Scm::Int(0));
         }
 
         mod definition {
