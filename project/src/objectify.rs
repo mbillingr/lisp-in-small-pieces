@@ -43,7 +43,7 @@ pub enum ObjectifyErrorKind {
 #[derive(Debug)]
 pub struct Translate {
     pub env: Env,
-    pub libs: HashMap<PathBuf, Rc<Library>>,
+    pub libs: HashMap<PathBuf, (usize, Rc<Library>)>,
 }
 
 impl Translate {
@@ -386,7 +386,7 @@ impl Translate {
         let path = libname_to_path(library_name)?;
 
         if self.libs.contains_key(&path) {
-            Ok(&self.libs[&path])
+            Ok(&self.libs[&path].1)
         } else {
             Err(ObjectifyError {
                 kind: ObjectifyErrorKind::UnknownLibrary(path).into(),
@@ -396,7 +396,8 @@ impl Translate {
     }
 
     pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Rc<Library>) {
-        self.libs.insert(library_name.into(), library);
+        let idx = self.libs.len();
+        self.libs.insert(library_name.into(), (idx, library));
     }
 }
 

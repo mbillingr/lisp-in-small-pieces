@@ -42,7 +42,7 @@ impl Sourced for Import {
 
 #[derive(Debug, Clone)]
 pub struct ImportAll {
-    library_name: PathBuf,
+    pub library_name: PathBuf,
     pub span: SourceLocation,
 }
 impl_sourced!(ImportAll);

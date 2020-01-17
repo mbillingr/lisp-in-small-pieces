@@ -346,7 +346,13 @@ pub mod scheme {
         }
 
         fn create_testing_libraries(mut ctx: Context) -> Context {
-            ctx.add_library("testing/1", LibraryBuilder::new().add_value("a", 1).build());
+            ctx.add_library(
+                "testing/1",
+                LibraryBuilder::new()
+                    .add_value("a", 1)
+                    .add_value("b", 2)
+                    .build(),
+            );
             ctx
         }
 
@@ -619,7 +625,7 @@ pub mod scheme {
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::False);
         }
 
         mod definition {

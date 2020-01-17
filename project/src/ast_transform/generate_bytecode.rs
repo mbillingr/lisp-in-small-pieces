@@ -109,7 +109,10 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_constant(&mut self, node: &Constant, _tail: bool) -> Vec<Op> {
-        let value: Scm = (&node.value).into();
+        vec![self.build_constant((&node.value).into())]
+    }
+
+    fn build_constant(&mut self, value: Scm) -> Op {
         let idx = self.constants.iter().position(|x| x.equals(&value));
         let idx = match idx {
             None => {
@@ -119,9 +122,7 @@ impl<'a> BytecodeGenerator<'a> {
             }
             Some(i) => i,
         };
-        match node.value {
-            _ => vec![Op::Constant(idx)],
-        }
+        Op::Constant(idx)
     }
 
     fn compile_sequence(&mut self, node: &Sequence, tail: bool) -> Vec<Op> {
@@ -181,15 +182,14 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_global_def(&mut self, node: &GlobalDefine) -> Vec<Op> {
-        let idx = self
-            .trans
-            .env
-            .globals
-            .find_idx(&node.variable.name())
-            .unwrap();
         let mut meaning = self.compile(&node.form, false);
-        meaning.push(Op::GlobalDef(idx));
+        meaning.push(self.build_global_def(node.variable.name()));
         meaning
+    }
+
+    fn build_global_def(&mut self, name: Symbol) -> Op {
+        let idx = self.trans.env.globals.find_idx(&name).unwrap();
+        Op::GlobalDef(idx)
     }
 
     fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Vec<Op> {
@@ -324,6 +324,19 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_import(&mut self, node: &Import) -> Vec<Op> {
-        unimplemented!()
+        let mut ops = vec![];
+        match node {
+            Import::ImportAll(ia) => {
+                let (lib_idx, lib) = &self.trans.libs[&ia.library_name];
+
+                for (name, _) in lib.all_exports() {
+                    ops.push(self.build_constant(Scm::Symbol(name)));
+                    ops.push(Op::Import(*lib_idx));
+                    ops.push(self.build_global_def(name))
+                }
+            }
+            _ => unimplemented!(),
+        }
+        ops
     }
 }
