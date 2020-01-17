@@ -358,7 +358,7 @@ impl Translate {
     fn objectify_import(&mut self, import_set: &Sexpr) -> Result<Expression> {
         let library_name = import_set.car().unwrap();
         let library_path = libname_to_path(library_name)?;
-        let lib = self.library(library_name)?;
+        let lib = self.load_library(library_name)?;
 
         let mut import_vars = vec![];
         let mut import_macros = vec![];
@@ -382,7 +382,7 @@ impl Translate {
         ))
     }
 
-    fn library(&mut self, library_name: &Sexpr) -> Result<&Library> {
+    fn load_library(&mut self, library_name: &Sexpr) -> Result<&Library> {
         let path = libname_to_path(library_name)?;
 
         if self.libs.contains_key(&path) {

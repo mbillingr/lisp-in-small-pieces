@@ -7,8 +7,8 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
     FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    LocalReference, PredefinedApplication, PredefinedReference, PredefinedVariable, Reference,
-    RegularApplication, Sequence,
+    Import, LocalReference, PredefinedApplication, PredefinedReference, PredefinedVariable,
+    Reference, RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
 
@@ -85,6 +85,7 @@ impl BytecodeGenerator {
             BoxWrite(b) => self.compile_box_write(b, tail),
             BoxRead(b) => self.compile_box_read(b, tail),
             GlobalDefine(d) => self.compile_global_def(d),
+            Import(i) => self.compile_import(i),
             _ => unimplemented!(
                 "Byte code compilation of:\n {:#?}\n {:?}",
                 node.source(),
@@ -320,5 +321,9 @@ impl BytecodeGenerator {
             .find(|&(_, v)| v == name)
             .unwrap()
             .0
+    }
+
+    fn compile_import(&mut self, node: &Import) -> Vec<Op> {
+        unimplemented!()
     }
 }
