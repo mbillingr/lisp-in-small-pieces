@@ -79,9 +79,10 @@ impl LibraryBuilder {
     }
 
     pub fn add_value(mut self, identifier: impl Into<Symbol>, value: impl Into<Scm>) -> Self {
-        self.lib
-            .exports
-            .insert(identifier.into(), ExportItem::Value(value.into()));
+        self.lib.exports.insert(
+            identifier.into(),
+            ExportItem::Value(Scm::boxed(value.into())),
+        );
         self
     }
 
