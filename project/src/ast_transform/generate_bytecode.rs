@@ -9,8 +9,8 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
     FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    Import, LocalReference, PredefinedApplication, PredefinedReference, PredefinedVariable,
-    Reference, RegularApplication, Sequence,
+    Import, ImportSet, LocalReference, PredefinedApplication, PredefinedReference,
+    PredefinedVariable, Reference, RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
 
@@ -326,32 +326,19 @@ impl<'a> BytecodeGenerator<'a> {
 
     fn compile_import(&mut self, node: &Import) -> Vec<Op> {
         let mut ops = vec![];
-        match node {
-            Import::ImportAll(ia) => {
-                let (lib_idx, lib) = &self.trans.libs[&ia.library_name];
 
-                for (name, item) in lib.all_exports() {
-                    if let ExportItem::Value(_) = item {
-                        ops.push(self.build_constant(Scm::Symbol(name)));
-                        ops.push(Op::Import(*lib_idx));
-                        ops.push(self.build_global_def(name));
-                    }
+        for set in &node.import_sets {
+            let lib_idx = self.trans.libs[&set.library_name].0;
+            for item in &set.items {
+                if let ExportItem::Macro(_) = item.item {
+                    continue;
                 }
+                ops.push(self.build_constant(Scm::Symbol(item.export_name)));
+                ops.push(Op::Import(lib_idx));
+                ops.push(self.build_global_def(item.import_name));
             }
-            Import::ImportRename(ir) => {
-                let (lib_idx, lib) = &self.trans.libs[&ir.library_name];
-
-                for (name, item) in lib.all_exports() {
-                    let varname = *ir.mapping.get(&name).unwrap_or(&name);
-                    if let ExportItem::Value(_) = item {
-                        ops.push(self.build_constant(Scm::Symbol(name)));
-                        ops.push(Op::Import(*lib_idx));
-                        ops.push(self.build_global_def(varname));
-                    }
-                }
-            }
-            _ => unimplemented!(),
         }
+
         ops
     }
 }

@@ -657,6 +657,11 @@ pub mod scheme {
                    (set! c 42)
                    (cons a c)"#,
                  equals, Scm::cons(Scm::Int(42), Scm::Int(42)));
+
+            compare!(import_nested_sets:
+                r#"(import (rename (rename (testing 1) (a c)) (c x)))
+                   x"#,
+                 equals, Scm::Int(1));
         }
 
         mod definition {

@@ -7,16 +7,15 @@ use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
-use crate::syntax::import::{ImportAll, ImportRename};
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    Import, LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp,
-    PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication,
-    Sequence, Variable,
+    Import, ImportItem, ImportSet, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
+    NoOp, PredefinedApplication, PredefinedReference, PredefinedVariable, Reference,
+    RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -60,7 +59,7 @@ impl Translate {
         let imports: Vec<_> = exprs[..n_imports]
             .iter()
             .rev()
-            .map(|expr| self.objectify_import(expr.cdr().unwrap()))
+            .map(|expr| self.objectify_import(expr))
             .collect::<Result<_>>()?;
 
         let mut sequence = Sexpr::nil(NoSource);
@@ -355,61 +354,68 @@ impl Translate {
         }
     }
 
-    fn objectify_import(&mut self, import_sets: &Sexpr) -> Result<Expression> {
-        let import_set = import_sets.car().unwrap();
-        let modifier = import_set.car().unwrap().as_symbol();
-        match modifier {
-            Some(s) if s == "rename" => {
-                self.objectify_import_rename(import_set, import_set.source().clone())
+    fn objectify_import(&mut self, expr: &Sexpr) -> Result<Expression> {
+        let mut import_sets = expr.cdr().unwrap();
+
+        let mut sets = vec![];
+
+        while import_sets.is_pair() {
+            let import_set = import_sets.car().unwrap();
+            let import_obj = self.objectify_import_set(import_set)?;
+
+            let mut import_vars = vec![];
+            let mut import_macros = vec![];
+            for item in &import_obj.items {
+                match &item.item {
+                    ExportItem::Value(_) => import_vars.push(GlobalVariable::new(item.import_name)),
+                    ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
+                }
             }
-            _ => self.objectify_import_all(import_set, import_set.source().clone()),
+
+            for var in import_vars {
+                self.env.globals.ensure_variable(var);
+            }
+
+            for mac in import_macros {
+                self.env.macros.extend(mac);
+            }
+
+            sets.push(import_obj);
+            import_sets = import_sets.cdr().unwrap();
+        }
+
+        Ok(Import::new(sets, expr.source().clone()).into())
+    }
+
+    fn objectify_import_set(&mut self, form: &Sexpr) -> Result<ImportSet> {
+        let modifier = form.car().unwrap().as_symbol();
+        match modifier {
+            Some(s) if s == "rename" => self.objectify_import_rename(form),
+            _ => self.objectify_import_all(form),
         }
     }
 
-    fn objectify_import_all(
-        &mut self,
-        library_name: &TrackedSexpr,
-        span: SourceLocation,
-    ) -> Result<Expression> {
-        let library_path = libname_to_path(library_name)?;
-        let lib = self.load_library(library_name)?;
+    fn objectify_import_all(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
+        let library_path = libname_to_path(form)?;
+        let lib = self.load_library(form)?;
 
-        let mut import_vars = vec![];
-        let mut import_macros = vec![];
-        for (name, item) in lib.all_exports() {
-            match item {
-                ExportItem::Value(_) => import_vars.push(GlobalVariable::new(name)),
-                ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
-            }
-        }
-
-        for var in import_vars {
-            self.env.globals.ensure_variable(var);
-        }
-
-        for mac in import_macros {
-            self.env.macros.extend(mac);
-        }
-
-        Ok(Expression::Import(
-            ImportAll::new(library_path, span).into(),
+        Ok(ImportSet::new(
+            library_path,
+            lib.all_exports().map(ImportItem::from_export).collect(),
+            form.source().clone(),
         ))
     }
 
-    fn objectify_import_rename(
-        &mut self,
-        import_set: &TrackedSexpr,
-        span: SourceLocation,
-    ) -> Result<Expression> {
-        let library_name = import_set.cdr().unwrap().car().unwrap();
-        let library_path = libname_to_path(library_name)?;
-        let lib = self.load_library(library_name)?;
+    fn objectify_import_rename(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
+        let import_set = form.cdr().unwrap().car().unwrap();
+        let mut mappings = form.cdr().unwrap().cdr().unwrap();
 
-        let mut renames = import_set.cdr().unwrap().cdr().unwrap();
+        let mut import_set = self.objectify_import_set(import_set)?;
+
         let mut mapping = HashMap::new();
-        while renames.is_pair() {
-            let original = renames.car().unwrap().car().unwrap().as_symbol().unwrap();
-            let newname = renames
+        while mappings.is_pair() {
+            let original = mappings.car().unwrap().car().unwrap().as_symbol().unwrap();
+            let newname = mappings
                 .car()
                 .unwrap()
                 .cdr()
@@ -419,30 +425,19 @@ impl Translate {
                 .as_symbol()
                 .unwrap();
             mapping.insert(*original, *newname);
-            renames = renames.cdr().unwrap();
+            mappings = mappings.cdr().unwrap();
         }
 
-        let mut import_vars = vec![];
-        let mut import_macros = vec![];
-        for (name, item) in lib.all_exports() {
-            let name = *mapping.get(&name).unwrap_or(&name);
-            match item {
-                ExportItem::Value(_) => import_vars.push(GlobalVariable::new(name)),
-                ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
-            }
-        }
+        import_set.items = import_set
+            .items
+            .into_iter()
+            .map(|item| ImportItem {
+                import_name: *mapping.get(&item.import_name).unwrap_or(&item.import_name),
+                ..item
+            })
+            .collect();
 
-        for var in import_vars {
-            self.env.globals.ensure_variable(var);
-        }
-
-        for mac in import_macros {
-            self.env.macros.extend(mac);
-        }
-
-        Ok(Expression::Import(
-            ImportRename::new(library_path, mapping, span).into(),
-        ))
+        Ok(import_set)
     }
 
     fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<&Library> {

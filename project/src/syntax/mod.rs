@@ -24,7 +24,7 @@ pub use constant::Constant;
 pub use expression::Expression;
 pub use fixlet::FixLet;
 pub use function::Function;
-pub use import::Import;
+pub use import::{Import, ImportItem, ImportSet};
 pub use keyword::{MagicKeyword, MagicKeywordHandler};
 pub use noop::NoOp;
 pub use reference::{

@@ -53,6 +53,15 @@ impl Span {
         }
     }
 
+    pub fn join(first: &Self, second: &Self) -> Self {
+        assert!(first.is_compatible(second));
+        Span {
+            src: first.src.clone(),
+            start: first.start.min(second.start),
+            end: second.end.max(second.end),
+        }
+    }
+
     pub fn is_compatible(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.src.content, &other.src.content)
     }
@@ -122,6 +131,19 @@ impl SourceLocation {
         match (self, other) {
             (Span(s1), Span(s2)) if !s1.is_compatible(s2) => {}
             (Span(s1), Span(s2)) => return Span(self::Span::unite(s2, s1)),
+            (NoSource, _) | (_, NoSource) => return NoSource,
+        }
+        panic!(
+            "detected attempt to combine spans from different sources:\n    {:?}\n    {:?}",
+            self, other
+        )
+    }
+
+    pub fn join(&self, other: &Self) -> Self {
+        use SourceLocation::*;
+        match (self, other) {
+            (Span(s1), Span(s2)) if !s1.is_compatible(s2) => {}
+            (Span(s1), Span(s2)) => return Span(self::Span::join(s1, s2)),
             (NoSource, _) | (_, NoSource) => return NoSource,
         }
         panic!(
