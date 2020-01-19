@@ -33,22 +33,6 @@ impl Library {
         self.exports.iter().map(|(s, item)| (*s, item))
     }
 
-    pub fn only(&self, identifiers: &[Symbol]) -> Self {
-        unimplemented!()
-    }
-
-    pub fn except(&self, identifiers: &[Symbol]) -> Self {
-        unimplemented!()
-    }
-
-    pub fn prefix(&self, prefix: impl Into<Symbol>) -> Self {
-        unimplemented!()
-    }
-
-    pub fn rename(&self, mapping: impl Iterator<Item = (Symbol, Symbol)>) -> Self {
-        unimplemented!()
-    }
-
     pub fn import_into_environment(&self, env: &mut Env) {
         for (name, item) in &self.exports {
             match item {

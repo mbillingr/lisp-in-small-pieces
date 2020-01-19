@@ -1,7 +1,6 @@
 use crate::env::Env;
 use crate::library::{is_import, libname_to_path, ExportItem, Library};
 use crate::macro_language::{expand_captured_binding, is_captured_binding};
-use crate::objectify::ObjectifyErrorKind::UnknownLibrary;
 use crate::sexpr::{TrackedSexpr as Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
@@ -10,14 +9,13 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
     Import, ImportItem, ImportSet, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
-    NoOp, PredefinedApplication, PredefinedReference, PredefinedVariable, Reference,
-    RegularApplication, Sequence, Variable,
+    PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication,
+    Sequence, Variable,
 };
 use crate::utils::Sourced;
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::TryInto;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 pub type Result<T> = std::result::Result<T, ObjectifyError>;
@@ -390,6 +388,9 @@ impl Translate {
     fn objectify_import_set(&mut self, form: &Sexpr) -> Result<ImportSet> {
         let modifier = form.car().unwrap().as_symbol();
         match modifier {
+            Some(s) if s == "only" => self.objectify_import_only(form),
+            Some(s) if s == "except" => self.objectify_import_except(form),
+            Some(s) if s == "prefix" => self.objectify_import_prefix(form),
             Some(s) if s == "rename" => self.objectify_import_rename(form),
             _ => self.objectify_import_all(form),
         }
@@ -404,6 +405,70 @@ impl Translate {
             lib.all_exports().map(ImportItem::from_export).collect(),
             form.source().clone(),
         ))
+    }
+
+    fn objectify_import_only(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
+        let import_set = form.cdr().unwrap().car().unwrap();
+        let mut identifiers = form.cdr().unwrap().cdr().unwrap();
+
+        let mut import_set = self.objectify_import_set(import_set)?;
+
+        while identifiers.is_pair() {
+            let identifier = *identifiers.car().unwrap().as_symbol().unwrap();
+            import_set.items = import_set
+                .items
+                .into_iter()
+                .filter(|item| item.import_name == identifier)
+                .collect();
+            identifiers = identifiers.cdr().unwrap();
+        }
+
+        Ok(import_set)
+    }
+
+    fn objectify_import_except(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
+        let import_set = form.cdr().unwrap().car().unwrap();
+        let mut identifiers = form.cdr().unwrap().cdr().unwrap();
+
+        let mut import_set = self.objectify_import_set(import_set)?;
+
+        while identifiers.is_pair() {
+            let identifier = *identifiers.car().unwrap().as_symbol().unwrap();
+            import_set.items = import_set
+                .items
+                .into_iter()
+                .filter(|item| item.import_name != identifier)
+                .collect();
+            identifiers = identifiers.cdr().unwrap();
+        }
+
+        Ok(import_set)
+    }
+
+    fn objectify_import_prefix(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
+        let import_set = form.cdr().unwrap().car().unwrap();
+        let prefix = *form
+            .cdr()
+            .unwrap()
+            .cdr()
+            .unwrap()
+            .car()
+            .unwrap()
+            .as_symbol()
+            .unwrap();
+
+        let mut import_set = self.objectify_import_set(import_set)?;
+
+        import_set.items = import_set
+            .items
+            .into_iter()
+            .map(|item| ImportItem {
+                import_name: prefix + item.import_name,
+                ..item
+            })
+            .collect();
+
+        Ok(import_set)
     }
 
     fn objectify_import_rename(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {

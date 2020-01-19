@@ -82,6 +82,12 @@ impl From<&str> for Symbol {
     }
 }
 
+impl From<String> for Symbol {
+    fn from(s: String) -> Symbol {
+        Symbol::from_string(s)
+    }
+}
+
 impl From<Box<str>> for Symbol {
     fn from(s: Box<str>) -> Symbol {
         Symbol::from_boxed_str(s)
@@ -113,5 +119,13 @@ impl std::fmt::Debug for Symbol {
         } else {
             write!(f, "Symbol({} {:p})", self.0, self.0)
         }
+    }
+}
+
+impl std::ops::Add for Symbol {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        let s = self.0.to_owned() + rhs.0;
+        s.into()
     }
 }

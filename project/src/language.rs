@@ -57,9 +57,6 @@ pub mod scheme {
 
             //println!("{:#?}", ast);
 
-            let globals = self.trans.env.globals.clone();
-            let predef = self.trans.env.predef.clone();
-
             let code = BytecodeGenerator::compile_toplevel(&ast, &self.trans);
             //println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
@@ -628,6 +625,7 @@ pub mod scheme {
 
         mod libraries {
             use super::*;
+            use crate::error::RuntimeError;
             use crate::source::SourceLocation::NoSource;
             use crate::symbol::Symbol;
             use std::path::Path;
@@ -646,6 +644,18 @@ pub mod scheme {
             compare!(import_macros:
                 r#"(import (testing 2)) (invoke (lambda () 0))"#,
                  equals, Scm::Int(0));
+
+            assert_error!(import_only:
+                r#"(import (only (testing 1) a)) a b"#,
+                RuntimeError::UndefinedGlobal(Symbol::new("b")));
+
+            assert_error!(import_except:
+                r#"(import (except (testing 1) a)) a"#,
+                RuntimeError::UndefinedGlobal(Symbol::new("a")));
+
+            compare!(import_prefixed_values:
+                r#"(import (prefix (testing 1) foo-)) (cons foo-a foo-b)"#,
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
 
             compare!(import_renamed_value:
                 r#"(import (rename (testing 1) (b c))) (cons a c)"#,
