@@ -3,7 +3,6 @@ pub mod scheme {
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
     use crate::bytecode::{Closure, VirtualMachine};
-    use crate::description::{Arity, FunctionDescription};
     use crate::env::Env;
     use crate::error::Result;
     use crate::library::Library;
@@ -11,7 +10,7 @@ pub mod scheme {
     use crate::objectify::{decons, Result as ObjectifyResult};
     use crate::objectify::{ocar, ocdr, Translate};
     use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
-    use crate::primitive::RuntimePrimitive;
+    use crate::primitive::{Arity, RuntimePrimitive};
     use crate::scan_out_defines::{
         definition_value, definition_variable, make_function, scan_out_defines,
     };
@@ -129,13 +128,14 @@ pub mod scheme {
         (primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
             let (env, mut runtime_env) = predef!{$($rest)*};
 
+            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
+
             env.predef.extend(PredefinedVariable::new(
                                     $name,
-                                    FunctionDescription::new(Arity::Exact($arity), $name))
+                                    func)
                                 .into());
 
-            runtime_env.push(Scm::Primitive(RuntimePrimitive::new($name, Arity::Exact($arity),
-                                                                  |args| $func(args).wrap())));
+            runtime_env.push(Scm::Primitive(func));
 
             (env, runtime_env)
         }};
@@ -143,13 +143,14 @@ pub mod scheme {
         (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
             let (env, mut runtime_env) = predef!{$($rest)*};
 
+            let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
+
             env.predef.extend(PredefinedVariable::new(
                                     $name,
-                                    FunctionDescription::new(Arity::AtLeast($arity), $name))
+                                    func)
                                 .into());
 
-            runtime_env.push(Scm::Primitive(RuntimePrimitive::new($name, Arity::AtLeast($arity),
-                                                                  |args| $func(args).wrap())));
+            runtime_env.push(Scm::Primitive(func));
 
             (env, runtime_env)
         }};
@@ -349,6 +350,17 @@ pub mod scheme {
                 LibraryBuilder::new()
                     .add_value("a", 1)
                     .add_value("b", 2)
+                    .add_value(
+                        "kons",
+                        Scm::Primitive(RuntimePrimitive::new(
+                            "kons",
+                            Arity::Exact(2),
+                            |args: &[Scm]| match &args[..] {
+                                [a, b] => Ok(Scm::cons(a.into(), b.into())),
+                                _ => unreachable!(),
+                            },
+                        )),
+                    )
                     .build(),
             );
             ctx.add_library(
@@ -672,6 +684,10 @@ pub mod scheme {
                 r#"(import (rename (rename (testing 1) (a c)) (c x)))
                    x"#,
                  equals, Scm::Int(1));
+
+            compare!(import_primitive:
+                r#"(import (testing 1)) (kons 1 2)"#,
+                 equals, Scm::cons(Scm::Int(0), Scm::Int(2))); // todo: possible to import primitives into predef?
         }
 
         mod definition {

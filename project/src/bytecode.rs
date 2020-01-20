@@ -1,8 +1,8 @@
-use crate::description::Arity;
 use crate::env::Environment;
 use crate::error::{Result, RuntimeError, TypeError};
 use crate::library::ExportItem;
 use crate::library::Library;
+use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;

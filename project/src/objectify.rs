@@ -190,8 +190,7 @@ impl Translate {
             Expression::Function(f) => self.process_closed_application(f.clone(), args_list, span),
             Expression::Reference(Reference::PredefinedReference(p)) => {
                 let fvf = p.var.clone();
-                let desc = fvf.description();
-                if desc.arity.check(args_list.len()) {
+                if fvf.procedure().arity().check(args_list.len()) {
                     Ok(PredefinedApplication::new(fvf, args_list, span).into())
                 } else {
                     Err(ObjectifyError {

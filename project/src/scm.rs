@@ -263,7 +263,7 @@ impl std::fmt::Display for Scm {
                 write!(f, ")")
             }
             Scm::Closure(cls) => write!(f, "<closure {:p}>", *cls),
-            Scm::Primitive(prim) => write!(f, "<primitive {:p}>", &prim.func),
+            Scm::Primitive(prim) => write!(f, "<primitive {:p}>", prim.func()),
             Scm::Cell(c) => write!(f, "{}", c.get()),
         }
     }

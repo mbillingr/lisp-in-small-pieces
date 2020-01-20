@@ -1,8 +1,8 @@
 use crate::bytecode::{CodeObject, Op};
-use crate::description::Arity;
 use crate::env::Environment;
 use crate::library::ExportItem;
 use crate::objectify::Translate;
+use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;

@@ -1,7 +1,7 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
-use crate::description::Arity;
+use crate::primitive::Arity;
 use crate::source::SourceLocation;
 use std::convert::TryInto;
 

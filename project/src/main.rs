@@ -3,7 +3,6 @@ mod utils;
 
 mod ast_transform;
 pub mod bytecode;
-mod description;
 mod env;
 mod error;
 mod eval;

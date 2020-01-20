@@ -1,5 +1,5 @@
 use super::keyword::MagicKeyword;
-use crate::description::FunctionDescription;
+use crate::primitive::RuntimePrimitive;
 use crate::symbol::Symbol;
 use crate::utils::Named;
 use std::cell::Cell;
@@ -111,14 +111,14 @@ impl std::fmt::Debug for GlobalVariable {
 }
 
 #[derive(Clone)]
-pub struct PredefinedVariable(Symbol, FunctionDescription);
+pub struct PredefinedVariable(Symbol, RuntimePrimitive);
 
 impl PredefinedVariable {
-    pub fn new(name: impl Into<Symbol>, func: FunctionDescription) -> Self {
+    pub fn new(name: impl Into<Symbol>, func: RuntimePrimitive) -> Self {
         PredefinedVariable(name.into(), func)
     }
 
-    pub fn description(&self) -> &FunctionDescription {
+    pub fn procedure(&self) -> &RuntimePrimitive {
         &self.1
     }
 }
