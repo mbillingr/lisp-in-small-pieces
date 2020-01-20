@@ -2,8 +2,7 @@ use crate::ast_transform::Transformer;
 use crate::library::ExportItem;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
-use crate::utils::Sourced;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 

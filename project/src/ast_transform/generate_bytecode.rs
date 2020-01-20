@@ -8,9 +8,9 @@ use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
-    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    Import, ImportSet, LocalReference, PredefinedApplication, PredefinedReference,
-    PredefinedVariable, Reference, RegularApplication, Sequence,
+    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import,
+    LocalReference, PredefinedApplication, PredefinedReference, Reference, RegularApplication,
+    Sequence,
 };
 use crate::utils::{Named, Sourced};
 

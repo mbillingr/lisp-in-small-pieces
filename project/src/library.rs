@@ -3,7 +3,7 @@ use crate::objectify::Result;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;
-use crate::syntax::{GlobalVariable, MagicKeyword, Variable};
+use crate::syntax::{GlobalVariable, MagicKeyword};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -36,7 +36,7 @@ impl Library {
     pub fn import_into_environment(&self, env: &mut Env) {
         for (name, item) in &self.exports {
             match item {
-                ExportItem::Value(x) => {
+                ExportItem::Value(_) => {
                     if env.globals.find_variable(name).is_none() {
                         env.globals.extend(GlobalVariable::new(name))
                     }
