@@ -161,12 +161,12 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Vec<Op> {
-        let idx = self.trans.env.globals.find_idx(&node.var.name()).unwrap();
+        let idx = self.trans.env.find_global_idx(&node.var.name()).unwrap();
         vec![Op::GlobalRef(idx)]
     }
 
     fn compile_predef_ref(&mut self, node: &PredefinedReference, _tail: bool) -> Vec<Op> {
-        let idx = self.trans.env.predef.find_idx(&node.var.name()).unwrap();
+        let idx = self.trans.env.find_predef_idx(&node.var.name()).unwrap();
         vec![Op::PredefRef(idx)]
     }
 
@@ -174,8 +174,7 @@ impl<'a> BytecodeGenerator<'a> {
         let idx = self
             .trans
             .env
-            .globals
-            .find_idx(&node.variable.name())
+            .find_global_idx(&node.variable.name())
             .unwrap();
         let mut meaning = self.compile(&node.form, false);
         meaning.push(Op::GlobalSet(idx));
@@ -189,7 +188,7 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn build_global_def(&mut self, name: Symbol) -> Op {
-        let idx = self.trans.env.globals.find_idx(&name).unwrap();
+        let idx = self.trans.env.find_global_idx(&name).unwrap();
         Op::GlobalDef(idx)
     }
 
@@ -276,8 +275,7 @@ impl<'a> BytecodeGenerator<'a> {
         let idx = self
             .trans
             .env
-            .predef
-            .find_idx(&node.variable.name())
+            .find_predef_idx(&node.variable.name())
             .unwrap();
         meaning.push(Op::PredefRef(idx));
 

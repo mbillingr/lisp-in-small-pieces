@@ -48,11 +48,11 @@ pub fn eval_syntax_rules(
                 apply_syntax_rules(expr, ellipsis, &literals, &rules, env, &definition_env)?;
             //println!("{} -> {}", expr, sexpr);
 
-            env.syntax.extend_frame(captures.clone().into_iter());
+            env.extend_syntax(captures.clone());
 
             let result = trans.objectify(&sexpr, env);
 
-            env.syntax.pop_frame(captures.len());
+            env.drop_syntax(captures.len());
 
             result
         },
@@ -271,7 +271,7 @@ pub fn expand_captured_binding(
 ) -> Result<Expression> {
     use crate::syntax::Variable::*;
     let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
-    match env.syntax.find_variable(name) {
+    match env.find_syntax_bound(name) {
         Some(LocalVariable(v)) => Ok(LocalReference::new(v, expr.source().clone()).into()),
         Some(GlobalVariable(v)) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
         Some(PredefinedVariable(v)) => {

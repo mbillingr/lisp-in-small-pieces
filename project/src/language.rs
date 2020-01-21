@@ -61,7 +61,7 @@ pub mod scheme {
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
-            self.vm.add_globals(&self.trans.env.globals);
+            self.vm.synchronize_globals(self.trans.env.globals());
             Ok(self.vm.eval(closure)?)
         }
 
@@ -130,11 +130,7 @@ pub mod scheme {
 
             let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
 
-            env.predef.extend(PredefinedVariable::new(
-                                    $name,
-                                    func)
-                                .into());
-
+            env.push(PredefinedVariable::new($name, func));
             runtime_env.push(Scm::Primitive(func));
 
             (env, runtime_env)
@@ -145,11 +141,7 @@ pub mod scheme {
 
             let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
 
-            env.predef.extend(PredefinedVariable::new(
-                                    $name,
-                                    func)
-                                .into());
-
+            env.push(PredefinedVariable::new($name, func));
             runtime_env.push(Scm::Primitive(func));
 
             (env, runtime_env)
@@ -157,7 +149,7 @@ pub mod scheme {
 
         (macro $name:expr, $func:ident; $($rest:tt)*) => {{
             let (env, runtime_env) = predef!{$($rest)*};
-            env.macros.extend(MagicKeyword::new($name, $func).into());
+            env.push(MagicKeyword::new($name, $func));
             (env, runtime_env)
         }};
     }
@@ -313,7 +305,7 @@ pub mod scheme {
             })?;
         let handler = eval_syntax(syntax, env)?;
         let macro_binding = MagicKeyword { name, handler };
-        env.macros.extend(macro_binding);
+        env.push(macro_binding);
         Ok(Expression::NoOp(NoOp))
     }
 

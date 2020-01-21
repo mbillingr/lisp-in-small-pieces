@@ -34,7 +34,7 @@ impl Library {
     }
 
     pub fn import_into_environment(&self, env: &mut Env) {
-        for (name, item) in &self.exports {
+        /*for (name, item) in &self.exports {
             match item {
                 ExportItem::Value(_) => {
                     if env.globals.find_variable(name).is_none() {
@@ -43,7 +43,8 @@ impl Library {
                 }
                 _ => unimplemented!(),
             }
-        }
+        }*/
+        unimplemented!()
     }
 }
 

@@ -127,9 +127,9 @@ impl VirtualMachine {
         &self.globals
     }
 
-    pub fn add_globals(&mut self, env: &Environment<GlobalVariable>) {
-        for i in self.globals.len()..env.len() {
-            self.globals.push((Scm::uninitialized(), env.at(i).name()));
+    pub fn synchronize_globals(&mut self, env: impl Iterator<Item = GlobalVariable>) {
+        for gvar in env.skip(self.globals.len()) {
+            self.globals.push((Scm::uninitialized(), gvar.name()));
         }
     }
 
