@@ -60,11 +60,11 @@ impl Env {
         self.globals.iter()
     }
 
-    pub fn ensure_global(&self, var: GlobalVariable) {
+    pub fn ensure_global(&mut self, var: GlobalVariable) {
         self.globals.ensure_variable(var)
     }
 
-    pub fn push(&self, var: impl Into<Variable>) {
+    pub fn push(&mut self, var: impl Into<Variable>) {
         match var.into() {
             Variable::LocalVariable(v) => self.locals.extend(v),
             Variable::GlobalVariable(v) => self.globals.extend(v),
@@ -75,21 +75,21 @@ impl Env {
         }
     }
 
-    pub fn extend<T: Into<Variable>>(&self, vars: impl IntoIterator<Item = T>) {
+    pub fn extend<T: Into<Variable>>(&mut self, vars: impl IntoIterator<Item = T>) {
         for var in vars.into_iter() {
             self.push(var)
         }
     }
 
-    pub fn extend_syntax(&self, vars: impl IntoIterator<Item = SyntacticBinding>) {
+    pub fn extend_syntax(&mut self, vars: impl IntoIterator<Item = SyntacticBinding>) {
         self.syntax.extend_frame(vars.into_iter())
     }
 
-    pub fn drop_syntax(&self, n: usize) {
+    pub fn drop_syntax(&mut self, n: usize) {
         self.syntax.pop_frame(n);
     }
 
-    pub fn drop_frame(&self, n: usize) {
+    pub fn drop_frame(&mut self, n: usize) {
         self.locals.pop_frame(n)
     }
 

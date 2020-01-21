@@ -45,16 +45,22 @@ pub fn eval_syntax_rules(
     let rules = prepare_syntax_rules(ellipsis, &literals, rules, &definition_env, &mut captures)?;
 
     Ok(Rc::new(
-        move |trans: &mut Translate, expr: &TrackedSexpr, env: &Env| -> Result<Expression> {
-            let sexpr =
-                apply_syntax_rules(expr, ellipsis, &literals, &rules, env, &definition_env)?;
+        move |trans: &mut Translate, expr: &TrackedSexpr| -> Result<Expression> {
+            let sexpr = apply_syntax_rules(
+                expr,
+                ellipsis,
+                &literals,
+                &rules,
+                &trans.env,
+                &definition_env,
+            )?;
             //println!("{} -> {}", expr, sexpr);
 
-            env.extend_syntax(captures.clone());
+            trans.env.extend_syntax(captures.clone());
 
-            let result = trans.objectify(&sexpr, env);
+            let result = trans.objectify(&sexpr);
 
-            env.drop_syntax(captures.len());
+            trans.env.drop_syntax(captures.len());
 
             result
         },
@@ -266,14 +272,14 @@ pub fn is_captured_binding(expr: &TrackedSexpr) -> bool {
         .unwrap_or(false)
 }
 
-pub fn expand_captured_binding(
-    _trans: &mut Translate,
-    expr: &TrackedSexpr,
-    env: &Env,
-) -> Result<Expression> {
+pub fn expand_captured_binding(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
     use crate::syntax::Variable::*;
     let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
-    match env.find_syntax_bound(name).map(|sb| sb.variable().clone()) {
+    match trans
+        .env
+        .find_syntax_bound(name)
+        .map(|sb| sb.variable().clone())
+    {
         Some(LocalVariable(v)) => Ok(LocalReference::new(v, expr.source().clone()).into()),
         Some(GlobalVariable(v)) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
         Some(PredefinedVariable(v)) => {

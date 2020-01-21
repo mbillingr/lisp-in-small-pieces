@@ -65,7 +65,7 @@ impl Translate {
             sequence = Sexpr::cons(expr.clone(), sequence, NoSource);
         }
         sequence = Sexpr::cons(Sexpr::symbol("begin", NoSource), sequence, NoSource);
-        let mut statements = self.objectify(&sequence, &self.env.clone())?;
+        let mut statements = self.objectify(&sequence)?;
 
         for import in imports {
             let src = statements.source().start_at(import.source());
@@ -75,25 +75,25 @@ impl Translate {
         Ok(statements)
     }
 
-    pub fn objectify(&mut self, expr: &Sexpr, env: &Env) -> Result<Expression> {
+    pub fn objectify(&mut self, expr: &Sexpr) -> Result<Expression> {
         if expr.is_atom() {
             match () {
-                _ if expr.is_symbol() => self.objectify_symbol(expr, env),
-                _ => self.objectify_quotation(expr, env),
+                _ if expr.is_symbol() => self.objectify_symbol(expr),
+                _ => self.objectify_quotation(expr),
             }
         } else if is_captured_binding(expr) {
-            expand_captured_binding(self, expr, env)
+            expand_captured_binding(self, expr)
         } else {
-            let m = self.objectify(ocar(expr)?, env)?;
+            let m = self.objectify(ocar(expr)?)?;
             if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {
-                handler(self, expr, env)
+                handler(self, expr)
             } else {
-                self.objectify_application(&m, ocdr(expr)?, env, expr.source().clone())
+                self.objectify_application(&m, ocdr(expr)?, expr.source().clone())
             }
         }
     }
 
-    pub fn objectify_quotation(&mut self, expr: &Sexpr, _env: &Env) -> Result<Expression> {
+    pub fn objectify_quotation(&mut self, expr: &Sexpr) -> Result<Expression> {
         Ok(Expression::Constant(expr.clone().into()))
     }
 
@@ -102,28 +102,27 @@ impl Translate {
         condition: &Sexpr,
         consequence: &Sexpr,
         alternative: Option<&Sexpr>,
-        env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let condition = self.objectify(condition, env)?;
-        let consequence = self.objectify(consequence, env)?;
+        let condition = self.objectify(condition)?;
+        let consequence = self.objectify(consequence)?;
         let alternative = match alternative {
-            Some(alt) => self.objectify(alt, env)?,
+            Some(alt) => self.objectify(alt)?,
             None => Expression::Constant(Sexpr::undefined().into()),
         };
         Ok(Alternative::new(condition, consequence, alternative, span).into())
     }
 
-    pub fn objectify_sequence(&mut self, exprs: &Sexpr, env: &Env) -> Result<Expression> {
+    pub fn objectify_sequence(&mut self, exprs: &Sexpr) -> Result<Expression> {
         if exprs.is_pair() {
             let car = exprs.car().unwrap();
             let cdr = exprs.cdr().unwrap();
             if cdr.is_pair() {
-                let this = self.objectify(car, env)?;
-                let next = self.objectify_sequence(cdr, env)?;
+                let this = self.objectify(car)?;
+                let next = self.objectify_sequence(cdr)?;
                 Ok(Sequence::new(this, next, exprs.src.clone()).into())
             } else {
-                self.objectify(car, env)
+                self.objectify(car)
             }
         } else {
             Err(ObjectifyError {
@@ -133,9 +132,9 @@ impl Translate {
         }
     }
 
-    fn objectify_symbol(&mut self, expr: &Sexpr, env: &Env) -> Result<Expression> {
+    fn objectify_symbol(&mut self, expr: &Sexpr) -> Result<Expression> {
         let var_name = Sexpr::as_symbol(expr).unwrap();
-        match env.find_variable(var_name) {
+        match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(v)) => {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
@@ -149,24 +148,23 @@ impl Translate {
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
-            Some(Variable::SyntacticBinding(sb)) => expand_captured_binding(self, expr, env),
-            None => self.objectify_free_reference(var_name.clone(), env, expr.source().clone()),
+            Some(Variable::SyntacticBinding(sb)) => expand_captured_binding(self, expr),
+            None => self.objectify_free_reference(var_name.clone(), expr.source().clone()),
         }
     }
 
     fn objectify_free_reference(
         &mut self,
         name: Symbol,
-        env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let v = self.adjoin_global_variable(name, env);
+        let v = self.adjoin_global_variable(name);
         Ok(GlobalReference::new(v, span).into())
     }
 
-    fn adjoin_global_variable(&mut self, name: Symbol, env: &Env) -> GlobalVariable {
+    fn adjoin_global_variable(&mut self, name: Symbol) -> GlobalVariable {
         let v = GlobalVariable::new(name);
-        env.push(v.clone());
+        self.env.push(v.clone());
         v
     }
 
@@ -174,7 +172,6 @@ impl Translate {
         &mut self,
         func: &Expression,
         mut args: &Sexpr,
-        env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
         let mut args_list = vec![];
@@ -183,7 +180,7 @@ impl Translate {
                 kind: ObjectifyErrorKind::ExpectedList,
                 location: args.source().clone(),
             })?;
-            args_list.push(self.objectify(car, env)?);
+            args_list.push(self.objectify(car)?);
             args = args.cdr().unwrap();
         }
 
@@ -274,13 +271,12 @@ impl Translate {
         &mut self,
         names: &Sexpr,
         body: &Sexpr,
-        env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
         let vars = self.objectify_variables_list(names)?;
-        env.extend(vars.iter().cloned());
-        let bdy = self.objectify_sequence(body, env)?;
-        env.drop_frame(vars.len());
+        self.env.extend(vars.iter().cloned());
+        let bdy = self.objectify_sequence(body)?;
+        self.env.drop_frame(vars.len());
         Ok(Function::new(vars, bdy, span).into())
     }
 
@@ -311,16 +307,15 @@ impl Translate {
         &mut self,
         variable: &Sexpr,
         expr: &Sexpr,
-        env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let form = self.objectify(expr, env)?;
+        let form = self.objectify(expr)?;
 
         let var_name = Sexpr::as_symbol(variable).unwrap();
-        let gvar = match env.find_variable(var_name) {
+        let gvar = match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
             Some(Variable::GlobalVariable(v)) => v,
-            _ => self.adjoin_global_variable(*var_name, env),
+            _ => self.adjoin_global_variable(*var_name),
         };
 
         Ok(GlobalDefine::new(gvar, form, span).into())
@@ -330,11 +325,10 @@ impl Translate {
         &mut self,
         variable: &Sexpr,
         expr: &Sexpr,
-        env: &Env,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let ov = self.objectify_symbol(variable, env)?;
-        let of = self.objectify(expr, env)?;
+        let ov = self.objectify_symbol(variable)?;
+        let of = self.objectify(expr)?;
 
         match ov {
             Expression::Reference(Reference::LocalReference(r)) => {

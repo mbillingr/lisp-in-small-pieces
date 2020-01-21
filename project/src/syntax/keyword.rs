@@ -7,8 +7,7 @@ use crate::symbol::Symbol;
 use crate::utils::Named;
 use std::rc::Rc;
 
-pub type MagicKeywordHandler =
-    Rc<dyn Fn(&mut Translate, &TrackedSexpr, &Env) -> Result<Expression>>;
+pub type MagicKeywordHandler = Rc<dyn Fn(&mut Translate, &TrackedSexpr) -> Result<Expression>>;
 
 #[derive(Clone)]
 pub struct MagicKeyword {
@@ -25,7 +24,7 @@ impl std::fmt::Debug for MagicKeyword {
 impl MagicKeyword {
     pub fn new(
         name: impl Into<Symbol>,
-        handler: impl Fn(&mut Translate, &TrackedSexpr, &Env) -> Result<Expression> + 'static,
+        handler: impl Fn(&mut Translate, &TrackedSexpr) -> Result<Expression> + 'static,
     ) -> Self {
         MagicKeyword {
             name: name.into(),

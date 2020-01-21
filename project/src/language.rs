@@ -126,7 +126,7 @@ pub mod scheme {
         }};
 
         (primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let (env, mut runtime_env) = predef!{$($rest)*};
+            let (mut env, mut runtime_env) = predef!{$($rest)*};
 
             let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
 
@@ -137,7 +137,7 @@ pub mod scheme {
         }};
 
         (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let (env, mut runtime_env) = predef!{$($rest)*};
+            let (mut env, mut runtime_env) = predef!{$($rest)*};
 
             let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
 
@@ -148,7 +148,7 @@ pub mod scheme {
         }};
 
         (macro $name:expr, $func:ident; $($rest:tt)*) => {{
-            let (env, runtime_env) = predef!{$($rest)*};
+            let (mut env, runtime_env) = predef!{$($rest)*};
             env.push(MagicKeyword::new($name, $func));
             (env, runtime_env)
         }};
@@ -192,20 +192,15 @@ pub mod scheme {
     pub fn expand_lambda(
         trans: &mut Translate,
         expr: &TrackedSexpr,
-        env: &Env,
     ) -> ObjectifyResult<Expression> {
         let def = &ocdr(expr)?;
         let names = ocar(def)?;
         let body = ocdr(def)?;
         let body = scan_out_defines(body.clone())?;
-        trans.objectify_function(names, &body, env, expr.source().clone())
+        trans.objectify_function(names, &body, expr.source().clone())
     }
 
-    pub fn expand_let(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-        env: &Env,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         let def = ocdr(expr)?;
         let vars = ocar(def)?;
         let body = ocdr(def)?;
@@ -232,21 +227,16 @@ pub mod scheme {
         call.extend(var_forms);
 
         let new_expr = TrackedSexpr::list(call, expr.src.clone());
-        trans.objectify(&new_expr, env)
+        trans.objectify(&new_expr)
     }
 
-    pub fn expand_begin(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-        env: &Env,
-    ) -> ObjectifyResult<Expression> {
-        trans.objectify_sequence(ocdr(expr)?, env)
+    pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
+        trans.objectify_sequence(ocdr(expr)?)
     }
 
     pub fn expand_assign(
         trans: &mut Translate,
         expr: &TrackedSexpr,
-        env: &Env,
     ) -> ObjectifyResult<Expression> {
         expr.at(1)
             .and_then(|variable| expr.at(2).map(|expr| (variable, expr)))
@@ -255,45 +245,38 @@ pub mod scheme {
                 location: expr.source().clone(),
             })
             .and_then(|(variable, expr)| {
-                trans.objectify_assignment(variable, expr, env, expr.source().clone())
+                trans.objectify_assignment(variable, expr, expr.source().clone())
             })
     }
 
-    pub fn expand_quote(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-        env: &Env,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         let body = &ocdr(expr)?;
-        trans.objectify_quotation(ocar(body)?, env)
+        trans.objectify_quotation(ocar(body)?)
     }
 
     pub fn expand_alternative(
         trans: &mut Translate,
         expr: &TrackedSexpr,
-        env: &Env,
     ) -> ObjectifyResult<Expression> {
         let rest = ocdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
         let no = decons(&rest).ok().map(|(no, _)| no);
-        trans.objectify_alternative(cond, yes, no, env, expr.source().clone())
+        trans.objectify_alternative(cond, yes, no, expr.source().clone())
     }
 
     pub fn expand_define(
         trans: &mut Translate,
         expr: &TrackedSexpr,
-        env: &Env,
     ) -> ObjectifyResult<Expression> {
         let definee = definition_variable(expr)?;
         let form = definition_value(expr)?;
-        trans.objectify_definition(definee, &form, env, expr.source().clone())
+        trans.objectify_definition(definee, &form, expr.source().clone())
     }
 
     pub fn expand_define_syntax(
-        _trans: &mut Translate,
+        trans: &mut Translate,
         expr: &TrackedSexpr,
-        env: &Env,
     ) -> ObjectifyResult<Expression> {
         let (name, syntax) = expr
             .at(1)
@@ -303,9 +286,9 @@ pub mod scheme {
                 kind: ObjectifyErrorKind::SyntaxError,
                 location: expr.source().clone(),
             })?;
-        let handler = eval_syntax(syntax, env)?;
+        let handler = eval_syntax(syntax, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
-        env.push(macro_binding);
+        trans.env.push(macro_binding);
         Ok(Expression::NoOp(NoOp))
     }
 
@@ -360,8 +343,8 @@ pub mod scheme {
                 LibraryBuilder::new()
                     .add_macro(
                         "invoke",
-                        MagicKeyword::new("invoke", |trans, expr, env| {
-                            trans.objectify(expr.cdr().unwrap(), env)
+                        MagicKeyword::new("invoke", |trans, expr| {
+                            trans.objectify(expr.cdr().unwrap())
                         }),
                     )
                     .build(),
