@@ -31,4 +31,4 @@ pub use reference::{
     FreeReference, GlobalReference, LocalReference, PredefinedReference, Reference,
 };
 pub use sequence::Sequence;
-pub use variable::{FreeVariable, GlobalVariable, LocalVariable, PredefinedVariable, Variable};
+pub use variable::{FreeVariable, GlobalVariable, LocalVariable, SyntacticBinding, Variable};

@@ -1,6 +1,5 @@
 use super::Expression;
 use crate::ast_transform::Transformer;
-use crate::env::Env;
 use crate::objectify::{Result, Translate};
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;

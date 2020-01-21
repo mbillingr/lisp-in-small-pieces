@@ -1,5 +1,5 @@
 use super::keyword::MagicKeyword;
-use crate::primitive::RuntimePrimitive;
+use crate::scm::Scm;
 use crate::symbol::Symbol;
 use crate::utils::Named;
 use std::cell::Cell;
@@ -9,7 +9,6 @@ sum_types! {
     #[derive(Debug, Clone, PartialEq)]
     pub type Variable = LocalVariable
                       | GlobalVariable
-                      | PredefinedVariable
                       | MagicKeyword
                       | FreeVariable
                       | SyntacticBinding;
@@ -22,7 +21,6 @@ impl Named for Variable {
         match self {
             LocalVariable(v) => v.name(),
             GlobalVariable(v) => v.name(),
-            PredefinedVariable(v) => v.name(),
             MagicKeyword(v) => v.name(),
             FreeVariable(v) => v.name(),
             SyntacticBinding(sb) => sb.name(),
@@ -85,11 +83,19 @@ impl std::fmt::Debug for LocalVariable {
 }
 
 #[derive(Clone)]
-pub struct GlobalVariable(Symbol);
+pub struct GlobalVariable(Symbol, VarDef);
 
 impl GlobalVariable {
     pub fn new(name: impl Into<Symbol>) -> Self {
-        GlobalVariable(name.into())
+        GlobalVariable(name.into(), VarDef::Unknown)
+    }
+
+    pub fn defined(name: impl Into<Symbol>, value: Scm) -> Self {
+        GlobalVariable(name.into(), VarDef::Value(value))
+    }
+
+    pub fn value(&self) -> &VarDef {
+        &self.1
     }
 }
 
@@ -109,38 +115,6 @@ impl PartialEq for GlobalVariable {
 impl std::fmt::Debug for GlobalVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "global {}", self.name())
-    }
-}
-
-#[derive(Clone)]
-pub struct PredefinedVariable(Symbol, RuntimePrimitive);
-
-impl PredefinedVariable {
-    pub fn new(name: impl Into<Symbol>, func: RuntimePrimitive) -> Self {
-        PredefinedVariable(name.into(), func)
-    }
-
-    pub fn procedure(&self) -> &RuntimePrimitive {
-        &self.1
-    }
-}
-
-impl Named for PredefinedVariable {
-    type Name = Symbol;
-    fn name(&self) -> Symbol {
-        self.0
-    }
-}
-
-impl PartialEq for PredefinedVariable {
-    fn eq(&self, other: &Self) -> bool {
-        self.name().ptr_eq(&other.name())
-    }
-}
-
-impl std::fmt::Debug for PredefinedVariable {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "predefined {}", self.name())
     }
 }
 
@@ -202,4 +176,10 @@ impl std::fmt::Debug for SyntacticBinding {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "syntax-bound {}", self.name())
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum VarDef {
+    Unknown,
+    Value(Scm),
 }

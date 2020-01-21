@@ -1,6 +1,6 @@
 use crate::symbol::Symbol;
 use crate::syntax::variable::SyntacticBinding;
-use crate::syntax::{GlobalVariable, LocalVariable, MagicKeyword, PredefinedVariable, Variable};
+use crate::syntax::{GlobalVariable, LocalVariable, MagicKeyword, Variable};
 use crate::utils::Named;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -9,7 +9,6 @@ use std::rc::Rc;
 pub struct Env {
     locals: Environment<LocalVariable>,
     globals: Environment<GlobalVariable>,
-    predef: Environment<PredefinedVariable>,
     macros: Environment<MagicKeyword>,
     syntax: Environment<SyntacticBinding>,
 }
@@ -19,7 +18,6 @@ impl Env {
         Env {
             locals: Environment::new(),
             globals: Environment::new(),
-            predef: Environment::new(),
             macros: Environment::new(),
             syntax: Environment::new(),
         }
@@ -30,15 +28,11 @@ impl Env {
             .find_variable(name)
             .map(Variable::from)
             .or_else(|| self.globals.find_variable(name).map(Variable::from))
-            .or_else(|| self.predef.find_variable(name).map(Variable::from))
             .or_else(|| self.macros.find_variable(name).map(Variable::from))
     }
 
-    pub fn find_predef(
-        &self,
-        name: &(impl PartialEq<Symbol> + ?Sized),
-    ) -> Option<PredefinedVariable> {
-        self.predef.find_variable(name)
+    pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
+        self.globals.find_original_variable(name)
     }
 
     pub fn find_global_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
@@ -46,7 +40,7 @@ impl Env {
     }
 
     pub fn find_predef_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
-        self.predef.find_idx(name)
+        self.globals.find_original_idx(name)
     }
 
     pub fn find_syntax_bound(
@@ -68,7 +62,6 @@ impl Env {
         match var.into() {
             Variable::LocalVariable(v) => self.locals.extend(v),
             Variable::GlobalVariable(v) => self.globals.extend(v),
-            Variable::PredefinedVariable(v) => self.predef.extend(v),
             Variable::MagicKeyword(v) => self.macros.extend(v),
             Variable::FreeVariable(_) => panic!("There is no environment for free variables"),
             Variable::SyntacticBinding(v) => self.syntax.extend(v),
@@ -97,7 +90,6 @@ impl Env {
         Env {
             locals: self.locals.deep_clone(),
             globals: self.globals.deep_clone(),
-            predef: self.predef.deep_clone(),
             macros: self.macros.deep_clone(),
             syntax: self.syntax.deep_clone(),
         }
@@ -112,9 +104,9 @@ impl<V: Clone + Named> Environment<V> {
         Environment(Rc::new(RefCell::new(vec![])))
     }
 
-    pub fn len(&self) -> usize {
+    /*pub fn len(&self) -> usize {
         self.0.borrow().len()
-    }
+    }*/
 
     pub fn find_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
         self.0
@@ -135,15 +127,32 @@ impl<V: Clone + Named> Environment<V> {
             .map(|(idx, _)| idx)
     }
 
+    pub fn find_original_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
+        self.0
+            .borrow()
+            .iter()
+            .find(|var| name.eq(&var.name()))
+            .cloned()
+    }
+
+    pub fn find_original_idx(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<usize> {
+        self.0
+            .borrow()
+            .iter()
+            .enumerate()
+            .find(|(_, var)| name.eq(&var.name()))
+            .map(|(idx, _)| idx)
+    }
+
     pub fn ensure_variable(&self, var: V) {
         if self.find_variable(&var.name()).is_none() {
             self.extend(var)
         }
     }
 
-    pub fn at(&self, idx: usize) -> V {
+    /*pub fn at(&self, idx: usize) -> V {
         self.0.borrow()[idx].clone()
-    }
+    }*/
 
     pub fn extend_frame(&self, vars: impl Iterator<Item = V>) {
         self.0.borrow_mut().extend(vars)

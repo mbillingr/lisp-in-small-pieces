@@ -1,7 +1,7 @@
 use super::expression::Expression;
-use super::variable::PredefinedVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::syntax::GlobalVariable;
 use crate::utils::Sourced;
 
 sum_type! {
@@ -64,7 +64,7 @@ impl RegularApplication {
 
 #[derive(Debug, Clone)]
 pub struct PredefinedApplication {
-    pub variable: PredefinedVariable,
+    pub variable: GlobalVariable,
     pub arguments: Vec<Expression>,
     span: SourceLocation,
 }
@@ -72,11 +72,7 @@ pub struct PredefinedApplication {
 impl_sourced!(PredefinedApplication);
 
 impl PredefinedApplication {
-    pub fn new(
-        variable: PredefinedVariable,
-        arguments: Vec<Expression>,
-        span: SourceLocation,
-    ) -> Self {
+    pub fn new(variable: GlobalVariable, arguments: Vec<Expression>, span: SourceLocation) -> Self {
         PredefinedApplication {
             variable,
             arguments,

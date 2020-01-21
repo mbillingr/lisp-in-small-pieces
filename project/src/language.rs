@@ -17,7 +17,7 @@ pub mod scheme {
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
-    use crate::syntax::{Expression, MagicKeyword, NoOp, PredefinedVariable};
+    use crate::syntax::{Expression, GlobalVariable, MagicKeyword, NoOp};
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::PathBuf;
     use std::rc::Rc;
@@ -29,11 +29,11 @@ pub mod scheme {
 
     impl Context {
         pub fn new() -> Self {
-            let (env, runtime_predef) = init_env();
+            let env = init_env();
 
             let trans = Translate::new(env);
 
-            let vm = VirtualMachine::new(vec![], runtime_predef);
+            let vm = VirtualMachine::new(vec![]);
 
             Context { trans, vm }
         }
@@ -74,7 +74,7 @@ pub mod scheme {
 
     macro_rules! predef {
         () => {
-            (Env::new(), vec![])
+            Env::new()
         };
 
         (native $name:expr, =0, $func:expr; $($rest:tt)*) => {{
@@ -126,35 +126,33 @@ pub mod scheme {
         }};
 
         (primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let (mut env, mut runtime_env) = predef!{$($rest)*};
+            let mut env = predef!{$($rest)*};
 
             let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
 
-            env.push(PredefinedVariable::new($name, func));
-            runtime_env.push(Scm::Primitive(func));
+            env.push(GlobalVariable::defined($name, Scm::primitive(func)));
 
-            (env, runtime_env)
+            env
         }};
 
         (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let (mut env, mut runtime_env) = predef!{$($rest)*};
+            let mut env = predef!{$($rest)*};
 
             let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
 
-            env.push(PredefinedVariable::new($name, func));
-            runtime_env.push(Scm::Primitive(func));
+            env.push(GlobalVariable::defined($name, Scm::primitive(func)));
 
-            (env, runtime_env)
+            env
         }};
 
         (macro $name:expr, $func:ident; $($rest:tt)*) => {{
-            let (mut env, runtime_env) = predef!{$($rest)*};
+            let mut env = predef!{$($rest)*};
             env.push(MagicKeyword::new($name, $func));
-            (env, runtime_env)
+            env
         }};
     }
 
-    pub fn init_env() -> (Env, Vec<Scm>) {
+    pub fn init_env() -> Env {
         predef! {
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
@@ -311,7 +309,6 @@ pub mod scheme {
     mod tests {
         use super::*;
         use crate::library::LibraryBuilder;
-        use crate::source::SourceLocation::NoSource;
 
         impl PartialEq for Scm {
             fn eq(&self, rhs: &Self) -> bool {
@@ -499,7 +496,6 @@ pub mod scheme {
             use crate::symbol::Symbol;
 
             check!(get_predefined: "cons", Scm::is_primitive);
-            assert_error!(set_predefined: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
 
             assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Symbol::new("flummox")));
             assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Symbol::new("foo")));
@@ -613,9 +609,7 @@ pub mod scheme {
         mod libraries {
             use super::*;
             use crate::error::RuntimeError;
-            use crate::source::SourceLocation::NoSource;
             use crate::symbol::Symbol;
-            use std::path::Path;
 
             assert_error!(nonexisting_library: "(import (foo bar)) #f",
                 ObjectifyErrorKind::UnknownLibrary(["foo", "bar"].iter().collect()));
@@ -673,7 +667,10 @@ pub mod scheme {
             fn global_definition() {
                 let mut ctx = Context::new();
                 ctx.eval_str("(define x 42)").unwrap();
-                assert_eq!(ctx.vm.globals()[0], (Scm::Int(42), Symbol::new("x")));
+                assert_eq!(
+                    ctx.vm.globals().last(),
+                    Some(&(Scm::Int(42), Symbol::new("x")))
+                );
             }
 
             #[test]
@@ -683,7 +680,10 @@ pub mod scheme {
                     ctx.eval_str("((lambda () (define x 42) x))").unwrap(),
                     Scm::Int(42)
                 );
-                assert!(ctx.vm.globals().is_empty());
+                assert_ne!(
+                    ctx.vm.globals().last().unwrap(),
+                    &(Scm::Int(42), Symbol::new("x"))
+                );
             }
 
             #[test]

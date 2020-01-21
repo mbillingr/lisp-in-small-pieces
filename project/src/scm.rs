@@ -76,6 +76,10 @@ impl Scm {
         Scm::Vector(static_data)
     }
 
+    pub fn primitive(proc: RuntimePrimitive) -> Self {
+        Scm::Primitive(proc)
+    }
+
     pub fn is_undefined(&self) -> bool {
         match self {
             Scm::Undefined => true,

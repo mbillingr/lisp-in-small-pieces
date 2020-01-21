@@ -9,8 +9,7 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
     Import, ImportItem, ImportSet, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
-    PredefinedApplication, PredefinedReference, PredefinedVariable, Reference, RegularApplication,
-    Sequence, Variable,
+    PredefinedApplication, Reference, RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::collections::HashMap;
@@ -141,14 +140,11 @@ impl Translate {
             Some(Variable::GlobalVariable(v)) => {
                 Ok(GlobalReference::new(v, expr.source().clone()).into())
             }
-            Some(Variable::PredefinedVariable(v)) => {
-                Ok(PredefinedReference::new(v, expr.source().clone()).into())
-            }
             Some(Variable::MagicKeyword(mkw)) => Ok((mkw).into()),
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
-            Some(Variable::SyntacticBinding(sb)) => expand_captured_binding(self, expr),
+            Some(Variable::SyntacticBinding(_)) => expand_captured_binding(self, expr),
             None => self.objectify_free_reference(var_name.clone(), expr.source().clone()),
         }
     }
@@ -186,7 +182,7 @@ impl Translate {
 
         match func {
             Expression::Function(f) => self.process_closed_application(f.clone(), args_list, span),
-            Expression::Reference(Reference::PredefinedReference(p)) => {
+            /*Expression::Reference(Reference::PredefinedReference(p)) => {
                 let fvf = p.var.clone();
                 if fvf.procedure().arity().check(args_list.len()) {
                     Ok(PredefinedApplication::new(fvf, args_list, span).into())
@@ -196,7 +192,7 @@ impl Translate {
                         location: span,
                     })
                 }
-            }
+            }*/
             _ => Ok(RegularApplication::new(func.clone(), args_list, span).into()),
         }
     }
@@ -242,7 +238,7 @@ impl Translate {
             });
         }
 
-        let cons_var: PredefinedVariable = self
+        let cons_var: GlobalVariable = self
             .env
             .find_predef("cons")
             .expect("The cons pritimive must be available in the predefined environment")

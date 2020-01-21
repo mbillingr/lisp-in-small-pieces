@@ -1,5 +1,5 @@
 use super::expression::Expression;
-use super::variable::{FreeVariable, GlobalVariable, LocalVariable, PredefinedVariable};
+use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 use crate::utils::Sourced;
@@ -86,7 +86,7 @@ impl GlobalReference {
 
 #[derive(Debug, Clone)]
 pub struct PredefinedReference {
-    pub var: PredefinedVariable,
+    pub var: GlobalVariable,
     pub span: SourceLocation,
 }
 
@@ -99,7 +99,7 @@ impl PartialEq for PredefinedReference {
 }
 
 impl PredefinedReference {
-    pub fn new(var: PredefinedVariable, span: SourceLocation) -> Self {
+    pub fn new(var: GlobalVariable, span: SourceLocation) -> Self {
         PredefinedReference { var, span }
     }
 

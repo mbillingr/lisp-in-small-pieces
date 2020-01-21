@@ -4,10 +4,7 @@ use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntax::variable::SyntacticBinding;
-use crate::syntax::{
-    Expression, GlobalReference, LocalReference, MagicKeywordHandler, PredefinedReference, Variable,
-};
-use crate::utils::Named;
+use crate::syntax::{Expression, GlobalReference, LocalReference, MagicKeywordHandler};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -282,9 +279,6 @@ pub fn expand_captured_binding(trans: &mut Translate, expr: &TrackedSexpr) -> Re
     {
         Some(LocalVariable(v)) => Ok(LocalReference::new(v, expr.source().clone()).into()),
         Some(GlobalVariable(v)) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
-        Some(PredefinedVariable(v)) => {
-            Ok(PredefinedReference::new(v, expr.source().clone()).into())
-        }
         Some(MagicKeyword(mkw)) => Ok((mkw).into()),
         Some(FreeVariable(_)) => unreachable!(),
         Some(SyntacticBinding(_)) => unimplemented!("syntactic binding of syntactic binding"),

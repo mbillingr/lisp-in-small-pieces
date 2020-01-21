@@ -1,9 +1,8 @@
-use crate::env::Env;
 use crate::objectify::Result;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;
-use crate::syntax::{GlobalVariable, MagicKeyword};
+use crate::syntax::MagicKeyword;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -31,20 +30,6 @@ impl Library {
 
     pub fn all_exports(&self) -> impl Iterator<Item = (Symbol, &ExportItem)> {
         self.exports.iter().map(|(s, item)| (*s, item))
-    }
-
-    pub fn import_into_environment(&self, env: &mut Env) {
-        /*for (name, item) in &self.exports {
-            match item {
-                ExportItem::Value(_) => {
-                    if env.globals.find_variable(name).is_none() {
-                        env.globals.extend(GlobalVariable::new(name))
-                    }
-                }
-                _ => unimplemented!(),
-            }
-        }*/
-        unimplemented!()
     }
 }
 

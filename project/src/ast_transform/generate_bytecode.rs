@@ -1,5 +1,4 @@
 use crate::bytecode::{CodeObject, Op};
-use crate::env::Environment;
 use crate::library::ExportItem;
 use crate::objectify::Translate;
 use crate::primitive::Arity;

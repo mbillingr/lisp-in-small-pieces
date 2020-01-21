@@ -1,4 +1,3 @@
-use crate::env::Environment;
 use crate::error::{Result, RuntimeError, TypeError};
 use crate::library::ExportItem;
 use crate::library::Library;
@@ -6,6 +5,7 @@ use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
+use crate::syntax::variable::VarDef;
 use crate::syntax::GlobalVariable;
 use crate::utils::Named;
 use std::rc::Rc;
@@ -94,7 +94,6 @@ impl CodeObject {
 
 pub struct VirtualMachine {
     globals: Vec<(Scm, Symbol)>,
-    predef: Vec<Scm>,
     libraries: Vec<Rc<Library>>,
     value_stack: Vec<Scm>,
     call_stack: Vec<(usize, isize, &'static Closure)>,
@@ -113,10 +112,9 @@ thread_local! {
 }
 
 impl VirtualMachine {
-    pub fn new(globals: Vec<(Scm, Symbol)>, predef: Vec<Scm>) -> Self {
+    pub fn new(globals: Vec<(Scm, Symbol)>) -> Self {
         VirtualMachine {
             globals,
-            predef,
             libraries: vec![],
             value_stack: vec![],
             call_stack: vec![],
@@ -129,7 +127,10 @@ impl VirtualMachine {
 
     pub fn synchronize_globals(&mut self, env: impl Iterator<Item = GlobalVariable>) {
         for gvar in env.skip(self.globals.len()) {
-            self.globals.push((Scm::uninitialized(), gvar.name()));
+            match gvar.value() {
+                VarDef::Unknown => self.globals.push((Scm::uninitialized(), gvar.name())),
+                VarDef::Value(x) => self.globals.push((*x, gvar.name())),
+            }
         }
     }
 
@@ -167,7 +168,7 @@ impl VirtualMachine {
                     }
                 }
                 Op::FreeRef(idx) => val = cls.free_vars[idx],
-                Op::PredefRef(idx) => val = self.predef[idx],
+                Op::PredefRef(idx) => val = self.globals[idx].0,
                 Op::GlobalSet(idx) => {
                     if self.globals[idx].0.is_uninitialized() {
                         return Err(RuntimeError::UndefinedGlobal(self.globals[idx].1).into());
@@ -216,7 +217,6 @@ impl VirtualMachine {
 
                         ip = 0;
                         cls = callee;
-                        //free = fv;
                     }
                     Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
@@ -236,7 +236,16 @@ impl VirtualMachine {
 
                         ip = 0;
                         cls = callee;
-                        //free = fv;
+                    }
+                    Scm::Primitive(func) => {
+                        let n = self.value_stack.len() - nargs;
+                        val = func.invoke(&self.value_stack[n..])?;
+
+                        self.value_stack.truncate(frame_offset);
+                        let data = self.call_stack.pop().expect("call-stack underflow");
+                        frame_offset = data.0;
+                        ip = data.1;
+                        cls = data.2;
                     }
                     _ => return Err(TypeError::NotCallable.into()),
                 },
