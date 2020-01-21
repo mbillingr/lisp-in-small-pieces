@@ -3,9 +3,11 @@ use crate::objectify::{ObjectifyError, ObjectifyErrorKind, Result, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
+use crate::syntax::variable::SyntacticBinding;
 use crate::syntax::{
     Expression, GlobalReference, LocalReference, MagicKeywordHandler, PredefinedReference, Variable,
 };
+use crate::utils::Named;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -64,7 +66,7 @@ fn prepare_syntax_rules(
     literals: &TrackedSexpr,
     rules: TrackedSexpr,
     definition_env: &Env,
-    captures: &mut Vec<Variable>,
+    captures: &mut Vec<SyntacticBinding>,
 ) -> Result<TrackedSexpr> {
     if rules.is_null() {
         Ok(rules)
@@ -123,7 +125,7 @@ fn prepare_template(
     template: TrackedSexpr,
     macro_vars: &HashSet<Symbol>,
     definition_env: &Env,
-    captures: &mut Vec<Variable>,
+    captures: &mut Vec<SyntacticBinding>,
 ) -> Result<TrackedSexpr> {
     use Sexpr::*;
     match template.sexpr {
@@ -131,8 +133,8 @@ fn prepare_template(
         Symbol(s) => Ok(definition_env
             .find_variable(&s)
             .map(|var| {
-                if !captures.contains(&var) {
-                    captures.push(var);
+                if captures.iter().find(|cap| *cap.variable() == var).is_none() {
+                    captures.push(SyntacticBinding::new(var));
                 }
                 mark_captured_binding(template)
             })
@@ -271,7 +273,7 @@ pub fn expand_captured_binding(
 ) -> Result<Expression> {
     use crate::syntax::Variable::*;
     let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
-    match env.find_syntax_bound(name) {
+    match env.find_syntax_bound(name).map(|sb| sb.variable().clone()) {
         Some(LocalVariable(v)) => Ok(LocalReference::new(v, expr.source().clone()).into()),
         Some(GlobalVariable(v)) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
         Some(PredefinedVariable(v)) => {
@@ -279,6 +281,7 @@ pub fn expand_captured_binding(
         }
         Some(MagicKeyword(mkw)) => Ok((mkw).into()),
         Some(FreeVariable(_)) => unreachable!(),
+        Some(SyntacticBinding(_)) => unimplemented!("syntactic binding of syntactic binding"),
         None => unimplemented!("{}", expr),
     }
 }

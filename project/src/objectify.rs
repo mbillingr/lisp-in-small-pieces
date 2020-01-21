@@ -149,6 +149,7 @@ impl Translate {
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
+            Some(Variable::SyntacticBinding(sb)) => expand_captured_binding(self, expr, env),
             None => self.objectify_free_reference(var_name.clone(), env, expr.source().clone()),
         }
     }

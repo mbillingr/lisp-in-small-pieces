@@ -1,4 +1,5 @@
 use crate::symbol::Symbol;
+use crate::syntax::variable::SyntacticBinding;
 use crate::syntax::{GlobalVariable, LocalVariable, MagicKeyword, PredefinedVariable, Variable};
 use crate::utils::Named;
 use std::cell::RefCell;
@@ -10,7 +11,7 @@ pub struct Env {
     globals: Environment<GlobalVariable>,
     predef: Environment<PredefinedVariable>,
     macros: Environment<MagicKeyword>,
-    syntax: Environment<Variable>,
+    syntax: Environment<SyntacticBinding>,
 }
 
 impl Env {
@@ -48,7 +49,10 @@ impl Env {
         self.predef.find_idx(name)
     }
 
-    pub fn find_syntax_bound(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
+    pub fn find_syntax_bound(
+        &self,
+        name: &(impl PartialEq<Symbol> + ?Sized),
+    ) -> Option<SyntacticBinding> {
         self.syntax.find_variable(name)
     }
 
@@ -67,6 +71,7 @@ impl Env {
             Variable::PredefinedVariable(v) => self.predef.extend(v),
             Variable::MagicKeyword(v) => self.macros.extend(v),
             Variable::FreeVariable(_) => panic!("There is no environment for free variables"),
+            Variable::SyntacticBinding(v) => self.syntax.extend(v),
         }
     }
 
@@ -76,7 +81,7 @@ impl Env {
         }
     }
 
-    pub fn extend_syntax(&self, vars: impl IntoIterator<Item = Variable>) {
+    pub fn extend_syntax(&self, vars: impl IntoIterator<Item = SyntacticBinding>) {
         self.syntax.extend_frame(vars.into_iter())
     }
 
