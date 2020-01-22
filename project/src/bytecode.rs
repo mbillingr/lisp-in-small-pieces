@@ -53,6 +53,9 @@ pub enum Op {
     Drop(usize),
 
     Import(usize),
+
+    // Intrinsics
+    Cons,
 }
 
 impl Op {
@@ -218,7 +221,7 @@ impl VirtualMachine {
                         ip = 0;
                         cls = callee;
                     }
-                    Scm::Primitive(func) => {
+                    Scm::Primitive(func) | Scm::Intrinsic(func) => {
                         let n = self.value_stack.len() - nargs;
                         val = func.invoke(&self.value_stack[n..])?;
                         self.value_stack.truncate(n);
@@ -237,7 +240,7 @@ impl VirtualMachine {
                         ip = 0;
                         cls = callee;
                     }
-                    Scm::Primitive(func) => {
+                    Scm::Primitive(func) | Scm::Intrinsic(func) => {
                         let n = self.value_stack.len() - nargs;
                         val = func.invoke(&self.value_stack[n..])?;
 
@@ -270,6 +273,10 @@ impl VirtualMachine {
                         Some(ExportItem::Value(v)) => val = *v,
                         _ => panic!("Invalid import"),
                     }
+                }
+                Op::Cons => {
+                    let car = self.pop_value()?;
+                    val = Scm::cons(car, val);
                 }
             }
         }
@@ -338,6 +345,7 @@ impl std::fmt::Debug for Op {
             Op::Halt => write!(f, "(halt)"),
             Op::Drop(n) => write!(f, "(drop {})", n),
             Op::Import(l) => write!(f, "(import {})", l),
+            Op::Cons => write!(f, "(cons)"),
         }
     }
 }

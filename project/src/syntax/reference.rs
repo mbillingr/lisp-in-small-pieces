@@ -4,12 +4,13 @@ use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 use crate::utils::Sourced;
 
-// TODO: are different reference types required, or could we use simply one type and
-//       distinguish by the referenced variable's type?
-
 sum_type! {
     #[derive(Debug, Clone)]
-    pub type Reference(Expression) = LocalReference | GlobalReference | PredefinedReference | FreeReference;
+    pub type Reference(Expression) = LocalReference
+                                   | GlobalReference
+                                   | PredefinedReference
+                                   | FreeReference
+                                   | IntrinsicReference;
 }
 
 impl Reference {
@@ -20,6 +21,7 @@ impl Reference {
             GlobalReference(x) => x.default_transform(visitor).into(),
             PredefinedReference(x) => x.default_transform(visitor).into(),
             FreeReference(x) => x.default_transform(visitor).into(),
+            IntrinsicReference(x) => x.default_transform(visitor).into(),
         }
     }
 }
@@ -32,6 +34,7 @@ impl Sourced for Reference {
             GlobalReference(x) => x.source(),
             PredefinedReference(x) => x.source(),
             FreeReference(x) => x.source(),
+            IntrinsicReference(x) => x.source(),
         }
     }
 }
@@ -101,6 +104,30 @@ impl PartialEq for PredefinedReference {
 impl PredefinedReference {
     pub fn new(var: GlobalVariable, span: SourceLocation) -> Self {
         PredefinedReference { var, span }
+    }
+
+    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IntrinsicReference {
+    pub var: GlobalVariable,
+    pub span: SourceLocation,
+}
+
+impl_sourced!(IntrinsicReference);
+
+impl PartialEq for IntrinsicReference {
+    fn eq(&self, other: &Self) -> bool {
+        self.var == other.var
+    }
+}
+
+impl IntrinsicReference {
+    pub fn new(var: GlobalVariable, span: SourceLocation) -> Self {
+        IntrinsicReference { var, span }
     }
 
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {

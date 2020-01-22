@@ -7,7 +7,7 @@ pub type PrimitiveSignature = fn(args: &[Scm]) -> Result;
 
 #[derive(Copy, Clone)]
 pub struct RuntimePrimitive {
-    name: &'static str,
+    pub name: &'static str,
     func: PrimitiveSignature,
     arity: Arity,
 }

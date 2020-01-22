@@ -1,11 +1,14 @@
 use crate::env::Env;
 use crate::library::{is_import, libname_to_path, ExportItem, Library};
 use crate::macro_language::{expand_captured_binding, is_captured_binding};
+use crate::scm::Scm;
 use crate::sexpr::{TrackedSexpr as Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
+use crate::syntax::reference::IntrinsicReference;
+use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
     Import, ImportItem, ImportSet, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
@@ -137,10 +140,12 @@ impl Translate {
             Some(Variable::LocalVariable(v)) => {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
-            Some(Variable::GlobalVariable(v)) => {
-                println!("{:?}", v);
-                Ok(GlobalReference::new(v, expr.source().clone()).into())
-            }
+            Some(Variable::GlobalVariable(v)) => match v.value() {
+                VarDef::Value(Scm::Intrinsic(_)) => {
+                    Ok(IntrinsicReference::new(v, expr.source().clone()).into())
+                }
+                _ => Ok(GlobalReference::new(v, expr.source().clone()).into()),
+            },
             Some(Variable::MagicKeyword(mkw)) => Ok((mkw).into()),
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")

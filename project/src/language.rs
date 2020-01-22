@@ -77,9 +77,9 @@ pub mod scheme {
             Env::new()
         };
 
-        (native $name:expr, =0, $func:expr; $($rest:tt)*) => {{
+        (primitive $name:expr, =0, $func:expr; $($rest:tt)*) => {{
             predef!{
-                primitive $name, =0,
+                @primitive $name, =0,
                 |args: &[Scm]| {
                     match &args[..] {
                         [] => $func(),
@@ -89,9 +89,9 @@ pub mod scheme {
                 $($rest)*}
         }};
 
-        (native $name:expr, =1, $func:expr; $($rest:tt)*) => {{
+        (primitive $name:expr, =1, $func:expr; $($rest:tt)*) => {{
             predef!{
-                primitive $name, =1,
+                @primitive $name, =1,
                 |args: &[Scm]| {
                     match &args[..] {
                         [a] => $func(a.into()),
@@ -101,9 +101,9 @@ pub mod scheme {
                 $($rest)*}
         }};
 
-        (native $name:expr, =2, $func:expr; $($rest:tt)*) => {{
+        (primitive $name:expr, =2, $func:expr; $($rest:tt)*) => {{
             predef!{
-                primitive $name, =2,
+                @primitive $name, =2,
                 |args: &[Scm]| {
                     match &args[..] {
                         [a, b] => $func(a.into(), b.into()),
@@ -113,9 +113,9 @@ pub mod scheme {
                 $($rest)*}
         }};
 
-        (native $name:expr, =3, $func:expr; $($rest:tt)*) => {{
+        (primitive $name:expr, =3, $func:expr; $($rest:tt)*) => {{
             predef!{
-                primitive $name, =3,
+                @primitive $name, =3,
                 |args: &[Scm]| {
                     match &args[..] {
                         [a, b, c] => $func(a.into(), b.into(), c.into()),
@@ -125,23 +125,48 @@ pub mod scheme {
                 $($rest)*}
         }};
 
-        (primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
+        (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
-
-            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
-
+            let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
             env.push(GlobalVariable::defined($name, Scm::primitive(func)));
-
             env
         }};
 
-        (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
+        (@primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
-
-            let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
-
+            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
             env.push(GlobalVariable::defined($name, Scm::primitive(func)));
+            env
+        }};
 
+        (intrinsic $name:expr, =1, $func:expr; $($rest:tt)*) => {{
+            predef!{
+                @intrinsic $name, =1,
+                |args: &[Scm]| {
+                    match &args[..] {
+                        [a] => $func(a.into()),
+                        _ => unreachable!(),
+                    }
+                };
+                $($rest)*}
+        }};
+
+        (intrinsic $name:expr, =2, $func:expr; $($rest:tt)*) => {{
+            predef!{
+                @intrinsic $name, =2,
+                |args: &[Scm]| {
+                    match &args[..] {
+                        [a, b] => $func(a.into(), b.into()),
+                        _ => unreachable!(),
+                    }
+                };
+                $($rest)*}
+        }};
+
+        (@intrinsic $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
+            let mut env = predef!{$($rest)*};
+            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
+            env.push(GlobalVariable::defined($name, Scm::intrinsic(func)));
             env
         }};
 
@@ -154,27 +179,27 @@ pub mod scheme {
 
     pub fn init_env() -> Env {
         predef! {
-            native "cons", =2, Scm::cons;
-            native "car", =1, Scm::car;
-            native "cdr", =1, Scm::cdr;
-            native "set-car!", =2, Scm::set_car;
-            native "set-cdr!", =2, Scm::set_cdr;
-            native "eq?", =2, Scm::ptr_eq;
-            native "null?", =1, Scm::is_nil;
-            native "<", =2, Scm::num_less;
-            native "*", =2, Scm::mul;
-            native "/", =2, Scm::div;
-            native "+", =2, Scm::add;
-            native "-", =2, Scm::sub;
+            intrinsic "cons", =2, Scm::cons;
+            primitive "car", =1, Scm::car;
+            primitive "cdr", =1, Scm::cdr;
+            primitive "set-car!", =2, Scm::set_car;
+            primitive "set-cdr!", =2, Scm::set_cdr;
+            primitive "eq?", =2, Scm::ptr_eq;
+            primitive "null?", =1, Scm::is_nil;
+            primitive "<", =2, Scm::num_less;
+            primitive "*", =2, Scm::mul;
+            primitive "/", =2, Scm::div;
+            primitive "+", =2, Scm::add;
+            primitive "-", =2, Scm::sub;
             primitive "list", >=0, list;
             primitive "vector", >=0, vector;
 
             // non-standard stuff
-            native "primitive?", =1, Scm::is_primitive;
-            native "uninitialized?", =1, Scm::is_uninitialized;
-            native "undefined?", =1, Scm::is_undefined;
+            primitive "primitive?", =1, Scm::is_primitive;
+            primitive "uninitialized?", =1, Scm::is_uninitialized;
+            primitive "undefined?", =1, Scm::is_undefined;
 
-            native "disassemble", =1, disassemble;
+            primitive "disassemble", =1, disassemble;
 
             macro "lambda", expand_lambda;
             macro "let", expand_let;
@@ -495,7 +520,7 @@ pub mod scheme {
             use crate::error::RuntimeError;
             use crate::symbol::Symbol;
 
-            check!(get_predefined: "cons", Scm::is_primitive);
+            check!(reify_intrinsic: "cons", Scm::is_procedure);
 
             assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Symbol::new("flummox")));
             assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Symbol::new("foo")));

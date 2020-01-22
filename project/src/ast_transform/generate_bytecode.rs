@@ -1,10 +1,12 @@
 use crate::bytecode::{CodeObject, Op};
 use crate::library::ExportItem;
 use crate::objectify::Translate;
-use crate::primitive::Arity;
+use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
+use crate::syntax::reference::IntrinsicReference;
+use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
     FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import,
@@ -92,6 +94,7 @@ impl<'a> BytecodeGenerator<'a> {
             LocalReference(l) => self.compile_local_ref(l, tail),
             FreeReference(f) => self.compile_free_ref(f, tail),
             GlobalReference(g) => self.compile_global_ref(g, tail),
+            IntrinsicReference(g) => self.compile_intrinsic_ref(g, tail),
             PredefinedReference(p) => self.compile_predef_ref(p, tail),
         };
         code
@@ -160,6 +163,14 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Vec<Op> {
+        let idx = self.trans.env.find_global_idx(&node.var.name()).unwrap();
+        vec![Op::GlobalRef(idx)]
+    }
+
+    /// A reference to an intrinsic compiles to normal global reference. However, other compiler
+    /// steps (such as function application) may produce specially optimized code if they detect
+    /// an intrinsic reference.
+    fn compile_intrinsic_ref(&mut self, node: &IntrinsicReference, _tail: bool) -> Vec<Op> {
         let idx = self.trans.env.find_global_idx(&node.var.name()).unwrap();
         vec![Op::GlobalRef(idx)]
     }
@@ -245,17 +256,40 @@ impl<'a> BytecodeGenerator<'a> {
             meaning.push(Op::PushVal);
         }
 
-        let mf = self.compile(&node.function, false);
-        meaning.extend(mf);
+        match &*node.function {
+            Expression::Reference(Reference::IntrinsicReference(ri)) => {
+                if !meaning.is_empty() {
+                    meaning.pop(); // don't push last argument
+                }
+                let mi = self.compile_intrinsic_application(ri);
+                meaning.extend(mi);
+                meaning
+            }
+            _ => {
+                let mf = self.compile(&node.function, false);
+                meaning.extend(mf);
 
-        let arity = node.arguments.len();
+                let arity = node.arguments.len();
 
-        match tail {
-            true => meaning.push(Op::TailCall(arity)),
-            false => meaning.push(Op::Call(arity)),
+                match tail {
+                    true => meaning.push(Op::TailCall(arity)),
+                    false => meaning.push(Op::Call(arity)),
+                }
+
+                meaning
+            }
         }
+    }
 
-        meaning
+    fn compile_intrinsic_application(&mut self, ri: &IntrinsicReference) -> Vec<Op> {
+        match ri.var.value() {
+            VarDef::Value(Scm::Intrinsic(RuntimePrimitive { name: "cons", .. })) => vec![Op::Cons],
+            VarDef::Value(Scm::Intrinsic(RuntimePrimitive { name, .. })) => {
+                panic!("unknown intrinsic: {}", name)
+            }
+            VarDef::Unknown => unreachable!(),
+            _ => panic!("Invalid intrinsic"),
+        }
     }
 
     fn compile_predefined_application(

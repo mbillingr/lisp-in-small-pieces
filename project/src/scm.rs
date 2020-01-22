@@ -22,6 +22,7 @@ pub enum Scm {
 
     Closure(&'static Closure),
     Primitive(RuntimePrimitive),
+    Intrinsic(RuntimePrimitive),
 
     Cell(&'static Cell<Scm>),
 }
@@ -80,6 +81,10 @@ impl Scm {
         Scm::Primitive(proc)
     }
 
+    pub fn intrinsic(proc: RuntimePrimitive) -> Self {
+        Scm::Intrinsic(proc)
+    }
+
     pub fn is_undefined(&self) -> bool {
         match self {
             Scm::Undefined => true,
@@ -104,6 +109,13 @@ impl Scm {
     pub fn is_false(&self) -> bool {
         match self {
             Scm::False => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_procedure(&self) -> bool {
+        match self {
+            Scm::Closure(_) | Scm::Primitive(_) | Scm::Intrinsic(_) => true,
             _ => false,
         }
     }
@@ -268,6 +280,7 @@ impl std::fmt::Display for Scm {
             }
             Scm::Closure(cls) => write!(f, "<closure {:p}>", *cls),
             Scm::Primitive(prim) => write!(f, "{}", prim),
+            Scm::Intrinsic(prim) => write!(f, "{}", prim),
             Scm::Cell(c) => write!(f, "{}", c.get()),
         }
     }
