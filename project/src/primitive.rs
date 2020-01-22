@@ -40,13 +40,13 @@ impl RuntimePrimitive {
 
 impl std::fmt::Debug for RuntimePrimitive {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "*primitive*")
+        write!(f, "<primitive {:?}>", self.name)
     }
 }
 
 impl std::fmt::Display for RuntimePrimitive {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "*primitive*")
+        write!(f, "<primitive {:?}>", self.name)
     }
 }
 

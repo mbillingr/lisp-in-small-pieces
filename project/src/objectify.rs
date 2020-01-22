@@ -138,6 +138,7 @@ impl Translate {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
             Some(Variable::GlobalVariable(v)) => {
+                println!("{:?}", v);
                 Ok(GlobalReference::new(v, expr.source().clone()).into())
             }
             Some(Variable::MagicKeyword(mkw)) => Ok((mkw).into()),

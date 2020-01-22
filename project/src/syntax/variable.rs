@@ -114,7 +114,7 @@ impl PartialEq for GlobalVariable {
 
 impl std::fmt::Debug for GlobalVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "global {}", self.name())
+        write!(f, "global {}: {}", self.name(), self.value())
     }
 }
 
@@ -182,4 +182,13 @@ impl std::fmt::Debug for SyntacticBinding {
 pub enum VarDef {
     Unknown,
     Value(Scm),
+}
+
+impl std::fmt::Display for VarDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            VarDef::Unknown => write!(f, "?"),
+            VarDef::Value(x) => write!(f, "{}", x),
+        }
+    }
 }
