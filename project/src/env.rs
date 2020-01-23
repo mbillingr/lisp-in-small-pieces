@@ -7,100 +7,135 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Env {
-    locals: Environment<LocalVariable>,
-    globals: Environment<GlobalVariable>,
-    macros: Environment<MagicKeyword>,
-    syntax: Environment<SyntacticBinding>,
+    locals: Vec<Variable>,
+    globals: Vec<Variable>,
 }
 
 impl Env {
     pub fn new() -> Self {
         Env {
-            locals: Environment::new(),
-            globals: Environment::new(),
-            macros: Environment::new(),
-            syntax: Environment::new(),
+            locals: vec![],
+            globals: vec![],
         }
     }
 
     pub fn find_variable(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<Variable> {
-        self.locals
-            .find_variable(name)
-            .map(Variable::from)
-            .or_else(|| self.globals.find_variable(name).map(Variable::from))
-            .or_else(|| self.macros.find_variable(name).map(Variable::from))
+        self.variables().rfind(|var| name.eq(&var.name()))
     }
 
-    pub fn variables(&self) -> impl Iterator<Item = Variable> {
-        self.macros
-            .iter()
-            .map(Variable::from)
-            .chain(self.globals.iter().map(Variable::from))
-            .chain(self.locals.iter().map(Variable::from))
+    pub fn find_local(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<&LocalVariable> {
+        self.locals().rfind(|var| name.eq(&var.name()))
     }
 
-    pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
-        self.globals.find_original_variable(name)
+    pub fn find_global(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<&GlobalVariable> {
+        self.globals().rfind(|var| name.eq(&var.name()))
+    }
+
+    pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<&GlobalVariable> {
+        self.globals().find(|var| name.eq(&var.name()))
     }
 
     pub fn find_global_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
-        self.globals.find_idx(name)
+        let pos = self.globals.iter().rposition(|var| name.eq(&var.name()))?;
+        let idx = self
+            .globals
+            .iter()
+            .take(pos)
+            .filter_map(|var| {
+                if let Variable::GlobalVariable(gv) = var {
+                    Some(gv)
+                } else {
+                    None
+                }
+            })
+            .count();
+        Some(idx)
     }
 
     pub fn find_predef_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
-        self.globals.find_original_idx(name)
+        self.globals()
+            .enumerate()
+            .find(|(_, var)| name.eq(&var.name()))
+            .map(|(idx, _)| idx)
     }
 
-    pub fn find_syntax_bound(
+    /*pub fn find_syntax_bound(
         &self,
         name: &(impl PartialEq<Symbol> + ?Sized),
     ) -> Option<SyntacticBinding> {
         self.syntax.find_variable(name)
+    }*/
+
+    pub fn variables(&self) -> impl DoubleEndedIterator<Item = Variable> {
+        self.globals
+            .clone()
+            .into_iter()
+            .chain(self.locals.clone().into_iter())
     }
 
-    pub fn globals(&self) -> impl Iterator<Item = GlobalVariable> {
-        self.globals.iter()
-        //.filter_map(|var| if let Variable::GlobalVariable(gv) = var {Some(gv)} else {None})
+    pub fn locals(&self) -> impl DoubleEndedIterator<Item = &LocalVariable> {
+        self.locals.iter().filter_map(|var| {
+            if let Variable::LocalVariable(gv) = var {
+                Some(gv)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn globals(&self) -> impl DoubleEndedIterator<Item = &GlobalVariable> {
+        self.globals.iter().filter_map(|var| {
+            if let Variable::GlobalVariable(gv) = var {
+                Some(gv)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn ensure_global(&mut self, var: GlobalVariable) {
-        self.globals.ensure_variable(var)
-    }
-
-    pub fn push(&mut self, var: impl Into<Variable>) {
-        match var.into() {
-            Variable::LocalVariable(v) => self.locals.extend(v),
-            Variable::GlobalVariable(v) => self.globals.extend(v),
-            Variable::MagicKeyword(v) => self.macros.extend(v),
-            Variable::FreeVariable(_) => panic!("There is no environment for free variables"),
-            Variable::SyntacticBinding(v) => self.syntax.extend(v),
+        if self.find_global(&var.name()).is_none() {
+            self.globals.push(var.into())
         }
     }
 
-    pub fn extend<T: Into<Variable>>(&mut self, vars: impl IntoIterator<Item = T>) {
+    pub fn push_local(&mut self, var: impl Into<Variable>) {
+        self.locals.push(var.into())
+    }
+
+    pub fn push_global(&mut self, var: impl Into<Variable>) {
+        self.globals.push(var.into())
+    }
+
+    pub fn extend_local<T: Into<Variable>>(&mut self, vars: impl IntoIterator<Item = T>) {
         for var in vars.into_iter() {
-            self.push(var)
+            self.push_local(var)
         }
     }
 
-    pub fn extend_syntax(&mut self, vars: impl IntoIterator<Item = SyntacticBinding>) {
+    pub fn extend_global<T: Into<Variable>>(&mut self, vars: impl IntoIterator<Item = T>) {
+        for var in vars.into_iter() {
+            self.push_local(var)
+        }
+    }
+
+    /*pub fn extend_syntax(&mut self, vars: impl IntoIterator<Item = SyntacticBinding>) {
         self.syntax.extend_frame(vars.into_iter())
     }
 
     pub fn drop_syntax(&mut self, n: usize) {
         self.syntax.pop_frame(n);
-    }
+    }*/
 
     pub fn drop_frame(&mut self, n: usize) {
-        self.locals.pop_frame(n)
+        let n = self.locals.len() - n;
+        self.locals.truncate(n);
     }
 
     pub fn deep_clone(&self) -> Self {
         Env {
-            locals: self.locals.deep_clone(),
-            globals: self.globals.deep_clone(),
-            macros: self.macros.deep_clone(),
-            syntax: self.syntax.deep_clone(),
+            locals: self.locals.clone(),
+            globals: self.globals.clone(),
         }
     }
 }
@@ -118,11 +153,7 @@ impl<V: Clone + Named> Environment<V> {
     }*/
 
     pub fn find_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
-        self.0
-            .iter()
-            .rev()
-            .find(|var| name.eq(&var.name()))
-            .cloned()
+        find_variable(self.0.as_slice(), name).cloned()
     }
 
     pub fn find_idx(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<usize> {
@@ -176,4 +207,18 @@ impl<V: Clone + Named> Environment<V> {
     pub fn iter(&self) -> impl Iterator<Item = V> {
         self.0.clone().into_iter()
     }
+}
+
+fn find_variable<'a, V: Clone + Named>(
+    env: &'a [V],
+    name: &(impl PartialEq<V::Name> + ?Sized),
+) -> Option<&'a V> {
+    env.iter().rev().find(|var| name.eq(&var.name()))
+}
+
+fn find_original_variable<'a, V: Clone + Named>(
+    env: &'a [V],
+    name: &(impl PartialEq<V::Name> + ?Sized),
+) -> Option<&'a V> {
+    env.iter().find(|var| name.eq(&var.name()))
 }

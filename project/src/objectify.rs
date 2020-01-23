@@ -166,7 +166,7 @@ impl Translate {
 
     fn adjoin_global_variable(&mut self, name: Symbol) -> GlobalVariable {
         let v = GlobalVariable::new(name);
-        self.env.push(v.clone());
+        self.env.push_global(v.clone());
         v
     }
 
@@ -248,6 +248,7 @@ impl Translate {
             .env
             .find_predef("cons")
             .expect("The cons pritimive must be available in the predefined environment")
+            .clone()
             .try_into()
             .unwrap();
 
@@ -276,7 +277,7 @@ impl Translate {
         span: SourceLocation,
     ) -> Result<Expression> {
         let vars = self.objectify_variables_list(names)?;
-        self.env.extend(vars.iter().cloned());
+        self.env.extend_local(vars.iter().cloned());
         let bdy = self.objectify_sequence(body)?;
         self.env.drop_frame(vars.len());
         Ok(Function::new(vars, bdy, span).into())
@@ -369,7 +370,7 @@ impl Translate {
                 self.env.ensure_global(var);
             }
 
-            self.env.extend(import_macros);
+            self.env.extend_global(import_macros);
 
             sets.push(import_obj);
             import_sets = import_sets.cdr().unwrap();

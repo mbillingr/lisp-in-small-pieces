@@ -128,14 +128,14 @@ pub mod scheme {
         (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
             let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args, _ctx| $func(args).wrap());
-            env.push(GlobalVariable::defined($name, Scm::primitive(func)));
+            env.push_global(GlobalVariable::defined($name, Scm::primitive(func)));
             env
         }};
 
         (@primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
             let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args, ctx| $func(args, ctx).wrap());
-            env.push(GlobalVariable::defined($name, Scm::primitive(func)));
+            env.push_global(GlobalVariable::defined($name, Scm::primitive(func)));
             env
         }};
 
@@ -166,13 +166,13 @@ pub mod scheme {
         (@intrinsic $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
             let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args, ctx| $func(args, ctx).wrap());
-            env.push(GlobalVariable::defined($name, Scm::intrinsic(func)));
+            env.push_global(GlobalVariable::defined($name, Scm::intrinsic(func)));
             env
         }};
 
         (macro $name:expr, $func:ident; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
-            env.push(MagicKeyword::new($name, $func));
+            env.push_global(MagicKeyword::new($name, $func));
             env
         }};
     }
@@ -312,7 +312,7 @@ pub mod scheme {
             })?;
         let handler = eval_syntax(syntax, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
-        trans.env.push(macro_binding);
+        trans.env.push_local(macro_binding);
         Ok(Expression::NoOp(NoOp))
     }
 

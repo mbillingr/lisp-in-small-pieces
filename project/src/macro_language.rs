@@ -53,11 +53,11 @@ pub fn eval_syntax_rules(
             )?;
             //println!("{} -> {}", expr, sexpr);
 
-            trans.env.extend_syntax(captures.clone());
+            trans.env.extend_local(captures.clone());
 
             let result = trans.objectify(&sexpr);
 
-            trans.env.drop_syntax(captures.len());
+            trans.env.drop_frame(captures.len());
 
             result
         },
@@ -272,7 +272,8 @@ pub fn is_captured_binding(expr: &TrackedSexpr) -> bool {
 pub fn expand_captured_binding(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
     use crate::syntax::Variable::*;
     let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
-    match trans
+    unimplemented!()
+    /*match trans
         .env
         .find_syntax_bound(name)
         .map(|sb| sb.variable().clone())
@@ -283,5 +284,5 @@ pub fn expand_captured_binding(trans: &mut Translate, expr: &TrackedSexpr) -> Re
         Some(FreeVariable(_)) => unreachable!(),
         Some(SyntacticBinding(_)) => unimplemented!("syntactic binding of syntactic binding"),
         None => unimplemented!("{}", expr),
-    }
+    }*/
 }
