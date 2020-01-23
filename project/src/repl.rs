@@ -15,9 +15,20 @@ pub fn repl() {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
 
-                match context.eval_str(&line) {
-                    Ok(x) => println!("{}", x),
-                    Err(e) => report_error(e),
+                if line.starts_with('[') {
+                    match line.as_str() {
+                        "[globals]" => {
+                            for (i, var) in context.trans.env.variables().enumerate() {
+                                println!("{:3} {:?}", i, var)
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match context.eval_str(&line) {
+                        Ok(x) => println!("{}", x),
+                        Err(e) => report_error(e),
+                    }
                 }
             }
             Err(ReadlineError::Interrupted) => {

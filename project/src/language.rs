@@ -23,8 +23,8 @@ pub mod scheme {
     use std::rc::Rc;
 
     pub struct Context {
-        trans: Translate,
-        vm: VirtualMachine,
+        pub trans: Translate,
+        pub vm: VirtualMachine,
     }
 
     impl Context {
@@ -80,7 +80,7 @@ pub mod scheme {
         (primitive $name:expr, =0, $func:expr; $($rest:tt)*) => {{
             predef!{
                 @primitive $name, =0,
-                |args: &[Scm]| {
+                |args: &[Scm], _ctx: &VirtualMachine| {
                     match &args[..] {
                         [] => $func(),
                         _ => unreachable!(),
@@ -92,7 +92,7 @@ pub mod scheme {
         (primitive $name:expr, =1, $func:expr; $($rest:tt)*) => {{
             predef!{
                 @primitive $name, =1,
-                |args: &[Scm]| {
+                |args: &[Scm], _ctx: &VirtualMachine| {
                     match &args[..] {
                         [a] => $func(a.into()),
                         _ => unreachable!(),
@@ -104,7 +104,7 @@ pub mod scheme {
         (primitive $name:expr, =2, $func:expr; $($rest:tt)*) => {{
             predef!{
                 @primitive $name, =2,
-                |args: &[Scm]| {
+                |args: &[Scm], _ctx: &VirtualMachine| {
                     match &args[..] {
                         [a, b] => $func(a.into(), b.into()),
                         _ => unreachable!(),
@@ -116,7 +116,7 @@ pub mod scheme {
         (primitive $name:expr, =3, $func:expr; $($rest:tt)*) => {{
             predef!{
                 @primitive $name, =3,
-                |args: &[Scm]| {
+                |args: &[Scm], _ctx: &VirtualMachine| {
                     match &args[..] {
                         [a, b, c] => $func(a.into(), b.into(), c.into()),
                         _ => unreachable!(),
@@ -127,14 +127,14 @@ pub mod scheme {
 
         (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
-            let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args| $func(args).wrap());
+            let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args, _ctx| $func(args).wrap());
             env.push(GlobalVariable::defined($name, Scm::primitive(func)));
             env
         }};
 
         (@primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
-            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
+            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args, ctx| $func(args, ctx).wrap());
             env.push(GlobalVariable::defined($name, Scm::primitive(func)));
             env
         }};
@@ -154,7 +154,7 @@ pub mod scheme {
         (intrinsic $name:expr, =2, $func:expr; $($rest:tt)*) => {{
             predef!{
                 @intrinsic $name, =2,
-                |args: &[Scm]| {
+                |args: &[Scm], _ctx: &VirtualMachine| {
                     match &args[..] {
                         [a, b] => $func(a.into(), b.into()),
                         _ => unreachable!(),
@@ -165,7 +165,7 @@ pub mod scheme {
 
         (@intrinsic $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
-            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args| $func(args).wrap());
+            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args, ctx| $func(args, ctx).wrap());
             env.push(GlobalVariable::defined($name, Scm::intrinsic(func)));
             env
         }};
@@ -200,6 +200,7 @@ pub mod scheme {
             primitive "undefined?", =1, Scm::is_undefined;
 
             primitive "disassemble", =1, disassemble;
+            @primitive "globals", =0, list_globals;
 
             macro "lambda", expand_lambda;
             macro "let", expand_let;
@@ -330,6 +331,12 @@ pub mod scheme {
         }
     }
 
+    pub fn list_globals(args: &[Scm], context: &VirtualMachine) {
+        for (i, (value, name)) in context.globals().iter().enumerate() {
+            println!("{:3} {} = {}", i, name, value)
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -352,7 +359,7 @@ pub mod scheme {
                         Scm::Primitive(RuntimePrimitive::new(
                             "kons",
                             Arity::Exact(2),
-                            |args: &[Scm]| match &args[..] {
+                            |args: &[Scm], _ctx| match &args[..] {
                                 [a, b] => Ok(Scm::cons(a.into(), b.into())),
                                 _ => unreachable!(),
                             },

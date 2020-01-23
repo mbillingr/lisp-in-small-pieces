@@ -223,7 +223,7 @@ impl VirtualMachine {
                     }
                     Scm::Primitive(func) | Scm::Intrinsic(func) => {
                         let n = self.value_stack.len() - nargs;
-                        val = func.invoke(&self.value_stack[n..])?;
+                        val = func.invoke(&self.value_stack[n..], self)?;
                         self.value_stack.truncate(n);
                     }
                     _ => return Err(TypeError::NotCallable.into()),
@@ -242,7 +242,7 @@ impl VirtualMachine {
                     }
                     Scm::Primitive(func) | Scm::Intrinsic(func) => {
                         let n = self.value_stack.len() - nargs;
-                        val = func.invoke(&self.value_stack[n..])?;
+                        val = func.invoke(&self.value_stack[n..], self)?;
 
                         self.value_stack.truncate(frame_offset);
                         let data = self.call_stack.pop().expect("call-stack underflow");

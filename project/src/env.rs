@@ -31,6 +31,14 @@ impl Env {
             .or_else(|| self.macros.find_variable(name).map(Variable::from))
     }
 
+    pub fn variables(&self) -> impl Iterator<Item = Variable> {
+        self.macros
+            .iter()
+            .map(Variable::from)
+            .chain(self.globals.iter().map(Variable::from))
+            .chain(self.locals.iter().map(Variable::from))
+    }
+
     pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
         self.globals.find_original_variable(name)
     }
