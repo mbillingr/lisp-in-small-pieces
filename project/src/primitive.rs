@@ -40,13 +40,21 @@ impl RuntimePrimitive {
 
 impl std::fmt::Debug for RuntimePrimitive {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "<primitive {:?}>", self.name)
+        write!(
+            f,
+            "{}@{:p}",
+            self.name, self.func as *const PrimitiveSignature
+        )
     }
 }
 
 impl std::fmt::Display for RuntimePrimitive {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "<primitive {:?}>", self.name)
+        write!(
+            f,
+            "{}@{:p}",
+            self.name, self.func as *const PrimitiveSignature
+        )
     }
 }
 
