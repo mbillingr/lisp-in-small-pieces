@@ -5,7 +5,7 @@ use crate::utils::Named;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Env {
     locals: Environment<LocalVariable>,
     globals: Environment<GlobalVariable>,
@@ -60,6 +60,7 @@ impl Env {
 
     pub fn globals(&self) -> impl Iterator<Item = GlobalVariable> {
         self.globals.iter()
+        //.filter_map(|var| if let Variable::GlobalVariable(gv) = var {Some(gv)} else {None})
     }
 
     pub fn ensure_global(&mut self, var: GlobalVariable) {
@@ -104,12 +105,12 @@ impl Env {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Environment<V>(Rc<RefCell<Vec<V>>>);
+#[derive(Debug)]
+pub struct Environment<V>(Vec<V>);
 
 impl<V: Clone + Named> Environment<V> {
     pub fn new() -> Self {
-        Environment(Rc::new(RefCell::new(vec![])))
+        Environment(vec![])
     }
 
     /*pub fn len(&self) -> usize {
@@ -118,7 +119,6 @@ impl<V: Clone + Named> Environment<V> {
 
     pub fn find_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
         self.0
-            .borrow()
             .iter()
             .rev()
             .find(|var| name.eq(&var.name()))
@@ -127,7 +127,6 @@ impl<V: Clone + Named> Environment<V> {
 
     pub fn find_idx(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<usize> {
         self.0
-            .borrow()
             .iter()
             .enumerate()
             .rev()
@@ -136,23 +135,18 @@ impl<V: Clone + Named> Environment<V> {
     }
 
     pub fn find_original_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
-        self.0
-            .borrow()
-            .iter()
-            .find(|var| name.eq(&var.name()))
-            .cloned()
+        self.0.iter().find(|var| name.eq(&var.name())).cloned()
     }
 
     pub fn find_original_idx(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<usize> {
         self.0
-            .borrow()
             .iter()
             .enumerate()
             .find(|(_, var)| name.eq(&var.name()))
             .map(|(idx, _)| idx)
     }
 
-    pub fn ensure_variable(&self, var: V) {
+    pub fn ensure_variable(&mut self, var: V) {
         if self.find_variable(&var.name()).is_none() {
             self.extend(var)
         }
@@ -162,25 +156,24 @@ impl<V: Clone + Named> Environment<V> {
         self.0.borrow()[idx].clone()
     }*/
 
-    pub fn extend_frame(&self, vars: impl Iterator<Item = V>) {
-        self.0.borrow_mut().extend(vars)
+    pub fn extend_frame(&mut self, vars: impl Iterator<Item = V>) {
+        self.0.extend(vars)
     }
 
-    pub fn extend(&self, var: V) {
-        self.0.borrow_mut().push(var);
+    pub fn extend(&mut self, var: V) {
+        self.0.push(var);
     }
 
-    pub fn pop_frame(&self, n: usize) {
-        let mut vars = self.0.borrow_mut();
-        let n = vars.len() - n;
-        vars.truncate(n);
+    pub fn pop_frame(&mut self, n: usize) {
+        let n = self.0.len() - n;
+        self.0.truncate(n);
     }
 
     pub fn deep_clone(&self) -> Self {
-        Environment(Rc::new(RefCell::new(self.0.borrow().clone())))
+        Environment(self.0.clone())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = V> {
-        self.0.borrow().clone().into_iter()
+        self.0.clone().into_iter()
     }
 }
