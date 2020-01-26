@@ -10,8 +10,7 @@ sum_types! {
     pub type Variable = LocalVariable
                       | GlobalVariable
                       | MagicKeyword
-                      | FreeVariable
-                      | SyntacticBinding;
+                      | FreeVariable;
 }
 
 impl Named for Variable {
@@ -23,7 +22,6 @@ impl Named for Variable {
             GlobalVariable(v) => v.name(),
             MagicKeyword(v) => v.name(),
             FreeVariable(v) => v.name(),
-            SyntacticBinding(sb) => sb.name(),
         }
     }
 }
@@ -143,38 +141,6 @@ impl PartialEq for FreeVariable {
 impl std::fmt::Debug for FreeVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "free {}", self.name())
-    }
-}
-
-#[derive(Clone)]
-pub struct SyntacticBinding(Box<Variable>);
-
-impl SyntacticBinding {
-    pub fn new(var: impl Into<Variable>) -> Self {
-        SyntacticBinding(Box::new(var.into()))
-    }
-
-    pub fn variable(&self) -> &Variable {
-        &self.0
-    }
-}
-
-impl Named for SyntacticBinding {
-    type Name = Symbol;
-    fn name(&self) -> Symbol {
-        self.0.name()
-    }
-}
-
-impl PartialEq for SyntacticBinding {
-    fn eq(&self, other: &Self) -> bool {
-        self.name().ptr_eq(&other.name())
-    }
-}
-
-impl std::fmt::Debug for SyntacticBinding {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "syntax-bound {}", self.name())
     }
 }
 

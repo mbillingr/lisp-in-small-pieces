@@ -84,7 +84,7 @@ impl std::fmt::Display for Sexpr {
                 }
                 write!(f, ")")
             }
-            Sexpr::SyntacticClosure(sc) => write!(f, "<syntactic closure>"),
+            Sexpr::SyntacticClosure(_sc) => write!(f, "<syntactic closure>"),
         }
     }
 }

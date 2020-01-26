@@ -1,9 +1,6 @@
 use crate::symbol::Symbol;
-use crate::syntax::variable::SyntacticBinding;
-use crate::syntax::{GlobalVariable, LocalVariable, MagicKeyword, Variable};
+use crate::syntax::{GlobalVariable, LocalVariable, Variable};
 use crate::utils::Named;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -131,87 +128,4 @@ impl Env {
         let n = self.locals.len() - n;
         self.locals.truncate(n);
     }
-}
-
-#[derive(Debug)]
-pub struct Environment<V>(Vec<V>);
-
-impl<V: Clone + Named> Environment<V> {
-    pub fn new() -> Self {
-        Environment(vec![])
-    }
-
-    /*pub fn len(&self) -> usize {
-        self.0.borrow().len()
-    }*/
-
-    pub fn find_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
-        find_variable(self.0.as_slice(), name).cloned()
-    }
-
-    pub fn find_idx(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<usize> {
-        self.0
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, var)| name.eq(&var.name()))
-            .map(|(idx, _)| idx)
-    }
-
-    pub fn find_original_variable(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<V> {
-        self.0.iter().find(|var| name.eq(&var.name())).cloned()
-    }
-
-    pub fn find_original_idx(&self, name: &(impl PartialEq<V::Name> + ?Sized)) -> Option<usize> {
-        self.0
-            .iter()
-            .enumerate()
-            .find(|(_, var)| name.eq(&var.name()))
-            .map(|(idx, _)| idx)
-    }
-
-    pub fn ensure_variable(&mut self, var: V) {
-        if self.find_variable(&var.name()).is_none() {
-            self.extend(var)
-        }
-    }
-
-    /*pub fn at(&self, idx: usize) -> V {
-        self.0.borrow()[idx].clone()
-    }*/
-
-    pub fn extend_frame(&mut self, vars: impl Iterator<Item = V>) {
-        self.0.extend(vars)
-    }
-
-    pub fn extend(&mut self, var: V) {
-        self.0.push(var);
-    }
-
-    pub fn pop_frame(&mut self, n: usize) {
-        let n = self.0.len() - n;
-        self.0.truncate(n);
-    }
-
-    pub fn deep_clone(&self) -> Self {
-        Environment(self.0.clone())
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = V> {
-        self.0.clone().into_iter()
-    }
-}
-
-fn find_variable<'a, V: Clone + Named>(
-    env: &'a [V],
-    name: &(impl PartialEq<V::Name> + ?Sized),
-) -> Option<&'a V> {
-    env.iter().rev().find(|var| name.eq(&var.name()))
-}
-
-fn find_original_variable<'a, V: Clone + Named>(
-    env: &'a [V],
-    name: &(impl PartialEq<V::Name> + ?Sized),
-) -> Option<&'a V> {
-    env.iter().find(|var| name.eq(&var.name()))
 }

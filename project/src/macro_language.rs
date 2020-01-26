@@ -4,12 +4,9 @@ use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntactic_closure::SyntacticClosure;
-use crate::syntax::variable::SyntacticBinding;
-use crate::syntax::{Expression, GlobalReference, LocalReference, MagicKeywordHandler};
-use std::collections::{HashMap, HashSet};
+use crate::syntax::{Expression, MagicKeywordHandler};
+use std::collections::HashMap;
 use std::rc::Rc;
-
-pub static CAPTURED_BINDING_MARKER: Symbol = Symbol::uninterned("bound-syntax");
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
     match expr.at(0) {
@@ -39,9 +36,6 @@ pub fn eval_syntax_rules(
     rules: TrackedSexpr,
     definition_env: Env,
 ) -> Result<MagicKeywordHandler> {
-    let mut captures = Vec::new();
-    let rules = prepare_syntax_rules(ellipsis, &literals, rules, &definition_env, &mut captures)?;
-
     Ok(Rc::new(
         move |trans: &mut Translate, expr: &TrackedSexpr| -> Result<Expression> {
             let sexpr = apply_syntax_rules(
@@ -52,106 +46,10 @@ pub fn eval_syntax_rules(
                 &trans.env,
                 &definition_env,
             )?;
-            //println!("{} -> {}", expr, sexpr);
 
-            //trans.env.extend_local(captures.clone());
-
-            let result = trans.objectify(&sexpr);
-
-            //trans.env.drop_frame(captures.len());
-
-            result
+            trans.objectify(&sexpr)
         },
     ))
-}
-
-fn prepare_syntax_rules(
-    ellipsis: Symbol,
-    literals: &TrackedSexpr,
-    rules: TrackedSexpr,
-    definition_env: &Env,
-    captures: &mut Vec<SyntacticBinding>,
-) -> Result<TrackedSexpr> {
-    if rules.is_null() {
-        Ok(rules)
-    } else if rules.is_pair() {
-        let (rule, next) = rules.decons().unwrap();
-        let (pattern, tail) = rule.decons().unwrap();
-        let (template, _) = tail.decons().unwrap();
-
-        let macro_vars = parse_pattern(ellipsis, literals, pattern.cdr().unwrap());
-
-        let rule = TrackedSexpr::cons(
-            pattern,
-            TrackedSexpr::cons(template, TrackedSexpr::nil(NoSource), NoSource),
-            NoSource,
-        );
-
-        let next = prepare_syntax_rules(ellipsis, literals, next, definition_env, captures)?;
-
-        Ok(TrackedSexpr::cons(rule, next, NoSource))
-    } else {
-        Err(ObjectifyError {
-            kind: ObjectifyErrorKind::SyntaxError,
-            location: rules.src.clone(),
-        })
-    }
-}
-
-fn parse_pattern(
-    ellipsis: Symbol,
-    literals: &TrackedSexpr,
-    rule: &TrackedSexpr,
-) -> HashSet<Symbol> {
-    use Sexpr::*;
-    match &rule.sexpr {
-        lit if literals.contains(lit) => HashSet::new(),
-        Symbol(s) if *s == ellipsis => unimplemented!(),
-        Symbol(s) => {
-            let mut macro_var = HashSet::new();
-            macro_var.insert(*s);
-            macro_var
-        }
-        Pair(p) => {
-            let mut a = parse_pattern(ellipsis, literals, &p.0);
-            let b = parse_pattern(ellipsis, literals, &p.1);
-            a.extend(b);
-            a
-        }
-        Vector(_) => unimplemented!(),
-        _ => HashSet::new(),
-    }
-}
-
-fn prepare_template(
-    template: TrackedSexpr,
-    macro_vars: &HashSet<Symbol>,
-    definition_env: &Env,
-    captures: &mut Vec<SyntacticBinding>,
-) -> Result<TrackedSexpr> {
-    use Sexpr::*;
-    match template.sexpr {
-        Symbol(s) if macro_vars.contains(&s) => Ok(template),
-        Symbol(s) => Ok(definition_env
-            .find_variable(&s)
-            .map(|var| {
-                if captures.iter().find(|cap| *cap.variable() == var).is_none() {
-                    captures.push(SyntacticBinding::new(var));
-                }
-                //mark_captured_binding(template)
-                template
-            })
-            .unwrap_or_else(|| TrackedSexpr {
-                sexpr: Symbol(s.as_uninterned()),
-                src: NoSource,
-            })),
-        Pair(p) => Ok(TrackedSexpr::cons(
-            prepare_template(p.0, macro_vars, definition_env, captures)?,
-            prepare_template(p.1, macro_vars, definition_env, captures)?,
-            NoSource,
-        )),
-        _ => Ok(template),
-    }
 }
 
 fn apply_syntax_rules(
@@ -243,7 +141,6 @@ fn realize_template(
 ) -> Result<TrackedSexpr> {
     use Sexpr::*;
     match &template.sexpr {
-        _ if is_captured_binding(&template) => Ok(template),
         Symbol(s) => Ok(bound_vars.get(&s).cloned().unwrap_or(template)),
         Pair(_) => {
             let (car, cdr) = template.decons().unwrap();
@@ -255,36 +152,4 @@ fn realize_template(
         }
         _ => Ok(template),
     }
-}
-
-fn mark_captured_binding(keyword: TrackedSexpr) -> TrackedSexpr {
-    TrackedSexpr::cons(
-        TrackedSexpr {
-            sexpr: Sexpr::Symbol(CAPTURED_BINDING_MARKER),
-            src: NoSource,
-        },
-        keyword,
-        NoSource,
-    )
-}
-
-pub fn is_captured_binding(expr: &TrackedSexpr) -> bool {
-    expr.car()
-        .and_then(TrackedSexpr::as_symbol)
-        .map(|&s| s == CAPTURED_BINDING_MARKER)
-        .unwrap_or(false)
-}
-
-pub fn expand_captured_binding(trans: &mut Translate, sb: &SyntacticBinding) -> Result<Expression> {
-    use crate::syntax::Variable::*;
-    //let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
-    unimplemented!()
-    /*match sb.variable()
-    {
-        LocalVariable(v) => Ok(LocalReference::new(v, expr.source().clone()).into()),
-        GlobalVariable(v) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
-        MagicKeyword(mkw) => Ok((mkw).into()),
-        FreeVariable(_) => unreachable!(),
-        SyntacticBinding(_) => unimplemented!("syntactic binding of syntactic binding"),
-    }*/
 }

@@ -1,6 +1,5 @@
 use crate::env::Env;
 use crate::library::{is_import, libname_to_path, ExportItem, Library};
-use crate::macro_language::{expand_captured_binding, is_captured_binding};
 use crate::scm::Scm;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
@@ -150,7 +149,6 @@ impl Translate {
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
-            Some(Variable::SyntacticBinding(sb)) => expand_captured_binding(self, &sb),
             None => self.objectify_free_reference(var_name.clone(), expr.source().clone()),
         }
     }

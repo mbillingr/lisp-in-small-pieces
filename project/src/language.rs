@@ -15,7 +15,6 @@ pub mod scheme {
         definition_value, definition_variable, make_function, scan_out_defines,
     };
     use crate::scm::{ResultWrap, Scm};
-    use crate::sexpr::Sexpr::Symbol;
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
@@ -361,7 +360,7 @@ pub mod scheme {
         }
     }
 
-    pub fn list_globals(args: &[Scm], context: &VirtualMachine) {
+    pub fn list_globals(_args: &[Scm], context: &VirtualMachine) {
         for (i, (value, name)) in context.globals().iter().enumerate() {
             println!("{:3} {} = {}", i, name, value)
         }
