@@ -104,7 +104,7 @@ impl std::fmt::Display for Span {
                 f,
                 "    ...{:^>1$}",
                 "",
-                last_start + last_text.len() - self.end,
+                (last_start + last_text.len()).max(self.end) - self.end,
             )
         }
     }
