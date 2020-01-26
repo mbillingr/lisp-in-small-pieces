@@ -18,6 +18,7 @@ mod scm;
 mod sexpr;
 mod source;
 mod symbol;
+mod syntactic_closure;
 mod syntax;
 
 use bdwgc_alloc::Allocator;

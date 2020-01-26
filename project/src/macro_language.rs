@@ -16,7 +16,7 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
             if let Some(ellipsis) = expr.at(1).unwrap().as_symbol() {
                 let literals = expr.at(2).unwrap();
                 let rules = expr.cdr().unwrap().cdr().unwrap().cdr().unwrap();
-                eval_syntax_rules(*ellipsis, literals.clone(), rules.clone(), env.deep_clone())
+                eval_syntax_rules(*ellipsis, literals.clone(), rules.clone(), env.clone())
             } else {
                 let literals = expr.at(1).unwrap();
                 let rules = expr.cdr().unwrap().cdr().unwrap();
@@ -24,7 +24,7 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
                     Symbol::new("..."),
                     literals.clone(),
                     rules.clone(),
-                    env.deep_clone(),
+                    env.clone(),
                 )
             }
         }

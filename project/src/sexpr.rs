@@ -2,6 +2,7 @@ use crate::error::Error;
 use crate::parsing::{parse, Sexpr as PS, SpannedSexpr};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
+use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -29,6 +30,8 @@ pub enum Sexpr {
 
     //List(RcSlice<TrackedSexpr>, Option<Box<TrackedSexpr>>),
     Vector(Vec<TrackedSexpr>),
+
+    SyntacticClosure(Box<SyntacticClosure>),
 }
 
 impl std::fmt::Display for TrackedSexpr {
@@ -81,6 +84,7 @@ impl std::fmt::Display for Sexpr {
                 }
                 write!(f, ")")
             }
+            Sexpr::SyntacticClosure(sc) => write!(f, "<syntactic closure>"),
         }
     }
 }

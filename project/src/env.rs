@@ -5,7 +5,7 @@ use crate::utils::Named;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Env {
     locals: Vec<Variable>,
     globals: Vec<Variable>,
@@ -130,13 +130,6 @@ impl Env {
     pub fn drop_frame(&mut self, n: usize) {
         let n = self.locals.len() - n;
         self.locals.truncate(n);
-    }
-
-    pub fn deep_clone(&self) -> Self {
-        Env {
-            locals: self.locals.clone(),
-            globals: self.globals.clone(),
-        }
     }
 }
 

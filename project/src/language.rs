@@ -15,8 +15,11 @@ pub mod scheme {
         definition_value, definition_variable, make_function, scan_out_defines,
     };
     use crate::scm::{ResultWrap, Scm};
+    use crate::sexpr::Sexpr::Symbol;
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
+    use crate::source::SourceLocation::NoSource;
+    use crate::syntactic_closure::SyntacticClosure;
     use crate::syntax::{Expression, GlobalVariable, MagicKeyword, NoOp};
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::PathBuf;
@@ -210,7 +213,34 @@ pub mod scheme {
             macro "quote", expand_quote;
             macro "define", expand_define;
             macro "define-syntax", expand_define_syntax;
+            macro "or", expand_or;
         }
+    }
+
+    pub fn expand_or(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
+        let exp1 = ocar(ocdr(expr)?)?.clone();
+        let exp2 = ocar(ocdr(ocdr(expr)?)?)?.clone();
+
+        let exp1 = SyntacticClosure::new(exp1, trans.env.clone()).into();
+        let exp2 = SyntacticClosure::new(exp2, trans.env.clone()).into();
+
+        let tmp = TrackedSexpr::symbol("temp", NoSource);
+        let defs = TrackedSexpr::list(
+            vec![TrackedSexpr::list(vec![tmp.clone(), exp1], NoSource)],
+            NoSource,
+        );
+        let cnd = TrackedSexpr::list(
+            vec![TrackedSexpr::symbol("if", NoSource), tmp.clone(), tmp, exp2],
+            NoSource,
+        );
+
+        let x = TrackedSexpr::list(
+            vec![TrackedSexpr::symbol("let", NoSource), defs, cnd],
+            NoSource,
+        );
+        let x = SyntacticClosure::new(x, trans.base_env.clone()).into();
+
+        trans.objectify(&x)
     }
 
     pub fn expand_lambda(
@@ -589,6 +619,15 @@ pub mod scheme {
             use super::*;
 
             compare!(primitive: "(let ((x 1) (y 2)) (+ x y))", equals, Scm::Int(3));
+        }
+
+        mod syntactic_closure {
+            use super::*;
+            compare!(or:
+                r#"(begin
+                        (define temp 42)
+                        (or #f temp))"#,
+                equals, Scm::Int(42));
         }
 
         mod macros {
