@@ -641,11 +641,18 @@ pub mod scheme {
                         (force (lambda () 3)))"#,
                  equals, Scm::Int(3));
 
-            assert_error!(hygiene_new_binding:
+            assert_error!(hygiene_new_binding_undefined:
                 r#"(begin
                         (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
                         (foo x))"#,
                 RuntimeError::UndefinedGlobal(Symbol::new("x")));
+
+            compare!(hygiene_new_binding_defined:
+                r#"(begin
+                        (define x 123)
+                        (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
+                        (foo x))"#,
+                 equals, Scm::Int(123));
 
             compare!(hygiene_preserve_definition_environment:
                 r#"(begin

@@ -3,6 +3,7 @@ use crate::objectify::{ObjectifyError, ObjectifyErrorKind, Result, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
+use crate::syntactic_closure::SyntacticClosure;
 use crate::syntax::variable::SyntacticBinding;
 use crate::syntax::{Expression, GlobalReference, LocalReference, MagicKeywordHandler};
 use std::collections::{HashMap, HashSet};
@@ -53,11 +54,11 @@ pub fn eval_syntax_rules(
             )?;
             //println!("{} -> {}", expr, sexpr);
 
-            trans.env.extend_local(captures.clone());
+            //trans.env.extend_local(captures.clone());
 
             let result = trans.objectify(&sexpr);
 
-            trans.env.drop_frame(captures.len());
+            //trans.env.drop_frame(captures.len());
 
             result
         },
@@ -79,8 +80,6 @@ fn prepare_syntax_rules(
         let (template, _) = tail.decons().unwrap();
 
         let macro_vars = parse_pattern(ellipsis, literals, pattern.cdr().unwrap());
-
-        let template = prepare_template(template, &macro_vars, definition_env, captures)?;
 
         let rule = TrackedSexpr::cons(
             pattern,
@@ -174,7 +173,12 @@ fn apply_syntax_rules(
             literals,
             pattern.cdr().unwrap(),
         ) {
-            realize_template(template.clone(), &bound_vars, definition_env)
+            let bound_vars = bound_vars
+                .into_iter()
+                .map(|(name, x)| (name, SyntacticClosure::new(x, env.clone()).into()))
+                .collect();
+            let result = realize_template(template.clone(), &bound_vars, env, definition_env)?;
+            Ok(SyntacticClosure::new(result, definition_env.clone()).into())
         } else {
             apply_syntax_rules(
                 expr,
@@ -234,6 +238,7 @@ fn match_pattern(
 fn realize_template(
     template: TrackedSexpr,
     bound_vars: &HashMap<Symbol, TrackedSexpr>,
+    env: &Env,
     definition_env: &Env,
 ) -> Result<TrackedSexpr> {
     use Sexpr::*;
@@ -243,8 +248,8 @@ fn realize_template(
         Pair(_) => {
             let (car, cdr) = template.decons().unwrap();
             Ok(TrackedSexpr::cons(
-                realize_template(car, bound_vars, definition_env)?,
-                realize_template(cdr, bound_vars, definition_env)?,
+                realize_template(car, bound_vars, env, definition_env)?,
+                realize_template(cdr, bound_vars, env, definition_env)?,
                 NoSource,
             ))
         }
