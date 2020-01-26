@@ -83,9 +83,11 @@ impl Translate {
                 _ if expr.is_symbol() => self.objectify_symbol(expr),
                 _ => self.objectify_quotation(expr),
             }
-        } else if is_captured_binding(expr) {
+        }
+        /*else if is_captured_binding(expr) {
             expand_captured_binding(self, expr)
-        } else {
+        } */
+        else {
             let m = self.objectify(ocar(expr)?)?;
             if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {
                 handler(self, expr)
@@ -150,7 +152,7 @@ impl Translate {
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
-            Some(Variable::SyntacticBinding(_)) => expand_captured_binding(self, expr),
+            Some(Variable::SyntacticBinding(sb)) => expand_captured_binding(self, &sb),
             None => self.objectify_free_reference(var_name.clone(), expr.source().clone()),
         }
     }

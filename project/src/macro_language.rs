@@ -139,7 +139,8 @@ fn prepare_template(
                 if captures.iter().find(|cap| *cap.variable() == var).is_none() {
                     captures.push(SyntacticBinding::new(var));
                 }
-                mark_captured_binding(template)
+                //mark_captured_binding(template)
+                template
             })
             .unwrap_or_else(|| TrackedSexpr {
                 sexpr: Symbol(s.as_uninterned()),
@@ -269,20 +270,16 @@ pub fn is_captured_binding(expr: &TrackedSexpr) -> bool {
         .unwrap_or(false)
 }
 
-pub fn expand_captured_binding(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+pub fn expand_captured_binding(trans: &mut Translate, sb: &SyntacticBinding) -> Result<Expression> {
     use crate::syntax::Variable::*;
-    let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
+    //let name = expr.cdr().and_then(TrackedSexpr::as_symbol).unwrap();
     unimplemented!()
-    /*match trans
-        .env
-        .find_syntax_bound(name)
-        .map(|sb| sb.variable().clone())
+    /*match sb.variable()
     {
-        Some(LocalVariable(v)) => Ok(LocalReference::new(v, expr.source().clone()).into()),
-        Some(GlobalVariable(v)) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
-        Some(MagicKeyword(mkw)) => Ok((mkw).into()),
-        Some(FreeVariable(_)) => unreachable!(),
-        Some(SyntacticBinding(_)) => unimplemented!("syntactic binding of syntactic binding"),
-        None => unimplemented!("{}", expr),
+        LocalVariable(v) => Ok(LocalReference::new(v, expr.source().clone()).into()),
+        GlobalVariable(v) => Ok(GlobalReference::new(v, expr.source().clone()).into()),
+        MagicKeyword(mkw) => Ok((mkw).into()),
+        FreeVariable(_) => unreachable!(),
+        SyntacticBinding(_) => unimplemented!("syntactic binding of syntactic binding"),
     }*/
 }
