@@ -58,7 +58,7 @@ pub mod scheme {
 
             //println!("{:#?}", ast);
 
-            let code = BytecodeGenerator::compile_toplevel(&ast, &self.trans);
+            let code = BytecodeGenerator::compile_toplevel(&ast, &self.trans)?;
             //println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));

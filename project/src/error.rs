@@ -15,8 +15,14 @@ pub struct Error {
 pub enum ErrorKind {
     Parse(ParseErrorKind),
     Objectify(ObjectifyErrorKind),
+    Compile(CompileError),
     Runtime(RuntimeError),
     TypeError(TypeError),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CompileError {
+    MacroUsedAsValue,
 }
 
 #[derive(Debug, PartialEq)]
@@ -83,6 +89,7 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
             ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
             ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),
+            ErrorKind::Compile(e) => write!(f, "Compile Error: {:?}", e),
             ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
         }
     }

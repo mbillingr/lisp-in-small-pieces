@@ -1,4 +1,5 @@
 use crate::bytecode::{CodeObject, Op};
+use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::library::ExportItem;
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
@@ -33,37 +34,42 @@ impl<'a> BytecodeGenerator<'a> {
         }
     }
 
-    pub fn compile_toplevel(expr: &Expression, trans: &'a Translate) -> CodeObject {
+    pub fn compile_toplevel(expr: &Expression, trans: &'a Translate) -> Result<CodeObject> {
         let mut bcgen = Self::new(vec![], trans);
-        let mut code = bcgen.compile(expr, true);
+        let mut code = bcgen.compile(expr, true)?;
         code.push(Op::Return);
-        CodeObject::new(
+        Ok(CodeObject::new(
             Arity::Exact(0),
             expr.source().clone(),
             code,
             bcgen.constants,
-        )
+        ))
     }
 
     pub fn compile_function(
         func: &Function,
         closure_vars: Vec<Symbol>,
         trans: &'a Translate,
-    ) -> CodeObject {
+    ) -> Result<CodeObject> {
         let mut bcgen = Self::new(closure_vars, trans);
         bcgen.env = func.variables.iter().map(|var| var.name()).collect();
-        let mut code = bcgen.compile(&func.body, true);
+        let mut code = bcgen.compile(&func.body, true)?;
         if !code.last().map(Op::is_terminal).unwrap_or(false) {
             code.push(Op::Return);
         }
-        CodeObject::new(func.arity(), func.span.clone(), code, bcgen.constants)
+        Ok(CodeObject::new(
+            func.arity(),
+            func.span.clone(),
+            code,
+            bcgen.constants,
+        ))
     }
 
-    fn compile(&mut self, node: &Expression, tail: bool) -> Vec<Op> {
+    fn compile(&mut self, node: &Expression, tail: bool) -> Result<Vec<Op>> {
         use crate::syntax::Application::*;
         use Expression::*;
-        let code: Vec<_> = match node {
-            NoOp(_) => vec![],
+        match node {
+            NoOp(_) => Ok(vec![]),
             Constant(c) => self.compile_constant(c, tail),
             Sequence(s) => self.compile_sequence(s, tail),
             Alternative(a) => self.compile_alternative(a, tail),
@@ -78,41 +84,41 @@ impl<'a> BytecodeGenerator<'a> {
             BoxRead(b) => self.compile_box_read(b, tail),
             GlobalDefine(d) => self.compile_global_def(d),
             Import(i) => self.compile_import(i),
+            MagicKeyword(m) => Err(Error {
+                kind: ErrorKind::Compile(CompileError::MacroUsedAsValue),
+                context: ErrorContext::Source(node.source().clone()),
+            }),
             _ => unimplemented!(
                 "Byte code compilation of:\n {:#?}\n {:?}",
                 node.source(),
                 node
             ),
-        };
-
-        code
+        }
     }
 
-    fn compile_reference(&mut self, node: &Reference, tail: bool) -> Vec<Op> {
+    fn compile_reference(&mut self, node: &Reference, tail: bool) -> Result<Vec<Op>> {
         use Reference::*;
-        let code: Vec<_> = match node {
+        match node {
             LocalReference(l) => self.compile_local_ref(l, tail),
             FreeReference(f) => self.compile_free_ref(f, tail),
             GlobalReference(g) => self.compile_global_ref(g, tail),
             IntrinsicReference(g) => self.compile_intrinsic_ref(g, tail),
             PredefinedReference(p) => self.compile_predef_ref(p, tail),
-        };
-        code
+        }
     }
 
-    fn compile_assignment(&mut self, node: &Assignment, tail: bool) -> Vec<Op> {
+    fn compile_assignment(&mut self, node: &Assignment, tail: bool) -> Result<Vec<Op>> {
         use Assignment::*;
-        let code: Vec<_> = match node {
+        match node {
             LocalAssignment(_) => {
                 unimplemented!("Local assignment should happen through a box write")
             }
             GlobalAssignment(g) => self.compile_global_set(g, tail),
-        };
-        code
+        }
     }
 
-    fn compile_constant(&mut self, node: &Constant, _tail: bool) -> Vec<Op> {
-        vec![self.build_constant((&node.value).into())]
+    fn compile_constant(&mut self, node: &Constant, _tail: bool) -> Result<Vec<Op>> {
+        Ok(vec![self.build_constant((&node.value).into())])
     }
 
     fn build_constant(&mut self, value: Scm) -> Op {
@@ -128,73 +134,73 @@ impl<'a> BytecodeGenerator<'a> {
         Op::Constant(idx)
     }
 
-    fn compile_sequence(&mut self, node: &Sequence, tail: bool) -> Vec<Op> {
-        let mut m1 = self.compile(&node.first, false);
-        let m2 = self.compile(&node.next, tail);
+    fn compile_sequence(&mut self, node: &Sequence, tail: bool) -> Result<Vec<Op>> {
+        let mut m1 = self.compile(&node.first, false)?;
+        let m2 = self.compile(&node.next, tail)?;
         m1.extend(m2);
-        m1
+        Ok(m1)
     }
 
-    fn compile_alternative(&mut self, node: &Alternative, tail: bool) -> Vec<Op> {
-        let m1 = self.compile(&node.condition, false);
-        let m2 = self.compile(&node.consequence, tail);
-        let m3 = self.compile(&node.alternative, tail);
+    fn compile_alternative(&mut self, node: &Alternative, tail: bool) -> Result<Vec<Op>> {
+        let m1 = self.compile(&node.condition, false)?;
+        let m2 = self.compile(&node.consequence, tail)?;
+        let m3 = self.compile(&node.alternative, tail)?;
 
         let mut meaning = m1;
         meaning.push(Op::JumpFalse(m2.len() as isize + 1));
         meaning.extend(m2);
         meaning.push(Op::Jump(m3.len() as isize));
         meaning.extend(m3);
-        meaning
+        Ok(meaning)
     }
 
-    fn compile_local_ref(&mut self, node: &LocalReference, _tail: bool) -> Vec<Op> {
+    fn compile_local_ref(&mut self, node: &LocalReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self.index_of_local(&node.var.name());
-        vec![Op::LocalRef(idx)]
+        Ok(vec![Op::LocalRef(idx)])
     }
 
-    fn compile_free_ref(&mut self, node: &FreeReference, _tail: bool) -> Vec<Op> {
+    fn compile_free_ref(&mut self, node: &FreeReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self
             .current_closure_vars
             .iter()
             .position(|&fv| fv == node.var.name())
             .unwrap();
-        vec![Op::FreeRef(idx)]
+        Ok(vec![Op::FreeRef(idx)])
     }
 
-    fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Vec<Op> {
+    fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self.trans.env.find_global_idx(&node.var.name()).unwrap();
-        vec![Op::GlobalRef(idx)]
+        Ok(vec![Op::GlobalRef(idx)])
     }
 
     /// A reference to an intrinsic compiles to normal global reference. However, other compiler
     /// steps (such as function application) may produce specially optimized code if they detect
     /// an intrinsic reference.
-    fn compile_intrinsic_ref(&mut self, node: &IntrinsicReference, _tail: bool) -> Vec<Op> {
+    fn compile_intrinsic_ref(&mut self, node: &IntrinsicReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self.trans.env.find_global_idx(&node.var.name()).unwrap();
-        vec![Op::GlobalRef(idx)]
+        Ok(vec![Op::GlobalRef(idx)])
     }
 
-    fn compile_predef_ref(&mut self, node: &PredefinedReference, _tail: bool) -> Vec<Op> {
+    fn compile_predef_ref(&mut self, node: &PredefinedReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self.trans.env.find_predef_idx(&node.var.name()).unwrap();
-        vec![Op::PredefRef(idx)]
+        Ok(vec![Op::PredefRef(idx)])
     }
 
-    fn compile_global_set(&mut self, node: &GlobalAssignment, _tail: bool) -> Vec<Op> {
+    fn compile_global_set(&mut self, node: &GlobalAssignment, _tail: bool) -> Result<Vec<Op>> {
         let idx = self
             .trans
             .env
             .find_global_idx(&node.variable.name())
             .unwrap();
-        let mut meaning = self.compile(&node.form, false);
+        let mut meaning = self.compile(&node.form, false)?;
         meaning.push(Op::GlobalSet(idx));
-        meaning
+        Ok(meaning)
     }
 
-    fn compile_global_def(&mut self, node: &GlobalDefine) -> Vec<Op> {
-        let mut meaning = self.compile(&node.form, false);
+    fn compile_global_def(&mut self, node: &GlobalDefine) -> Result<Vec<Op>> {
+        let mut meaning = self.compile(&node.form, false)?;
         meaning.push(self.build_global_def(node.variable.name()));
-        meaning
+        Ok(meaning)
     }
 
     fn build_global_def(&mut self, name: Symbol) -> Op {
@@ -202,18 +208,18 @@ impl<'a> BytecodeGenerator<'a> {
         Op::GlobalDef(idx)
     }
 
-    fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Vec<Op> {
+    fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Result<Vec<Op>> {
         let n = self.env.len();
 
         let mut meaning = vec![];
         for (var, arg) in node.variables.iter().zip(&node.arguments) {
-            let m = self.compile(arg, false);
+            let m = self.compile(arg, false)?;
             meaning.extend(m);
             meaning.push(Op::PushVal);
             self.env.push(var.name());
         }
 
-        let m = self.compile(&node.body, tail);
+        let m = self.compile(&node.body, tail)?;
         meaning.extend(m);
 
         self.env.truncate(n);
@@ -223,19 +229,19 @@ impl<'a> BytecodeGenerator<'a> {
             meaning.push(Op::Drop(node.variables.len()));
         }
 
-        meaning
+        Ok(meaning)
     }
 
-    fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Vec<Op> {
+    fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Result<Vec<Op>> {
         let free_vars = node.free_vars.iter().map(|s| s.var.name()).collect();
 
-        let function = BytecodeGenerator::compile_function(&node.func, free_vars, self.trans);
+        let function = BytecodeGenerator::compile_function(&node.func, free_vars, self.trans)?;
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];
 
         for fv in node.free_vars.iter().rev() {
-            let m = self.compile_local_ref(fv, false);
+            let m = self.compile_local_ref(fv, false)?;
             meaning.extend(m);
             meaning.push(Op::PushVal);
         }
@@ -243,15 +249,15 @@ impl<'a> BytecodeGenerator<'a> {
         let n_free = node.free_vars.len();
         meaning.push(Op::MakeClosure(n_free, function));
 
-        meaning
+        Ok(meaning)
     }
 
-    fn compile_application(&mut self, node: &RegularApplication, tail: bool) -> Vec<Op> {
+    fn compile_application(&mut self, node: &RegularApplication, tail: bool) -> Result<Vec<Op>> {
         // todo: does Scheme require that the function is evaluated first?
         let mut meaning = vec![];
 
         for a in &node.arguments {
-            let m = self.compile(a, false);
+            let m = self.compile(a, false)?;
             meaning.extend(m);
             meaning.push(Op::PushVal);
         }
@@ -261,12 +267,12 @@ impl<'a> BytecodeGenerator<'a> {
                 if !meaning.is_empty() {
                     meaning.pop(); // don't push last argument
                 }
-                let mi = self.compile_intrinsic_application(ri);
+                let mi = self.compile_intrinsic_application(ri)?;
                 meaning.extend(mi);
-                meaning
+                Ok(meaning)
             }
             _ => {
-                let mf = self.compile(&node.function, false);
+                let mf = self.compile(&node.function, false)?;
                 meaning.extend(mf);
 
                 let arity = node.arguments.len();
@@ -276,14 +282,16 @@ impl<'a> BytecodeGenerator<'a> {
                     false => meaning.push(Op::Call(arity)),
                 }
 
-                meaning
+                Ok(meaning)
             }
         }
     }
 
-    fn compile_intrinsic_application(&mut self, ri: &IntrinsicReference) -> Vec<Op> {
+    fn compile_intrinsic_application(&mut self, ri: &IntrinsicReference) -> Result<Vec<Op>> {
         match ri.var.value() {
-            VarDef::Value(Scm::Intrinsic(RuntimePrimitive { name: "cons", .. })) => vec![Op::Cons],
+            VarDef::Value(Scm::Intrinsic(RuntimePrimitive { name: "cons", .. })) => {
+                Ok(vec![Op::Cons])
+            }
             VarDef::Value(Scm::Intrinsic(RuntimePrimitive { name, .. })) => {
                 panic!("unknown intrinsic: {}", name)
             }
@@ -296,11 +304,11 @@ impl<'a> BytecodeGenerator<'a> {
         &mut self,
         node: &PredefinedApplication,
         _tail: bool,
-    ) -> Vec<Op> {
+    ) -> Result<Vec<Op>> {
         let mut meaning = vec![];
 
         for a in &node.arguments {
-            let m = self.compile(a, false);
+            let m = self.compile(a, false)?;
             meaning.extend(m);
             meaning.push(Op::PushVal);
         }
@@ -315,10 +323,10 @@ impl<'a> BytecodeGenerator<'a> {
         let arity = node.arguments.len();
         meaning.push(Op::Call(arity));
 
-        meaning
+        Ok(meaning)
     }
 
-    fn compile_box_create(&mut self, node: &BoxCreate, _tail: bool) -> Vec<Op> {
+    fn compile_box_create(&mut self, node: &BoxCreate, _tail: bool) -> Result<Vec<Op>> {
         let idx = self
             .env
             .iter()
@@ -328,21 +336,21 @@ impl<'a> BytecodeGenerator<'a> {
             .unwrap()
             .0;
         self.env.push(node.variable.name());
-        vec![Op::Boxify(idx)]
+        Ok(vec![Op::Boxify(idx)])
     }
 
-    fn compile_box_write(&mut self, node: &BoxWrite, _tail: bool) -> Vec<Op> {
-        let mut meaning = self.compile_reference(&node.reference, false);
+    fn compile_box_write(&mut self, node: &BoxWrite, _tail: bool) -> Result<Vec<Op>> {
+        let mut meaning = self.compile_reference(&node.reference, false)?;
         meaning.push(Op::PushVal);
-        meaning.extend(self.compile(&node.form, false));
+        meaning.extend(self.compile(&node.form, false)?);
         meaning.push(Op::BoxSet);
-        meaning
+        Ok(meaning)
     }
 
-    fn compile_box_read(&mut self, node: &BoxRead, _tail: bool) -> Vec<Op> {
-        let mut meaning = self.compile_reference(&node.reference, false);
+    fn compile_box_read(&mut self, node: &BoxRead, _tail: bool) -> Result<Vec<Op>> {
+        let mut meaning = self.compile_reference(&node.reference, false)?;
         meaning.push(Op::BoxGet);
-        meaning
+        Ok(meaning)
     }
 
     fn index_of_local(&self, name: &Symbol) -> usize {
@@ -355,7 +363,7 @@ impl<'a> BytecodeGenerator<'a> {
             .0
     }
 
-    fn compile_import(&mut self, node: &Import) -> Vec<Op> {
+    fn compile_import(&mut self, node: &Import) -> Result<Vec<Op>> {
         let mut ops = vec![];
 
         for set in &node.import_sets {
@@ -370,6 +378,6 @@ impl<'a> BytecodeGenerator<'a> {
             }
         }
 
-        ops
+        Ok(ops)
     }
 }
