@@ -85,7 +85,7 @@ impl<'a> BytecodeGenerator<'a> {
             GlobalDefine(d) => self.compile_global_def(d),
             Import(i) => self.compile_import(i),
             MagicKeyword(m) => Err(Error {
-                kind: ErrorKind::Compile(CompileError::MacroUsedAsValue),
+                kind: ErrorKind::Compile(CompileError::MacroUsedAsValue(m.name)),
                 context: ErrorContext::Source(node.source().clone()),
             }),
             _ => unimplemented!(

@@ -22,7 +22,7 @@ pub enum ErrorKind {
 
 #[derive(Debug, PartialEq)]
 pub enum CompileError {
-    MacroUsedAsValue,
+    MacroUsedAsValue(Symbol),
 }
 
 #[derive(Debug, PartialEq)]
