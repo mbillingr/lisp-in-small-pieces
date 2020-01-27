@@ -661,6 +661,14 @@ pub mod scheme {
                              (bar)))"#,
                  equals, Scm::Int(42));
 
+            compare!(bind_global_variable_not_value:
+                r#"(begin
+                        (define foo 123)
+                        (define-syntax bar (syntax-rules () ((bar) foo)))
+                        (define foo 42)
+                        (bar))"#,
+                 equals, Scm::Int(42));
+
             compare!(conflicting_identifiers:
                 // this macro invocation should expand to (cons x x), where both x are different bindings.
                 r#"(begin
