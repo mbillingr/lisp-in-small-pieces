@@ -1,18 +1,20 @@
 use crate::symbol::Symbol;
 use crate::syntax::{GlobalVariable, LocalVariable, Variable};
 use crate::utils::Named;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Env {
     locals: Vec<Variable>,
-    globals: Vec<Variable>,
+    globals: Rc<RefCell<Vec<Variable>>>,
 }
 
 impl Env {
     pub fn new() -> Self {
         Env {
             locals: vec![],
-            globals: vec![],
+            globals: Rc::new(RefCell::new(vec![])),
         }
     }
 
@@ -24,18 +26,23 @@ impl Env {
         self.locals().rfind(|var| name.eq(&var.name()))
     }
 
-    pub fn find_global(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<&GlobalVariable> {
+    pub fn find_global(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
         self.globals().rfind(|var| name.eq(&var.name()))
     }
 
-    pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<&GlobalVariable> {
+    pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
         self.globals().find(|var| name.eq(&var.name()))
     }
 
     pub fn find_global_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
-        let pos = self.globals.iter().rposition(|var| name.eq(&var.name()))?;
+        let pos = self
+            .globals
+            .borrow()
+            .iter()
+            .rposition(|var| name.eq(&var.name()))?;
         let idx = self
             .globals
+            .borrow()
             .iter()
             .take(pos)
             .filter_map(|var| {
@@ -65,6 +72,7 @@ impl Env {
 
     pub fn variables(&self) -> impl DoubleEndedIterator<Item = Variable> {
         self.globals
+            .borrow()
             .clone()
             .into_iter()
             .chain(self.locals.clone().into_iter())
@@ -80,8 +88,8 @@ impl Env {
         })
     }
 
-    pub fn globals(&self) -> impl DoubleEndedIterator<Item = &GlobalVariable> {
-        self.globals.iter().filter_map(|var| {
+    pub fn globals(&self) -> impl DoubleEndedIterator<Item = GlobalVariable> {
+        self.globals.borrow().clone().into_iter().filter_map(|var| {
             if let Variable::GlobalVariable(gv) = var {
                 Some(gv)
             } else {
@@ -92,7 +100,7 @@ impl Env {
 
     pub fn ensure_global(&mut self, var: GlobalVariable) {
         if self.find_global(&var.name()).is_none() {
-            self.globals.push(var.into())
+            self.globals.borrow_mut().push(var.into())
         }
     }
 
@@ -101,7 +109,7 @@ impl Env {
     }
 
     pub fn push_global(&mut self, var: impl Into<Variable>) {
-        self.globals.push(var.into())
+        self.globals.borrow_mut().push(var.into())
     }
 
     pub fn extend_local<T: Into<Variable>>(&mut self, vars: impl IntoIterator<Item = T>) {
