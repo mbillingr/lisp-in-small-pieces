@@ -1,6 +1,5 @@
 use crate::env::Env;
 use crate::library::{is_import, libname_to_path, ExportItem, Library};
-use crate::scm::Scm;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
@@ -140,9 +139,9 @@ impl Translate {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
             Some(Variable::GlobalVariable(v)) => match v.value() {
-                VarDef::Value(Scm::Intrinsic(_)) => {
+                /*VarDef::Value(Scm::Intrinsic(_)) => {
                     Ok(IntrinsicReference::new(v, expr.source().clone()).into())
-                }
+                }*/
                 _ => Ok(GlobalReference::new(v, expr.source().clone()).into()),
             },
             Some(Variable::MagicKeyword(mkw)) => Ok((mkw).into()),
@@ -158,12 +157,12 @@ impl Translate {
         name: Symbol,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let v = self.adjoin_global_variable(name);
+        let v = self.adjoin_global_variable(name, VarDef::Undefined);
         Ok(GlobalReference::new(v, span).into())
     }
 
-    fn adjoin_global_variable(&mut self, name: Symbol) -> GlobalVariable {
-        let v = GlobalVariable::new(name);
+    fn adjoin_global_variable(&mut self, name: Symbol, def: VarDef) -> GlobalVariable {
+        let v = GlobalVariable::new(name, def);
         self.env.push_global(v.clone());
         v
     }
@@ -316,7 +315,7 @@ impl Translate {
         let gvar = match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
             Some(Variable::GlobalVariable(v)) => v,
-            _ => self.adjoin_global_variable(*var_name),
+            _ => self.adjoin_global_variable(*var_name, VarDef::Unknown),
         };
 
         match &form {
@@ -352,15 +351,18 @@ impl Translate {
             | Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
                 let gvar = var;
 
-                match &of {
-                    Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
-                    Expression::Reference(Reference::GlobalReference(gr)) => {
-                        gvar.set_value(gr.var.value())
+                if let VarDef::Undefined = gvar.value() {
+                } else {
+                    match &of {
+                        Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
+                        Expression::Reference(Reference::GlobalReference(gr)) => {
+                            gvar.set_value(gr.var.value())
+                        }
+                        Expression::Reference(Reference::IntrinsicReference(ir)) => {
+                            gvar.set_value(ir.var.value())
+                        }
+                        _ => gvar.set_value(VarDef::Unknown),
                     }
-                    Expression::Reference(Reference::IntrinsicReference(ir)) => {
-                        gvar.set_value(ir.var.value())
-                    }
-                    _ => gvar.set_value(VarDef::Unknown),
                 }
 
                 Ok(GlobalAssignment::new(gvar, of, span).into())

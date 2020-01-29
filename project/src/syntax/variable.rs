@@ -84,8 +84,8 @@ impl std::fmt::Debug for LocalVariable {
 pub struct GlobalVariable(Rc<Cell<(Symbol, VarDef)>>);
 
 impl GlobalVariable {
-    pub fn new(name: impl Into<Symbol>) -> Self {
-        GlobalVariable(Rc::new(Cell::new((name.into(), VarDef::Unknown))))
+    pub fn new(name: impl Into<Symbol>, def: VarDef) -> Self {
+        GlobalVariable(Rc::new(Cell::new((name.into(), def))))
     }
 
     pub fn defined(name: impl Into<Symbol>, value: Scm) -> Self {
@@ -152,6 +152,7 @@ impl std::fmt::Debug for FreeVariable {
 #[derive(Debug, Copy, Clone)]
 pub enum VarDef {
     Unknown,
+    Undefined,
     Value(Scm),
 }
 
@@ -159,6 +160,7 @@ impl std::fmt::Display for VarDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             VarDef::Unknown => write!(f, "?"),
+            VarDef::Undefined => write!(f, "-"),
             VarDef::Value(x) => write!(f, "{}", x),
         }
     }

@@ -404,7 +404,7 @@ pub mod scheme {
                             "car",
                             Arity::Exact(1),
                             |args: &[Scm], _ctx| match &args[..] {
-                                [a] => unimplemented!(),
+                                [_] => unimplemented!(),
                                 _ => unreachable!(),
                             },
                         )),
@@ -742,12 +742,12 @@ pub mod scheme {
                 r#"(import (rename (testing 1) (b c))) (cons a c)"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
 
-            compare!(import_shared_value:
+            compare!(import_shared_value_not_allowed:
                 r#"(import (testing 1))
                    (import (rename (testing 1) (a c)))
                    (set! c 42)
                    (cons a c)"#,
-                 equals, Scm::cons(Scm::Int(42), Scm::Int(42)));
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(42)));
 
             compare!(import_nested_sets:
                 r#"(import (rename (rename (testing 1) (a c)) (c x)))
