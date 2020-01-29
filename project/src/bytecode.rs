@@ -56,6 +56,8 @@ pub enum Op {
 
     // Intrinsics
     Cons,
+    Car,
+    Cdr,
 }
 
 impl Op {
@@ -280,6 +282,8 @@ impl VirtualMachine {
                     let car = self.pop_value()?;
                     val = Scm::cons(car, val);
                 }
+                Op::Car => val = val.car()?,
+                Op::Cdr => val = val.cdr()?,
             }
         }
     }
@@ -348,6 +352,8 @@ impl std::fmt::Debug for Op {
             Op::Drop(n) => write!(f, "(drop {})", n),
             Op::Import(l) => write!(f, "(import {})", l),
             Op::Cons => write!(f, "(cons)"),
+            Op::Car => write!(f, "(car)"),
+            Op::Cdr => write!(f, "(cdr)"),
         }
     }
 }

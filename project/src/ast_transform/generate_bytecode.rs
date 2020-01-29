@@ -278,6 +278,8 @@ impl<'a> BytecodeGenerator<'a> {
                 match var.value() {
                     VarDef::Value(Scm::Primitive(RuntimePrimitive { name, .. })) => match name {
                         "cons" => Ok(Some(vec![Op::Cons])),
+                        "car" => Ok(Some(vec![Op::Car])),
+                        "cdr" => Ok(Some(vec![Op::Cdr])),
                         _ => Ok(None),
                     },
                     _ => Ok(None),
