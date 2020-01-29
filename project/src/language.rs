@@ -64,7 +64,11 @@ pub mod scheme {
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
             self.vm.synchronize_globals(self.trans.env.globals());
-            Ok(self.vm.eval(closure)?)
+            let result = self.vm.eval(closure)?;
+            self.trans
+                .env
+                .update_global_values(self.vm.globals().iter().copied());
+            Ok(result)
         }
 
         fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
@@ -297,8 +301,8 @@ pub mod scheme {
                 kind: ObjectifyErrorKind::ExpectedList,
                 location: expr.source().clone(),
             })
-            .and_then(|(variable, expr)| {
-                trans.objectify_assignment(variable, expr, expr.source().clone())
+            .and_then(|(variable, form)| {
+                trans.objectify_assignment(variable, form, expr.source().clone())
             })
     }
 
@@ -385,11 +389,22 @@ pub mod scheme {
                     .add_value("b", 2)
                     .add_value(
                         "kons",
-                        Scm::Primitive(RuntimePrimitive::new(
-                            "kons",
+                        Scm::Intrinsic(RuntimePrimitive::new(
+                            "cons",
                             Arity::Exact(2),
                             |args: &[Scm], _ctx| match &args[..] {
                                 [a, b] => Ok(Scm::cons(a.into(), b.into())),
+                                _ => unreachable!(),
+                            },
+                        )),
+                    )
+                    .add_value(
+                        "kar",
+                        Scm::Primitive(RuntimePrimitive::new(
+                            "car",
+                            Arity::Exact(1),
+                            |args: &[Scm], _ctx| match &args[..] {
+                                [a] => unimplemented!(),
                                 _ => unreachable!(),
                             },
                         )),
@@ -741,6 +756,10 @@ pub mod scheme {
 
             compare!(import_primitive:
                 r#"(import (testing 1)) (kons 1 2)"#,
+                 equals, Scm::cons(Scm::Int(0), Scm::Int(2))); // todo: possible to import primitives into predef?
+
+            compare!(import_primitive2:
+                r#"(import (testing 1)) (kar (kons 1 2))"#,
                  equals, Scm::cons(Scm::Int(0), Scm::Int(2))); // todo: possible to import primitives into predef?
         }
 

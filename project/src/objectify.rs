@@ -319,6 +319,15 @@ impl Translate {
             _ => self.adjoin_global_variable(*var_name),
         };
 
+        match &form {
+            Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
+            Expression::Reference(Reference::GlobalReference(gr)) => gvar.set_value(gr.var.value()),
+            Expression::Reference(Reference::IntrinsicReference(ir)) => {
+                gvar.set_value(ir.var.value())
+            }
+            _ => gvar.set_value(VarDef::Unknown),
+        }
+
         Ok(GlobalDefine::new(gvar, form, span).into())
     }
 
@@ -336,8 +345,25 @@ impl Translate {
                 r.var.set_mutable(true);
                 Ok(LocalAssignment::new(r, of, span).into())
             }
-            Expression::Reference(Reference::GlobalReference(r)) => {
-                Ok(GlobalAssignment::new(r.var, of, span).into())
+            Expression::Reference(Reference::IntrinsicReference(IntrinsicReference {
+                var,
+                ..
+            }))
+            | Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
+                let gvar = var;
+
+                match &of {
+                    Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
+                    Expression::Reference(Reference::GlobalReference(gr)) => {
+                        gvar.set_value(gr.var.value())
+                    }
+                    Expression::Reference(Reference::IntrinsicReference(ir)) => {
+                        gvar.set_value(ir.var.value())
+                    }
+                    _ => gvar.set_value(VarDef::Unknown),
+                }
+
+                Ok(GlobalAssignment::new(gvar, of, span).into())
             }
             _ => Err(ObjectifyError {
                 kind: ObjectifyErrorKind::ImmutableAssignment,
@@ -359,13 +385,16 @@ impl Translate {
             let mut import_macros = vec![];
             for item in &import_obj.items {
                 match &item.item {
-                    ExportItem::Value(_) => import_vars.push(GlobalVariable::new(item.import_name)),
+                    ExportItem::Value(x) => {
+                        import_vars.push(GlobalVariable::defined(item.import_name, *x))
+                    }
                     ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
                 }
             }
 
             for var in import_vars {
-                self.env.ensure_global(var);
+                let gv = self.env.ensure_global(var.clone());
+                gv.set_value(var.value());
             }
 
             self.env.extend_global(import_macros);

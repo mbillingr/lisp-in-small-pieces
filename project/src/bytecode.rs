@@ -132,7 +132,7 @@ impl VirtualMachine {
         for gvar in env.skip(self.globals.len()) {
             match gvar.value() {
                 VarDef::Unknown => self.globals.push((Scm::uninitialized(), gvar.name())),
-                VarDef::Value(x) => self.globals.push((*x, gvar.name())),
+                VarDef::Value(x) => self.globals.push((x, gvar.name())),
             }
         }
     }

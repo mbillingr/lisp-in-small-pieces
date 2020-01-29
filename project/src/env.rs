@@ -1,4 +1,6 @@
+use crate::scm::Scm;
 use crate::symbol::Symbol;
+use crate::syntax::variable::VarDef;
 use crate::syntax::{GlobalVariable, LocalVariable, Variable};
 use crate::utils::Named;
 use std::cell::RefCell;
@@ -98,9 +100,13 @@ impl Env {
         })
     }
 
-    pub fn ensure_global(&mut self, var: GlobalVariable) {
-        if self.find_global(&var.name()).is_none() {
-            self.globals.borrow_mut().push(var.into())
+    pub fn ensure_global(&mut self, var: GlobalVariable) -> GlobalVariable {
+        match self.find_global(&var.name()) {
+            None => {
+                self.globals.borrow_mut().push(var.clone().into());
+                var
+            }
+            Some(gv) => gv,
         }
     }
 
@@ -135,5 +141,15 @@ impl Env {
     pub fn drop_frame(&mut self, n: usize) {
         let n = self.locals.len() - n;
         self.locals.truncate(n);
+    }
+
+    pub fn update_global_values(&self, values: impl Iterator<Item = (Scm, Symbol)>) {
+        for (gv, (value, name)) in self.globals().zip(values) {
+            assert_eq!(gv.name(), name);
+            match value {
+                Scm::Undefined | Scm::Uninitialized => gv.set_value(VarDef::Unknown),
+                val => gv.set_value(VarDef::Value(val)),
+            }
+        }
     }
 }

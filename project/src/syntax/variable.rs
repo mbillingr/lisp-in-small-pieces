@@ -81,26 +81,31 @@ impl std::fmt::Debug for LocalVariable {
 }
 
 #[derive(Clone)]
-pub struct GlobalVariable(Symbol, VarDef);
+pub struct GlobalVariable(Rc<Cell<(Symbol, VarDef)>>);
 
 impl GlobalVariable {
     pub fn new(name: impl Into<Symbol>) -> Self {
-        GlobalVariable(name.into(), VarDef::Unknown)
+        GlobalVariable(Rc::new(Cell::new((name.into(), VarDef::Unknown))))
     }
 
     pub fn defined(name: impl Into<Symbol>, value: Scm) -> Self {
-        GlobalVariable(name.into(), VarDef::Value(value))
+        GlobalVariable(Rc::new(Cell::new((name.into(), VarDef::Value(value)))))
     }
 
-    pub fn value(&self) -> &VarDef {
-        &self.1
+    pub fn value(&self) -> VarDef {
+        self.0.get().1
+    }
+
+    pub fn set_value(&self, value: VarDef) {
+        let (name, _) = self.0.get();
+        self.0.set((name, value));
     }
 }
 
 impl Named for GlobalVariable {
     type Name = Symbol;
     fn name(&self) -> Symbol {
-        self.0
+        self.0.get().0
     }
 }
 
@@ -144,7 +149,7 @@ impl std::fmt::Debug for FreeVariable {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum VarDef {
     Unknown,
     Value(Scm),
