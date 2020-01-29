@@ -18,13 +18,20 @@ pub struct CodeObject {
     ops: Box<[Op]>,
 }
 
+impl PartialEq for CodeObject {
+    fn eq(&self, other: &Self) -> bool {
+        //self.ops == other.ops && self.constants == other.constants
+        false
+    }
+}
+
 #[derive(Debug)]
 pub struct Closure {
     pub code: &'static CodeObject,
     pub free_vars: Box<[Scm]>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Op {
     Constant(usize),
     LocalRef(usize),

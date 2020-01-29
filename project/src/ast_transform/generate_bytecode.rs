@@ -370,3 +370,32 @@ impl<'a> BytecodeGenerator<'a> {
         Ok(ops)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bytecode::VirtualMachine;
+    use crate::env::Env;
+    use crate::source::SourceLocation::NoSource;
+    use crate::syntax::{GlobalVariable, NoOp};
+
+    #[test]
+    fn compile_intrinsics() {
+        let expr = Expression::Reference(Reference::GlobalReference(GlobalReference::new(
+            GlobalVariable::defined(
+                "no-matter",
+                Scm::Primitive(RuntimePrimitive::new(
+                    "cons",
+                    Arity::Exact(2),
+                    |_: &[Scm], _: &VirtualMachine| unimplemented!(),
+                )),
+            ),
+            NoSource,
+        )));
+
+        let trans = Translate::new(Env::new());
+        let mut gen = BytecodeGenerator::new(vec![], &trans);
+        let code = gen.compile_intrinsic_application(&expr).unwrap();
+        assert_eq!(code, Some(vec![Op::Cons]));
+    }
+}
