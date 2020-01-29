@@ -5,7 +5,6 @@ use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
-use crate::syntax::reference::IntrinsicReference;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
@@ -321,9 +320,6 @@ impl Translate {
         match &form {
             Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
             Expression::Reference(Reference::GlobalReference(gr)) => gvar.set_value(gr.var.value()),
-            Expression::Reference(Reference::IntrinsicReference(ir)) => {
-                gvar.set_value(ir.var.value())
-            }
             _ => gvar.set_value(VarDef::Unknown),
         }
 
@@ -344,11 +340,7 @@ impl Translate {
                 r.var.set_mutable(true);
                 Ok(LocalAssignment::new(r, of, span).into())
             }
-            Expression::Reference(Reference::IntrinsicReference(IntrinsicReference {
-                var,
-                ..
-            }))
-            | Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
+            Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
                 let gvar = var;
 
                 if let VarDef::Undefined = gvar.value() {
@@ -357,9 +349,6 @@ impl Translate {
                         Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
                         Expression::Reference(Reference::GlobalReference(gr)) => {
                             gvar.set_value(gr.var.value())
-                        }
-                        Expression::Reference(Reference::IntrinsicReference(ir)) => {
-                            gvar.set_value(ir.var.value())
                         }
                         _ => gvar.set_value(VarDef::Unknown),
                     }

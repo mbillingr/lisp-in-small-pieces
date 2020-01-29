@@ -59,7 +59,7 @@ pub mod scheme {
             //println!("{:#?}", ast);
 
             let code = BytecodeGenerator::compile_toplevel(&ast, &self.trans)?;
-            //println!("{:#?}", code);
+            println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
@@ -145,37 +145,6 @@ pub mod scheme {
             env
         }};
 
-        (intrinsic $name:expr, =1, $func:expr; $($rest:tt)*) => {{
-            predef!{
-                @intrinsic $name, =1,
-                |args: &[Scm]| {
-                    match &args[..] {
-                        [a] => $func(a.into()),
-                        _ => unreachable!(),
-                    }
-                };
-                $($rest)*}
-        }};
-
-        (intrinsic $name:expr, =2, $func:expr; $($rest:tt)*) => {{
-            predef!{
-                @intrinsic $name, =2,
-                |args: &[Scm], _ctx: &VirtualMachine| {
-                    match &args[..] {
-                        [a, b] => $func(a.into(), b.into()),
-                        _ => unreachable!(),
-                    }
-                };
-                $($rest)*}
-        }};
-
-        (@intrinsic $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let mut env = predef!{$($rest)*};
-            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args, ctx| $func(args, ctx).wrap());
-            env.push_global(GlobalVariable::defined($name, Scm::intrinsic(func)));
-            env
-        }};
-
         (macro $name:expr, $func:ident; $($rest:tt)*) => {{
             let mut env = predef!{$($rest)*};
             env.push_global(MagicKeyword::new($name, $func));
@@ -185,7 +154,7 @@ pub mod scheme {
 
     pub fn init_env() -> Env {
         predef! {
-            intrinsic "cons", =2, Scm::cons;
+            primitive "cons", =2, Scm::cons;
             primitive "car", =1, Scm::car;
             primitive "cdr", =1, Scm::cdr;
             primitive "set-car!", =2, Scm::set_car;
@@ -389,7 +358,7 @@ pub mod scheme {
                     .add_value("b", 2)
                     .add_value(
                         "kons",
-                        Scm::Intrinsic(RuntimePrimitive::new(
+                        Scm::Primitive(RuntimePrimitive::new(
                             "cons",
                             Arity::Exact(2),
                             |args: &[Scm], _ctx| match &args[..] {

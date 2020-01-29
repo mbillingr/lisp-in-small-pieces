@@ -223,7 +223,7 @@ impl VirtualMachine {
                         ip = 0;
                         cls = callee;
                     }
-                    Scm::Primitive(func) | Scm::Intrinsic(func) => {
+                    Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
                         val = func.invoke(&self.value_stack[n..], self)?;
                         self.value_stack.truncate(n);
@@ -242,7 +242,7 @@ impl VirtualMachine {
                         ip = 0;
                         cls = callee;
                     }
-                    Scm::Primitive(func) | Scm::Intrinsic(func) => {
+                    Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
                         val = func.invoke(&self.value_stack[n..], self)?;
 
