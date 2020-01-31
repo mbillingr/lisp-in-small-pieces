@@ -1,6 +1,5 @@
 use crate::error::{Result, RuntimeError, TypeError};
 use crate::library::ExportItem;
-use crate::library::Library;
 use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
@@ -8,6 +7,7 @@ use crate::symbol::Symbol;
 use crate::syntax::variable::VarDef;
 use crate::syntax::GlobalVariable;
 use crate::utils::Named;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -59,7 +59,7 @@ pub enum Op {
 
     Drop(usize),
 
-    Import(usize),
+    Import,
 
     // Intrinsics
     Cons,
@@ -104,9 +104,11 @@ impl CodeObject {
     }
 }
 
+pub type Library = HashMap<Symbol, Scm>;
+
 pub struct VirtualMachine {
     globals: Vec<(Scm, Symbol)>,
-    libraries: Vec<Rc<Library>>,
+    libraries: HashMap<&'static str, Library>,
     value_stack: Vec<Scm>,
     call_stack: Vec<(usize, isize, &'static Closure)>,
 }
@@ -127,7 +129,7 @@ impl VirtualMachine {
     pub fn new(globals: Vec<(Scm, Symbol)>) -> Self {
         VirtualMachine {
             globals,
-            libraries: vec![],
+            libraries: HashMap::new(),
             value_stack: vec![],
             call_stack: vec![],
         }
@@ -148,8 +150,8 @@ impl VirtualMachine {
         }
     }
 
-    pub fn add_library(&mut self, library: Rc<Library>) {
-        self.libraries.push(library);
+    pub fn add_library(&mut self, name: &'static str, library: Library) {
+        self.libraries.insert(name, library);
     }
 
     pub fn eval(&mut self, mut cls: &'static Closure) -> Result<Scm> {
@@ -270,14 +272,28 @@ impl VirtualMachine {
                 Op::Drop(n) => {
                     self.value_stack.truncate(self.value_stack.len() - n);
                 }
-                Op::Import(l) => {
+                Op::Import => {
                     // intended use:
+                    //   (constant l)   ; load library name
+                    //   (push-val)
+                    //
                     //   (constant c)   ; load identifier name
-                    //   (import l)     ; import value of identifier from library l
+                    //   (import)       ; import value of identifier from library l
                     //   (global-def g) ; store into global variable
+                    //
+                    //   (constant d)   ; load identifier name
+                    //   (import)       ; import value of identifier from library l
+                    //   (global-def h) ; store into global variable
+                    //
+                    //   (drop 1)
+                    // ; The import instruction leaves the library name on the stack.
                     let identifier = val.as_symbol()?;
-                    match self.libraries[l].lookup(identifier) {
-                        Some(ExportItem::Value(v)) => val = *v,
+                    let libname = self.peek_value()?.as_string()?;
+                    if !self.libraries.contains_key(&libname) {
+                        unimplemented!()
+                    }
+                    match self.libraries[&libname].get(&identifier) {
+                        Some(v) => val = *v,
                         _ => panic!("Invalid import"),
                     }
                 }
@@ -313,6 +329,13 @@ impl VirtualMachine {
     fn pop_value(&mut self) -> Result<Scm> {
         self.value_stack
             .pop()
+            .ok_or(RuntimeError::ValueStackUnderflow.into())
+    }
+
+    fn peek_value(&mut self) -> Result<Scm> {
+        self.value_stack
+            .last()
+            .copied()
             .ok_or(RuntimeError::ValueStackUnderflow.into())
     }
 
@@ -353,7 +376,7 @@ impl std::fmt::Debug for Op {
             Op::Return => write!(f, "(return)"),
             Op::Halt => write!(f, "(halt)"),
             Op::Drop(n) => write!(f, "(drop {})", n),
-            Op::Import(l) => write!(f, "(import {})", l),
+            Op::Import => write!(f, "(import)"),
             Op::Cons => write!(f, "(cons)"),
             Op::Car => write!(f, "(car)"),
             Op::Cdr => write!(f, "(cdr)"),

@@ -356,14 +356,17 @@ impl<'a> BytecodeGenerator<'a> {
         let mut ops = vec![];
 
         for set in &node.import_sets {
-            let lib_idx = self.trans.libs[&set.library_name].0;
             for item in &set.items {
                 if let ExportItem::Macro(_) = item.item {
                     continue;
                 }
+                let libname = set.library_path.to_str().unwrap();
+                ops.push(self.build_constant(Scm::string(libname)));
+                ops.push(Op::PushVal);
                 ops.push(self.build_constant(Scm::Symbol(item.export_name)));
-                ops.push(Op::Import(lib_idx));
+                ops.push(Op::Import);
                 ops.push(self.build_global_def(item.import_name));
+                ops.push(Op::Drop(1));
             }
         }
 

@@ -2,18 +2,23 @@ use crate::objectify::Result;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;
+use crate::syntax::variable::VarDef;
 use crate::syntax::MagicKeyword;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+pub type StaticLibrary = HashMap<Symbol, ExportItem>;
+pub type DynamicLibrary = HashMap<Symbol, Scm>;
+
 #[derive(Debug, Clone)]
 pub struct Library {
-    exports: HashMap<Symbol, ExportItem>,
+    pub exports: StaticLibrary,
+    pub values: DynamicLibrary,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExportItem {
-    Value(Scm),
+    Value(VarDef),
     Macro(MagicKeyword),
 }
 
@@ -21,6 +26,7 @@ impl Library {
     pub fn new() -> Self {
         Library {
             exports: HashMap::new(),
+            values: HashMap::new(),
         }
     }
 
@@ -48,10 +54,20 @@ impl LibraryBuilder {
         self.lib
     }
 
-    pub fn add_value(mut self, identifier: impl Into<Symbol>, value: impl Into<Scm>) -> Self {
+    /*pub fn add_identifier(mut self, identifier: impl Into<Symbol>) -> Self {
         self.lib
             .exports
-            .insert(identifier.into(), ExportItem::Value(value.into()));
+            .insert(identifier.into(), ExportItem::Value(VarDef::Unknown));
+        self
+    }*/
+
+    pub fn add_value(mut self, identifier: impl Into<Symbol>, value: impl Into<Scm>) -> Self {
+        let name = identifier.into();
+        let value = value.into();
+        self.lib
+            .exports
+            .insert(name, ExportItem::Value(VarDef::Value(value)));
+        self.lib.values.insert(name, value);
         self
     }
 

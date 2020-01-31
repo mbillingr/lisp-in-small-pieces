@@ -1,5 +1,5 @@
 use crate::env::Env;
-use crate::library::{is_import, libname_to_path, ExportItem, Library};
+use crate::library::{is_import, libname_to_path, ExportItem, Library, StaticLibrary};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
@@ -14,6 +14,8 @@ use crate::syntax::{
 use crate::utils::Sourced;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -40,7 +42,7 @@ pub enum ObjectifyErrorKind {
 pub struct Translate {
     pub env: Env,
     pub base_env: Env,
-    pub libs: HashMap<PathBuf, (usize, Rc<Library>)>,
+    pub libs: HashMap<PathBuf, StaticLibrary>,
 }
 
 impl Translate {
@@ -355,15 +357,14 @@ impl Translate {
         let mut sets = vec![];
 
         while import_sets.is_pair() {
-            let import_set = import_sets.car().unwrap();
-            let import_obj = self.objectify_import_set(import_set)?;
+            let import_obj = self.objectify_import_set(import_sets.car().unwrap())?;
 
             let mut import_vars = vec![];
             let mut import_macros = vec![];
             for item in &import_obj.items {
                 match &item.item {
                     ExportItem::Value(x) => {
-                        import_vars.push(GlobalVariable::defined(item.import_name, *x))
+                        import_vars.push(GlobalVariable::new(item.import_name, *x))
                     }
                     ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
                 }
@@ -399,8 +400,12 @@ impl Translate {
         let lib = self.load_library(form)?;
 
         Ok(ImportSet::new(
+            form.into(),
             library_path,
-            lib.all_exports().map(ImportItem::from_export).collect(),
+            lib.iter()
+                .map(|(s, item)| (*s, item))
+                .map(ImportItem::from_export)
+                .collect(),
             form.source().clone(),
         ))
     }
@@ -503,21 +508,28 @@ impl Translate {
         Ok(import_set)
     }
 
-    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<&Library> {
+    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<&StaticLibrary> {
         let library_path = libname_to_path(library_name)?;
         if self.libs.contains_key(&library_path) {
-            Ok(&self.libs[&library_path].1)
+            Ok(&self.libs[&library_path])
         } else {
-            Err(ObjectifyError {
-                kind: ObjectifyErrorKind::UnknownLibrary(library_path).into(),
+            let mut file_path = library_path.clone();
+            file_path.set_extension("sld");
+            let mut file = File::open(&file_path).map_err(|_| ObjectifyError {
+                kind: ObjectifyErrorKind::UnknownLibrary(file_path).into(),
                 location: library_name.src.clone(),
-            })
+            })?;
+            let mut library_code = String::new();
+            file.read_to_string(&mut library_code)
+                .expect("Could not read file");
+
+            unimplemented!()
         }
     }
 
-    pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Rc<Library>) {
+    pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: StaticLibrary) {
         let idx = self.libs.len();
-        self.libs.insert(library_name.into(), (idx, library));
+        self.libs.insert(library_name.into(), library);
     }
 }
 

@@ -38,6 +38,7 @@ pub enum TypeError {
     NotCallable,
     NoPair,
     NoSymbol,
+    NoString,
 }
 
 #[derive(Debug)]

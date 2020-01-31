@@ -136,6 +136,13 @@ impl Scm {
         }
     }
 
+    pub fn as_string(&self) -> Result<&'static str> {
+        match self {
+            Scm::String(s) => Ok(*s),
+            _ => Err(TypeError::NoString.into()),
+        }
+    }
+
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),

@@ -56,7 +56,7 @@ pub mod scheme {
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
-            //println!("{:#?}", ast);
+            println!("{:#?}", ast);
 
             let code = BytecodeGenerator::compile_toplevel(&ast, &self.trans)?;
             println!("{:#?}", code);
@@ -71,10 +71,12 @@ pub mod scheme {
             Ok(result)
         }
 
-        fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
-            let lib = Rc::new(library);
-            self.trans.add_library(library_name, lib.clone());
-            self.vm.add_library(lib);
+        fn add_library(&mut self, library_name: impl Into<PathBuf>, lib: Library) {
+            let name = library_name.into();
+            self.trans.add_library(name.clone(), lib.exports);
+
+            let name = Scm::string(name.to_str().unwrap()).as_string().unwrap();
+            self.vm.add_library(name, lib.values);
         }
     }
 
@@ -680,11 +682,15 @@ pub mod scheme {
             use crate::error::RuntimeError;
             use crate::symbol::Symbol;
 
-            assert_error!(nonexisting_library: "(import (foo bar)) #f",
-                ObjectifyErrorKind::UnknownLibrary(["foo", "bar"].iter().collect()));
+            assert_error!(nonexisting_library: "(import (test foo bar)) #f",
+                ObjectifyErrorKind::UnknownLibrary(["test", "foo", "bar.sld"].iter().collect()));
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
+                 equals, Scm::False);
+
+            compare!(import_twice_and_do_nothing:
+                r#"(import (testing 1)) (import (testing 1)) #f"#,
                  equals, Scm::False);
 
             compare!(import_values:

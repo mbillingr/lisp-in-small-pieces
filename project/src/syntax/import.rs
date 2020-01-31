@@ -1,5 +1,6 @@
 use crate::ast_transform::Transformer;
 use crate::library::ExportItem;
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use std::collections::HashSet;
@@ -31,15 +32,22 @@ impl Import {
 
 #[derive(Debug, Clone)]
 pub struct ImportSet {
-    pub library_name: PathBuf,
+    pub library_name: Scm,
+    pub library_path: PathBuf,
     pub items: HashSet<ImportItem>,
     pub span: SourceLocation,
 }
 impl_sourced!(ImportSet);
 
 impl ImportSet {
-    pub fn new(library_name: PathBuf, items: HashSet<ImportItem>, span: SourceLocation) -> Self {
+    pub fn new(
+        library_name: Scm,
+        library_path: PathBuf,
+        items: HashSet<ImportItem>,
+        span: SourceLocation,
+    ) -> Self {
         ImportSet {
+            library_path,
             library_name,
             items: items.into(),
             span,
