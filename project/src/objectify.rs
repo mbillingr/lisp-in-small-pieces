@@ -138,9 +138,6 @@ impl Translate {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
             Some(Variable::GlobalVariable(v)) => match v.value() {
-                /*VarDef::Value(Scm::Intrinsic(_)) => {
-                    Ok(IntrinsicReference::new(v, expr.source().clone()).into())
-                }*/
                 _ => Ok(GlobalReference::new(v, expr.source().clone()).into()),
             },
             Some(Variable::MagicKeyword(mkw)) => Ok((mkw).into()),
@@ -184,17 +181,6 @@ impl Translate {
 
         match func {
             Expression::Function(f) => self.process_closed_application(f.clone(), args_list, span),
-            /*Expression::Reference(Reference::PredefinedReference(p)) => {
-                let fvf = p.var.clone();
-                if fvf.procedure().arity().check(args_list.len()) {
-                    Ok(PredefinedApplication::new(fvf, args_list, span).into())
-                } else {
-                    Err(ObjectifyError {
-                        kind: ObjectifyErrorKind::IncorrectArity,
-                        location: span,
-                    })
-                }
-            }*/
             _ => Ok(RegularApplication::new(func.clone(), args_list, span).into()),
         }
     }

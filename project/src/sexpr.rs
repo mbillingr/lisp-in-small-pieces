@@ -27,8 +27,6 @@ pub enum Sexpr {
     Float(f64),
 
     Pair(Box<(TrackedSexpr, TrackedSexpr)>),
-
-    //List(RcSlice<TrackedSexpr>, Option<Box<TrackedSexpr>>),
     Vector(Vec<TrackedSexpr>),
 
     SyntacticClosure(Box<SyntacticClosure>),
@@ -65,17 +63,6 @@ impl std::fmt::Display for Sexpr {
                 }
                 write!(f, ")")
             }
-            /*Sexpr::List(items, dot) => {
-                write!(f, "(")?;
-                write!(f, "{}", items[0])?;
-                for i in &items[1..] {
-                    write!(f, " {}", i)?;
-                }
-                if let Some(d) = dot {
-                    write!(f, " . {}", d)?;
-                }
-                write!(f, ")")
-            }*/
             Sexpr::Vector(items) => {
                 write!(f, "#(")?;
                 write!(f, "{}", items[0])?;

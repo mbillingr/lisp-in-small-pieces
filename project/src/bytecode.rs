@@ -19,7 +19,7 @@ pub struct CodeObject {
 }
 
 impl PartialEq for CodeObject {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, _other: &Self) -> bool {
         //self.ops == other.ops && self.constants == other.constants
         false
     }
@@ -151,10 +151,6 @@ impl VirtualMachine {
     pub fn add_library(&mut self, library: Rc<Library>) {
         self.libraries.push(library);
     }
-
-    /*pub fn resize_globals(&mut self, n: usize) {
-        self.globals.resize(n, Scm::uninitialized())
-    }*/
 
     pub fn eval(&mut self, mut cls: &'static Closure) -> Result<Scm> {
         let mut val = Scm::Undefined;

@@ -65,13 +65,6 @@ impl Env {
             .map(|(idx, _)| idx)
     }
 
-    /*pub fn find_syntax_bound(
-        &self,
-        name: &(impl PartialEq<Symbol> + ?Sized),
-    ) -> Option<SyntacticBinding> {
-        self.syntax.find_variable(name)
-    }*/
-
     pub fn variables(&self) -> impl DoubleEndedIterator<Item = Variable> {
         self.globals
             .borrow()
@@ -129,14 +122,6 @@ impl Env {
             self.push_local(var)
         }
     }
-
-    /*pub fn extend_syntax(&mut self, vars: impl IntoIterator<Item = SyntacticBinding>) {
-        self.syntax.extend_frame(vars.into_iter())
-    }
-
-    pub fn drop_syntax(&mut self, n: usize) {
-        self.syntax.pop_frame(n);
-    }*/
 
     pub fn drop_frame(&mut self, n: usize) {
         let n = self.locals.len() - n;

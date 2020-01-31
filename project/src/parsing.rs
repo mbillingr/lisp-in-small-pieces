@@ -152,7 +152,6 @@ pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
 }
 
 fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
-    //not(char(')'))(src)?;
     any((
         any((parse_abbreviation, parse_dot, parse_boolean, parse_symbol)),
         any((parse_list, parse_vector, parse_string, parse_number)),
@@ -474,16 +473,6 @@ mod combinators {
     ) -> impl Fn(Span<'a>) -> ParseResult<'a, T> {
         move |input: Span<'a>| -> ParseResult<'a, T> { parser(input).map(|(x, _)| (x, input)) }
     }
-
-    /*pub fn opt<'a, T>(
-        parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,
-    ) -> impl Fn(Span<'a>) -> (Option<T>, Span<'a>) {
-        move |input: Span<'a>| {
-            parser(input)
-                .map(|(out, rest)| (Some(out), rest))
-                .unwrap_or((None, input))
-        }
-    }*/
 
     pub fn opt<'a, T>(
         parser: impl Fn(Span<'a>) -> ParseResult<'a, T>,

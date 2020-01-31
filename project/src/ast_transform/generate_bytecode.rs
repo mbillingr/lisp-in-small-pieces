@@ -377,7 +377,7 @@ mod tests {
     use crate::bytecode::VirtualMachine;
     use crate::env::Env;
     use crate::source::SourceLocation::NoSource;
-    use crate::syntax::{GlobalVariable, NoOp};
+    use crate::syntax::GlobalVariable;
 
     #[test]
     fn compile_intrinsics() {

@@ -725,11 +725,7 @@ pub mod scheme {
 
             compare!(import_primitive:
                 r#"(import (testing 1)) (kons 1 2)"#,
-                 equals, Scm::cons(Scm::Int(0), Scm::Int(2))); // todo: possible to import primitives into predef?
-
-            compare!(import_primitive2:
-                r#"(import (testing 1)) (kar (kons 1 2))"#,
-                 equals, Scm::cons(Scm::Int(0), Scm::Int(2))); // todo: possible to import primitives into predef?
+                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
         }
 
         mod definition {
