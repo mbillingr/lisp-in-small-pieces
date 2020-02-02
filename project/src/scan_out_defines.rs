@@ -1,4 +1,5 @@
-use crate::objectify::{ObjectifyError, ObjectifyErrorKind, Result};
+use crate::error::{Error, Result};
+use crate::objectify::ObjectifyErrorKind;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
@@ -9,7 +10,7 @@ pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
 
     let mut variables = TrackedSexpr::nil(NoSource);
     let mut values = TrackedSexpr::nil(NoSource);
-    body.scan(|expr| {
+    body.scan(|expr| -> Result<()> {
         if is_definition(expr) {
             let vars = std::mem::replace(&mut variables, TrackedSexpr::nil(NoSource));
             variables = TrackedSexpr::cons(definition_variable(expr)?.clone(), vars, NoSource);
@@ -60,10 +61,7 @@ pub fn definition_variable(expr: &TrackedSexpr) -> Result<&TrackedSexpr> {
                 var.car()
             }
         })
-        .ok_or_else(|| ObjectifyError {
-            kind: ObjectifyErrorKind::ExpectedList,
-            location: expr.source().clone(),
-        })
+        .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
 }
 
 pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
@@ -79,10 +77,7 @@ pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
                 ))
             }
         })
-        .ok_or_else(|| ObjectifyError {
-            kind: ObjectifyErrorKind::ExpectedList,
-            location: expr.source().clone(),
-        })
+        .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
 }
 
 fn make_assignment(variable: TrackedSexpr, value: TrackedSexpr) -> TrackedSexpr {

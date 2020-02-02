@@ -1,4 +1,4 @@
-use crate::objectify::Result;
+use crate::error::Result;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
 use crate::symbol::Symbol;

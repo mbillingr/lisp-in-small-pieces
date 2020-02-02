@@ -1,5 +1,6 @@
 use crate::env::Env;
-use crate::objectify::{Result, Translate};
+use crate::error::Result;
+use crate::objectify::Translate;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use crate::syntax::Expression;

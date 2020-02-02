@@ -1,5 +1,6 @@
 use crate::env::Env;
-use crate::objectify::{ObjectifyError, ObjectifyErrorKind, Result, Translate};
+use crate::error::{Error, Result};
+use crate::objectify::{ObjectifyErrorKind, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
@@ -88,10 +89,7 @@ fn apply_syntax_rules(
             )
         }
     } else {
-        Err(ObjectifyError {
-            kind: ObjectifyErrorKind::SyntaxError,
-            location: expr.src.clone(),
-        })
+        Err(Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))
     }
 }
 

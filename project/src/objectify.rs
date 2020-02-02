@@ -1,4 +1,5 @@
 use crate::env::Env;
+use crate::error::{Error, Result, TypeError};
 use crate::library::{is_import, libname_to_path, ExportItem, Library, StaticLibrary};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
@@ -18,14 +19,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
-
-pub type Result<T> = std::result::Result<T, ObjectifyError>;
-
-#[derive(Debug)]
-pub struct ObjectifyError {
-    pub kind: ObjectifyErrorKind,
-    pub location: SourceLocation,
-}
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {
@@ -126,10 +119,7 @@ impl Translate {
                 self.objectify(car)
             }
         } else {
-            Err(ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedList,
-                location: exprs.src.clone(),
-            })
+            Err(Error::at_expr(ObjectifyErrorKind::ExpectedList, exprs))
         }
     }
 
@@ -173,10 +163,9 @@ impl Translate {
     ) -> Result<Expression> {
         let mut args_list = vec![];
         while !args.is_null() {
-            let car = args.car().ok_or_else(|| ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedList,
-                location: args.source().clone(),
-            })?;
+            let car = args
+                .car()
+                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedList, args))?;
             args_list.push(self.objectify(car)?);
             args = args.cdr().unwrap();
         }
@@ -204,10 +193,7 @@ impl Translate {
             if args.len() == func.variables.len() {
                 Ok(FixLet::new(func.variables, args, func.body, span).into())
             } else {
-                Err(ObjectifyError {
-                    kind: ObjectifyErrorKind::IncorrectArity,
-                    location: span,
-                })
+                Err(Error::at_span(ObjectifyErrorKind::IncorrectArity, span))
             }
         }
     }
@@ -222,10 +208,7 @@ impl Translate {
         let body = func.body;
 
         if args.len() + 1 < variables.len() {
-            return Err(ObjectifyError {
-                kind: ObjectifyErrorKind::IncorrectArity,
-                location: span,
-            });
+            return Err(Error::at_span(ObjectifyErrorKind::IncorrectArity, span));
         }
 
         let cons_var: GlobalVariable = self
@@ -270,20 +253,18 @@ impl Translate {
     fn objectify_variables_list(&mut self, mut names: &TrackedSexpr) -> Result<Vec<LocalVariable>> {
         let mut vars = vec![];
         while let Some(car) = names.car() {
-            let name = car.as_symbol().ok_or_else(|| ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedSymbol,
-                location: car.source().clone(),
-            })?;
+            let name = car
+                .as_symbol()
+                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedSymbol, car))?;
             vars.push(LocalVariable::new(*name, false, false));
 
             names = names.cdr().unwrap();
         }
 
         if !names.is_null() {
-            let name = names.as_symbol().ok_or_else(|| ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedSymbol,
-                location: names.source().clone(),
-            })?;
+            let name = names
+                .as_symbol()
+                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedSymbol, names))?;
             vars.push(LocalVariable::new(*name, false, true));
         }
 
@@ -344,10 +325,10 @@ impl Translate {
 
                 Ok(GlobalAssignment::new(gvar, of, span).into())
             }
-            _ => Err(ObjectifyError {
-                kind: ObjectifyErrorKind::ImmutableAssignment,
-                location: span,
-            }),
+            _ => Err(Error::at_span(
+                ObjectifyErrorKind::ImmutableAssignment,
+                span,
+            )),
         }
     }
 
@@ -515,36 +496,34 @@ impl Translate {
         } else {
             let mut file_path = library_path.clone();
             file_path.set_extension("sld");
-            let mut file = File::open(&file_path).map_err(|_| ObjectifyError {
-                kind: ObjectifyErrorKind::UnknownLibrary(file_path).into(),
-                location: library_name.src.clone(),
+            let mut file = File::open(&file_path).map_err(|_| {
+                Error::at_expr(ObjectifyErrorKind::UnknownLibrary(file_path), library_name)
             })?;
             let mut library_code = String::new();
             file.read_to_string(&mut library_code)
                 .expect("Could not read file");
 
+            let lib = self.parse_exports(library_code)?;
             unimplemented!()
         }
     }
 
+    pub fn parse_exports(&self, code: String) -> Result<()> {
+        let sexpr = TrackedSexpr::from_source(&code.into())?;
+        unimplemented!()
+    }
+
     pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: StaticLibrary) {
-        let idx = self.libs.len();
         self.libs.insert(library_name.into(), library);
     }
 }
 
 pub fn ocar(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
-    e.car().ok_or_else(|| ObjectifyError {
-        kind: ObjectifyErrorKind::NoPair,
-        location: e.source().clone(),
-    })
+    e.car().ok_or_else(|| Error::at_expr(TypeError::NoPair, e))
 }
 
 pub fn ocdr(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
-    e.cdr().ok_or_else(|| ObjectifyError {
-        kind: ObjectifyErrorKind::NoPair,
-        location: e.source().clone(),
-    })
+    e.cdr().ok_or_else(|| Error::at_expr(TypeError::NoPair, e))
 }
 
 pub fn decons(e: &TrackedSexpr) -> Result<(&TrackedSexpr, &TrackedSexpr)> {

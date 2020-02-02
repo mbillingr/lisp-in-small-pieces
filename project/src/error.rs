@@ -1,5 +1,6 @@
-use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
+use crate::objectify::ObjectifyErrorKind;
 use crate::parsing::{ParseError, ParseErrorKind};
+use crate::sexpr::TrackedSexpr;
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
 
@@ -47,30 +48,46 @@ pub enum ErrorContext {
     Source(SourceLocation),
 }
 
-impl From<ObjectifyError> for Error {
-    fn from(err: ObjectifyError) -> Self {
+impl Error {
+    pub fn at_expr(kind: impl Into<ErrorKind>, expr: &TrackedSexpr) -> Self {
+        Error::at_span(kind, expr.source().clone())
+    }
+
+    pub fn at_span(kind: impl Into<ErrorKind>, span: SourceLocation) -> Self {
         Error {
-            kind: ErrorKind::Objectify(err.kind),
-            context: ErrorContext::Source(err.location),
+            kind: kind.into(),
+            context: ErrorContext::Source(span),
         }
     }
 }
 
-impl From<RuntimeError> for Error {
+impl<T> From<T> for Error
+where
+    ErrorKind: From<T>,
+{
+    fn from(kind: T) -> Self {
+        Error {
+            kind: kind.into(),
+            context: ErrorContext::None,
+        }
+    }
+}
+
+impl From<RuntimeError> for ErrorKind {
     fn from(err: RuntimeError) -> Self {
-        Error {
-            kind: ErrorKind::Runtime(err),
-            context: ErrorContext::None,
-        }
+        ErrorKind::Runtime(err)
     }
 }
 
-impl From<TypeError> for Error {
+impl From<TypeError> for ErrorKind {
     fn from(err: TypeError) -> Self {
-        Error {
-            kind: ErrorKind::TypeError(err),
-            context: ErrorContext::None,
-        }
+        ErrorKind::TypeError(err)
+    }
+}
+
+impl From<ObjectifyErrorKind> for ErrorKind {
+    fn from(err: ObjectifyErrorKind) -> Self {
+        ErrorKind::Objectify(err)
     }
 }
 

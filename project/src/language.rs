@@ -4,12 +4,11 @@ pub mod scheme {
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
-    use crate::error::Result;
+    use crate::error::ErrorKind::Objectify;
+    use crate::error::{Error, Result};
     use crate::library::Library;
     use crate::macro_language::eval_syntax;
-    use crate::objectify::{decons, Result as ObjectifyResult};
-    use crate::objectify::{ocar, ocdr, Translate};
-    use crate::objectify::{ObjectifyError, ObjectifyErrorKind};
+    use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
     use crate::primitive::{Arity, RuntimePrimitive};
     use crate::scan_out_defines::{
         definition_value, definition_variable, make_function, scan_out_defines,
@@ -191,7 +190,7 @@ pub mod scheme {
         }
     }
 
-    pub fn expand_or(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
+    pub fn expand_or(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let exp1 = ocar(ocdr(expr)?)?.clone();
         let exp2 = ocar(ocdr(ocdr(expr)?)?)?.clone();
 
@@ -217,10 +216,7 @@ pub mod scheme {
         trans.objectify(&x)
     }
 
-    pub fn expand_lambda(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_lambda(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = &ocdr(expr)?;
         let names = ocar(def)?;
         let body = ocdr(def)?;
@@ -228,7 +224,7 @@ pub mod scheme {
         trans.objectify_function(names, &body, expr.source().clone())
     }
 
-    pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
+    pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = ocdr(expr)?;
         let vars = ocar(def)?;
         let body = ocdr(def)?;
@@ -238,10 +234,7 @@ pub mod scheme {
         vars.scan(|v| {
             v.at(0)
                 .and_then(|name| v.at(1).map(|form| (name, form)))
-                .ok_or_else(|| ObjectifyError {
-                    kind: ObjectifyErrorKind::SyntaxError,
-                    location: body.source().clone(),
-                })
+                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::SyntaxError, body))
                 .map(|(name, form)| {
                     var_names.push(name.clone());
                     var_forms.push(form.clone());
@@ -258,34 +251,25 @@ pub mod scheme {
         trans.objectify(&new_expr)
     }
 
-    pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
+    pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         trans.objectify_sequence(ocdr(expr)?)
     }
 
-    pub fn expand_assign(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_assign(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         expr.at(1)
             .and_then(|variable| expr.at(2).map(|expr| (variable, expr)))
-            .ok_or(ObjectifyError {
-                kind: ObjectifyErrorKind::ExpectedList,
-                location: expr.source().clone(),
-            })
+            .ok_or(Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
             .and_then(|(variable, form)| {
                 trans.objectify_assignment(variable, form, expr.source().clone())
             })
     }
 
-    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
+    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let body = &ocdr(expr)?;
         trans.objectify_quotation(ocar(body)?)
     }
 
-    pub fn expand_alternative(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_alternative(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let rest = ocdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
@@ -293,27 +277,18 @@ pub mod scheme {
         trans.objectify_alternative(cond, yes, no, expr.source().clone())
     }
 
-    pub fn expand_define(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_define(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let definee = definition_variable(expr)?;
         let form = definition_value(expr)?;
         trans.objectify_definition(definee, &form, expr.source().clone())
     }
 
-    pub fn expand_define_syntax(
-        trans: &mut Translate,
-        expr: &TrackedSexpr,
-    ) -> ObjectifyResult<Expression> {
+    pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let (name, syntax) = expr
             .at(1)
             .and_then(|name| name.as_symbol().copied())
             .and_then(|name| expr.at(2).map(|syntax| (name, syntax)))
-            .ok_or_else(|| ObjectifyError {
-                kind: ObjectifyErrorKind::SyntaxError,
-                location: expr.source().clone(),
-            })?;
+            .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))?;
         let handler = eval_syntax(syntax, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
         trans.env.push_local(macro_binding);
@@ -732,6 +707,10 @@ pub mod scheme {
             compare!(import_primitive:
                 r#"(import (testing 1)) (kons 1 2)"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+
+            compare!(import_user_library:
+                r#"(import (testing lib)) #f"#,
+                 equals, Scm::False);
         }
 
         mod definition {
