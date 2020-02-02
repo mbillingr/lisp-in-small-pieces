@@ -10,7 +10,7 @@ use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
     Import, ImportItem, ImportSet, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
-    PredefinedApplication, Reference, RegularApplication, Sequence, Variable,
+    PredefinedApplication, Program, Reference, RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::collections::HashMap;
@@ -47,7 +47,11 @@ impl Translate {
         }
     }
 
-    pub fn objectify_toplevel(&mut self, exprs: &[TrackedSexpr]) -> Result<Expression> {
+    pub fn objectify_toplevel(&mut self, exprs: &[TrackedSexpr]) -> Result<Program> {
+        self.objectify_program(exprs)
+    }
+
+    pub fn objectify_program(&mut self, exprs: &[TrackedSexpr]) -> Result<Program> {
         let n_imports = exprs.iter().take_while(|&expr| is_import(expr)).count();
 
         let imports: Vec<_> = exprs[..n_imports]
@@ -61,14 +65,11 @@ impl Translate {
             sequence = TrackedSexpr::cons(expr.clone(), sequence, NoSource);
         }
         sequence = TrackedSexpr::cons(TrackedSexpr::symbol("begin", NoSource), sequence, NoSource);
-        let mut statements = self.objectify(&sequence)?;
+        let mut body = self.objectify(&sequence)?;
 
-        for import in imports {
-            let src = statements.source().start_at(import.source());
-            statements = Expression::Sequence(Sequence::new(import, statements, src));
-        }
+        let span = exprs.last().unwrap().source().start_at(exprs[0].source());
 
-        Ok(statements)
+        Ok(Program::new(imports, body, span))
     }
 
     pub fn objectify(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
@@ -332,7 +333,7 @@ impl Translate {
         }
     }
 
-    fn objectify_import(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
+    fn objectify_import(&mut self, expr: &TrackedSexpr) -> Result<Import> {
         let mut import_sets = expr.cdr().unwrap();
 
         let mut sets = vec![];
@@ -362,7 +363,7 @@ impl Translate {
             import_sets = import_sets.cdr().unwrap();
         }
 
-        Ok(Import::new(sets, expr.source().clone()).into())
+        Ok(Import::new(sets, expr.source().clone()))
     }
 
     fn objectify_import_set(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
@@ -510,6 +511,7 @@ impl Translate {
 
     pub fn parse_exports(&self, code: String) -> Result<()> {
         let sexpr = TrackedSexpr::from_source(&code.into())?;
+        println!("{:?}", sexpr);
         unimplemented!()
     }
 

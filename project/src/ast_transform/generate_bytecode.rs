@@ -10,8 +10,8 @@ use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
     FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import,
-    LocalReference, PredefinedApplication, PredefinedReference, Reference, RegularApplication,
-    Sequence,
+    LocalReference, PredefinedApplication, PredefinedReference, Program, Reference,
+    RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
 
@@ -33,13 +33,17 @@ impl<'a> BytecodeGenerator<'a> {
         }
     }
 
-    pub fn compile_toplevel(expr: &Expression, trans: &'a Translate) -> Result<CodeObject> {
+    pub fn compile_program(prog: &Program, trans: &'a Translate) -> Result<CodeObject> {
         let mut bcgen = Self::new(vec![], trans);
-        let mut code = bcgen.compile(expr, true)?;
+        let mut code = vec![];
+        for import in &prog.imports {
+            code.extend(bcgen.compile_import(import)?);
+        }
+        code.extend(bcgen.compile(&prog.body, true)?);
         code.push(Op::Return);
         Ok(CodeObject::new(
             Arity::Exact(0),
-            expr.source().clone(),
+            prog.body.source().clone(),
             code,
             bcgen.constants,
         ))
@@ -82,7 +86,6 @@ impl<'a> BytecodeGenerator<'a> {
             BoxWrite(b) => self.compile_box_write(b, tail),
             BoxRead(b) => self.compile_box_read(b, tail),
             GlobalDefine(d) => self.compile_global_def(d),
-            Import(i) => self.compile_import(i),
             MagicKeyword(m) => Err(Error {
                 kind: ErrorKind::Compile(CompileError::MacroUsedAsValue(m.name)),
                 context: ErrorContext::Source(node.source().clone()),

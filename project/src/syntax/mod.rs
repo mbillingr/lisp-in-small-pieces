@@ -11,6 +11,7 @@ pub mod function;
 pub mod import;
 pub mod keyword;
 pub mod noop;
+pub mod program;
 pub mod reference;
 pub mod sequence;
 pub mod variable;
@@ -27,6 +28,7 @@ pub use function::Function;
 pub use import::{Import, ImportItem, ImportSet};
 pub use keyword::{MagicKeyword, MagicKeywordHandler};
 pub use noop::NoOp;
+pub use program::Program;
 pub use reference::{
     FreeReference, GlobalReference, LocalReference, PredefinedReference, Reference,
 };
