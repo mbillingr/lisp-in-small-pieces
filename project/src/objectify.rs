@@ -349,7 +349,10 @@ impl Translate {
                     ExportItem::Value(x) => {
                         import_vars.push(GlobalVariable::new(item.import_name, *x))
                     }
-                    ExportItem::Macro(mkw) => import_macros.push(mkw.clone()),
+                    ExportItem::Macro(mkw) => import_macros.push(MagicKeyword {
+                        name: item.import_name,
+                        ..mkw.clone()
+                    }),
                 }
             }
 

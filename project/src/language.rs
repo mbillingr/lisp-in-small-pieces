@@ -690,6 +690,10 @@ pub mod scheme {
                 r#"(import (rename (testing 1) (b c))) (cons a c)"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
 
+            compare!(import_renamed_macro:
+                r#"(import (rename (testing 2) (invoke call))) (call (lambda () 8))"#,
+                 equals, Scm::Int(8));
+
             compare!(import_shared_value_not_allowed:
                 r#"(import (testing 1))
                    (import (rename (testing 1) (a c)))
