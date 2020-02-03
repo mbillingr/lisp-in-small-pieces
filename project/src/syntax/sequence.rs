@@ -1,6 +1,8 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::source::SourceLocation::NoSource;
+use crate::syntax::NoOp;
 
 #[derive(Debug, Clone)]
 pub struct Sequence {
@@ -28,5 +30,22 @@ impl Sequence {
         *self.first = self.first.transform(visitor);
         *self.next = self.next.transform(visitor);
         self
+    }
+
+    pub fn append(&mut self, other: Expression) {
+        match &mut *self.next {
+            Expression::Sequence(s) => s.append(other),
+            Expression::NoOp(_) => self.next = Box::new(other),
+            _ => {
+                self.next = Box::new(
+                    Sequence::new(
+                        std::mem::replace(&mut self.next, Box::new(Expression::NoOp(NoOp))),
+                        other,
+                        NoSource,
+                    )
+                    .into(),
+                );
+            }
+        }
     }
 }

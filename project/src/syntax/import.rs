@@ -3,9 +3,11 @@ use crate::library::ExportItem;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
+use crate::syntax::Library;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Import {

@@ -1,16 +1,17 @@
 use crate::env::Env;
-use crate::error::{Error, Result, TypeError};
-use crate::library::{is_import, libname_to_path, ExportItem, Library, StaticLibrary};
+use crate::error::{Error, ErrorKind, Result, TypeError};
+use crate::library::{is_import, libname_to_path, ExportItem, StaticLibrary};
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
+use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    Import, ImportItem, ImportSet, LocalAssignment, LocalReference, LocalVariable, MagicKeyword,
-    PredefinedApplication, Program, Reference, RegularApplication, Sequence, Variable,
+    Import, ImportItem, ImportSet, Library, LibraryDeclaration, LibraryExport, LibraryImport,
+    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, PredefinedApplication,
+    Program, Reference, RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::collections::HashMap;
@@ -29,6 +30,7 @@ pub enum ObjectifyErrorKind {
     ExpectedList,
     ExpectedSymbol,
     UnknownLibrary(PathBuf),
+    InvalidLibraryDefinition,
 }
 
 #[derive(Debug)]
@@ -166,7 +168,7 @@ impl Translate {
         while !args.is_null() {
             let car = args
                 .car()
-                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedList, args))?;
+                .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, args))?;
             args_list.push(self.objectify(car)?);
             args = args.cdr().unwrap();
         }
@@ -253,19 +255,15 @@ impl Translate {
 
     fn objectify_variables_list(&mut self, mut names: &TrackedSexpr) -> Result<Vec<LocalVariable>> {
         let mut vars = vec![];
-        while let Some(car) = names.car() {
-            let name = car
-                .as_symbol()
-                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedSymbol, car))?;
+        while let Ok(car) = names.car() {
+            let name = car.as_symbol()?;
             vars.push(LocalVariable::new(*name, false, false));
 
             names = names.cdr().unwrap();
         }
 
         if !names.is_null() {
-            let name = names
-                .as_symbol()
-                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedSymbol, names))?;
+            let name = names.as_symbol()?;
             vars.push(LocalVariable::new(*name, false, true));
         }
 
@@ -369,10 +367,10 @@ impl Translate {
     fn objectify_import_set(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
         let modifier = form.car().unwrap().as_symbol();
         match modifier {
-            Some(s) if s == "only" => self.objectify_import_only(form),
-            Some(s) if s == "except" => self.objectify_import_except(form),
-            Some(s) if s == "prefix" => self.objectify_import_prefix(form),
-            Some(s) if s == "rename" => self.objectify_import_rename(form),
+            Ok(s) if s == "only" => self.objectify_import_only(form),
+            Ok(s) if s == "except" => self.objectify_import_except(form),
+            Ok(s) if s == "prefix" => self.objectify_import_prefix(form),
+            Ok(s) if s == "rename" => self.objectify_import_rename(form),
             _ => self.objectify_import_all(form),
         }
     }
@@ -490,6 +488,103 @@ impl Translate {
         Ok(import_set)
     }
 
+    pub fn objectify_library(
+        &mut self,
+        name: &TrackedSexpr,
+        body: &TrackedSexpr,
+        span: SourceLocation,
+    ) -> Result<Library> {
+        let mut libtrans = Translate::new(Env::new());
+        let lib = libtrans.objectify_library_declarations(body)?;
+
+        let mut imports = LibraryImport::new();
+        let mut exports = LibraryExport::new();
+        let mut body = Expression::NoOp(NoOp);
+
+        for decl in lib {
+            match decl {
+                LibraryDeclaration::LibraryImport(_) => unimplemented!(),
+                LibraryDeclaration::LibraryExport(x) => exports.extend(x),
+                LibraryDeclaration::Expression(x) => body = body.splice(x),
+            }
+        }
+
+        Ok(Library::new(libtrans.env, imports, exports, body, span))
+    }
+
+    pub fn objectify_library_declarations(
+        &mut self,
+        body: &TrackedSexpr,
+    ) -> Result<Vec<LibraryDeclaration>> {
+        if body.is_pair() {
+            let car = body.car().unwrap();
+            let cdr = body.cdr().unwrap();
+            if cdr.is_pair() {
+                let mut declarations = vec![self.objectify_library_declaration(car)?];
+                declarations.extend(self.objectify_library_declarations(cdr)?);
+                Ok(declarations)
+            } else {
+                Ok(vec![self.objectify_library_declaration(car)?])
+            }
+        } else {
+            Err(Error::at_expr(ObjectifyErrorKind::ExpectedList, body))
+        }
+    }
+
+    pub fn objectify_library_declaration(
+        &mut self,
+        decl: &TrackedSexpr,
+    ) -> Result<LibraryDeclaration> {
+        match decl.car() {
+            Ok(x) if x == "begin" => self.objectify_sequence(decl.cdr().unwrap()).map(Into::into),
+            Ok(x) if x == "export" => self
+                .objectify_library_export(decl.cdr().unwrap())
+                .map(Into::into),
+            Ok(x) if x == "import" => unimplemented!(),
+            _ => Err(Error::at_expr(
+                ObjectifyErrorKind::InvalidLibraryDefinition,
+                decl,
+            )),
+        }
+    }
+
+    pub fn objectify_library_export(&mut self, specs: &TrackedSexpr) -> Result<LibraryExport> {
+        match specs.sexpr {
+            Sexpr::Nil => Ok(LibraryExport::new()),
+            Sexpr::Pair(_) => {
+                let car = specs.car().unwrap();
+                let cdr = specs.cdr().unwrap();
+
+                let mut export = self.objectify_library_export(cdr)?;
+                match car.sexpr {
+                    Sexpr::Symbol(ident) => export.adjoin_identifier(ident),
+                    Sexpr::Pair(_) if car.car().unwrap() == "rename" => {
+                        let (old, new) = car
+                            .cdr()
+                            .and_then(|cdar| cdar.car().map(|cadar| (cadar, cdar.cdr().unwrap())))
+                            .and_then(|(cadar, cddar)| cddar.car().map(|caddar| (cadar, caddar)))
+                            .and_then(|(cadar, caddar)| {
+                                (cadar.as_symbol().map(|old| (old, caddar)))
+                            })
+                            .and_then(|(old, caddar)| {
+                                (caddar.as_symbol().map(|new| (*old, *new)))
+                            })?;
+                        export.adjoin_rename(old, new);
+                    }
+                    _ => Err(Error::at_expr(
+                        ObjectifyErrorKind::InvalidLibraryDefinition,
+                        car,
+                    ))?,
+                };
+                Ok(export)
+            }
+            _ => Err(Error::at_expr(
+                ObjectifyErrorKind::InvalidLibraryDefinition,
+                specs,
+            )),
+        }
+    }
+
     fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<&StaticLibrary> {
         let library_path = libname_to_path(library_name)?;
         if self.libs.contains_key(&library_path) {
@@ -497,22 +592,100 @@ impl Translate {
         } else {
             let mut file_path = library_path.clone();
             file_path.set_extension("sld");
-            let mut file = File::open(&file_path).map_err(|_| {
-                Error::at_expr(ObjectifyErrorKind::UnknownLibrary(file_path), library_name)
-            })?;
-            let mut library_code = String::new();
-            file.read_to_string(&mut library_code)
-                .expect("Could not read file");
 
-            let lib = self.parse_exports(library_code)?;
-            unimplemented!()
+            let library_code = Source::from_file(&file_path).map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => {
+                    Error::at_expr(ObjectifyErrorKind::UnknownLibrary(file_path), library_name)
+                }
+                _ => err.into(),
+            })?;
+
+            let lib = self.parse_library(library_code)?;
+
+            self.libs.insert(library_path.clone(), lib);
+            Ok(&self.libs[&library_path])
         }
     }
 
-    pub fn parse_exports(&self, code: String) -> Result<()> {
-        let sexpr = TrackedSexpr::from_source(&code.into())?;
-        println!("{:?}", sexpr);
-        unimplemented!()
+    pub fn parse_library(&mut self, code: Source) -> Result<StaticLibrary> {
+        let sexprs = TrackedSexpr::from_source(&code)?;
+        if sexprs.len() == 0 {
+            return Err(Error::at_span(
+                ObjectifyErrorKind::InvalidLibraryDefinition,
+                code.into(),
+            ));
+        }
+        if ocar(&sexprs[0])? != "define-library" {
+            return Err(Error::at_span(
+                ObjectifyErrorKind::InvalidLibraryDefinition,
+                sexprs[0].source().clone(),
+            ));
+        }
+        if sexprs.len() > 1 {
+            let span = sexprs.last().unwrap().source().start_at(sexprs[1].source());
+            return Err(Error::at_span(
+                ObjectifyErrorKind::InvalidLibraryDefinition,
+                span,
+            ));
+        }
+
+        let sexpr = &sexprs[0];
+        let name = ocar(ocdr(sexpr)?)?;
+        let body = ocdr(ocdr(sexpr)?)?;
+        let lib = self.objectify_library(name, body, sexpr.source().clone())?;
+
+        let mut slib = StaticLibrary::new();
+        for name in lib.exports.iter().map(|x| x.exported_name()) {
+            let item = match lib.env.find_variable(&name) {
+                Some(Variable::MagicKeyword(mkw)) => ExportItem::Macro(mkw),
+                Some(Variable::GlobalVariable(g)) => ExportItem::Value(g.value()),
+                _ => unreachable!(),
+            };
+            slib.insert(name, item);
+        }
+
+        Ok(slib)
+    }
+
+    fn find_exports(&self, body: &TrackedSexpr) -> Result<Vec<Symbol>> {
+        match &body.sexpr {
+            Sexpr::Nil => Ok(vec![]),
+            Sexpr::Pair(pair) => {
+                let mut exports = match &pair.0 {
+                    car if car.is_pair() => match car.car().unwrap() {
+                        caar if caar == "export" => self.parse_export_spec(car.cdr().unwrap())?,
+                        _ => vec![],
+                    },
+                    car => {
+                        return Err(Error::at_expr(
+                            ObjectifyErrorKind::InvalidLibraryDefinition,
+                            car,
+                        ))
+                    }
+                };
+                exports.extend(self.find_exports(&pair.1)?);
+                Ok(exports)
+            }
+            _ => Err(Error::at_expr(
+                ObjectifyErrorKind::InvalidLibraryDefinition,
+                body,
+            )),
+        }
+    }
+
+    fn parse_export_spec(&self, expr: &TrackedSexpr) -> Result<Vec<Symbol>> {
+        if expr.is_null() {
+            return Ok(vec![]);
+        }
+        if expr.is_pair() {
+            let mut exports = self.parse_export_spec(expr.cdr().unwrap())?;
+            exports.push(*expr.car().unwrap().as_symbol()?);
+            return Ok(exports);
+        }
+        Err(Error::at_expr(
+            ObjectifyErrorKind::InvalidLibraryDefinition,
+            expr,
+        ))
     }
 
     pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: StaticLibrary) {
@@ -521,11 +694,11 @@ impl Translate {
 }
 
 pub fn ocar(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
-    e.car().ok_or_else(|| Error::at_expr(TypeError::NoPair, e))
+    e.car()
 }
 
 pub fn ocdr(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
-    e.cdr().ok_or_else(|| Error::at_expr(TypeError::NoPair, e))
+    e.cdr()
 }
 
 pub fn decons(e: &TrackedSexpr) -> Result<(&TrackedSexpr, &TrackedSexpr)> {

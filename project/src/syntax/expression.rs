@@ -15,6 +15,7 @@ use super::sequence::Sequence;
 
 use crate::ast_transform::{Transformer, Visited};
 use crate::source::SourceLocation;
+use crate::source::SourceLocation::NoSource;
 use crate::utils::Sourced;
 
 sum_types! {
@@ -62,6 +63,18 @@ impl Expression {
             FlatClosure(x) => x.default_transform(visitor).into(),
             GlobalDefine(x) => x.default_transform(visitor).into(),
             NoOp(x) => x.default_transform(visitor).into(),
+        }
+    }
+
+    pub fn splice(mut self, other: Self) -> Self {
+        use Expression::*;
+        match self {
+            Sequence(mut s) => {
+                s.append(other);
+                s.into()
+            }
+            NoOp(_) => other,
+            _ => super::Sequence::new(self, other, NoSource).into(),
         }
     }
 }

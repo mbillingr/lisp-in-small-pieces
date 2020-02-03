@@ -234,7 +234,7 @@ pub mod scheme {
         vars.scan(|v| {
             v.at(0)
                 .and_then(|name| v.at(1).map(|form| (name, form)))
-                .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::SyntaxError, body))
+                .map_err(|_| Error::at_expr(ObjectifyErrorKind::SyntaxError, body))
                 .map(|(name, form)| {
                     var_names.push(name.clone());
                     var_forms.push(form.clone());
@@ -258,7 +258,7 @@ pub mod scheme {
     pub fn expand_assign(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         expr.at(1)
             .and_then(|variable| expr.at(2).map(|expr| (variable, expr)))
-            .ok_or(Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
+            .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
             .and_then(|(variable, form)| {
                 trans.objectify_assignment(variable, form, expr.source().clone())
             })
@@ -286,9 +286,9 @@ pub mod scheme {
     pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let (name, syntax) = expr
             .at(1)
-            .and_then(|name| name.as_symbol().copied())
+            .and_then(|name| name.as_symbol().map(|s| *s))
             .and_then(|name| expr.at(2).map(|syntax| (name, syntax)))
-            .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))?;
+            .map_err(|_| Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))?;
         let handler = eval_syntax(syntax, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
         trans.env.push_local(macro_binding);

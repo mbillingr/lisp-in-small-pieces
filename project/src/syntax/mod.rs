@@ -10,6 +10,7 @@ pub mod fixlet;
 pub mod function;
 pub mod import;
 pub mod keyword;
+pub mod library;
 pub mod noop;
 pub mod program;
 pub mod reference;
@@ -27,6 +28,7 @@ pub use fixlet::FixLet;
 pub use function::Function;
 pub use import::{Import, ImportItem, ImportSet};
 pub use keyword::{MagicKeyword, MagicKeywordHandler};
+pub use library::{Library, LibraryDeclaration, LibraryExport, LibraryImport};
 pub use noop::NoOp;
 pub use program::Program;
 pub use reference::{

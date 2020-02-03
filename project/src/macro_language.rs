@@ -11,8 +11,8 @@ use std::rc::Rc;
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
     match expr.at(0) {
-        Some(s) if s == "syntax-rules" => {
-            if let Some(ellipsis) = expr.at(1).unwrap().as_symbol() {
+        Ok(s) if s == "syntax-rules" => {
+            if let Ok(ellipsis) = expr.at(1).unwrap().as_symbol() {
                 let literals = expr.at(2).unwrap();
                 let rules = expr.cdr().unwrap().cdr().unwrap().cdr().unwrap();
                 eval_syntax_rules(*ellipsis, literals.clone(), rules.clone(), env.clone())

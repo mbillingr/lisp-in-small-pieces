@@ -54,30 +54,24 @@ fn is_definition(expr: &TrackedSexpr) -> bool {
 
 pub fn definition_variable(expr: &TrackedSexpr) -> Result<&TrackedSexpr> {
     expr.at(1)
-        .and_then(|var| {
-            if var.is_symbol() {
-                Some(var)
-            } else {
-                var.car()
-            }
-        })
-        .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
+        .and_then(|var| if var.is_symbol() { Ok(var) } else { var.car() })
+        .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
 }
 
 pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
     expr.at(1)
         .and_then(|var| {
             if var.is_symbol() {
-                expr.at(2).cloned()
+                expr.at(2).map(|x| x.clone())
             } else {
-                Some(make_function(
+                Ok(make_function(
                     expr.at(1).unwrap().cdr()?.clone(),
                     expr.cdr().unwrap().cdr()?.clone(),
                     expr.src.clone(),
                 ))
             }
         })
-        .ok_or_else(|| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
+        .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
 }
 
 fn make_assignment(variable: TrackedSexpr, value: TrackedSexpr) -> TrackedSexpr {

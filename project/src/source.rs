@@ -1,7 +1,7 @@
 use crate::parsing;
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -163,14 +163,13 @@ impl<T: Into<String>> From<T> for Source {
 }
 
 impl Source {
-    pub fn from_file(file: impl Into<PathBuf>) -> std::io::Result<Self> {
-        let file = file.into();
-        let mut f = File::open(&file).unwrap();
+    pub fn from_file(file: &Path) -> std::io::Result<Self> {
+        let mut f = File::open(file)?;
         let mut src = String::new();
-        f.read_to_string(&mut src).unwrap();
+        f.read_to_string(&mut src)?;
         Ok(Source {
             content: Rc::new(src),
-            file: Some(file),
+            file: Some(file.to_owned()),
         })
     }
 
@@ -209,11 +208,29 @@ impl std::fmt::Debug for Span {
         if f.alternate() {
             write!(f, "\n{}", self)
         } else {
-            write!(
-                f,
-                "Span {{ src: {:?}, start: {:?}, end: {:?}}}",
-                self.src, self.start, self.end
-            )
+            write!(f, "{}", &self.src.content[self.start..self.end])
         }
+    }
+}
+
+impl From<Source> for Span {
+    fn from(src: Source) -> Self {
+        Span {
+            start: 0,
+            end: src.content.len(),
+            src,
+        }
+    }
+}
+
+impl From<Span> for SourceLocation {
+    fn from(span: Span) -> Self {
+        SourceLocation::Span(span)
+    }
+}
+
+impl From<Source> for SourceLocation {
+    fn from(src: Source) -> Self {
+        SourceLocation::Span(src.into())
     }
 }

@@ -19,6 +19,7 @@ pub enum ErrorKind {
     Compile(CompileError),
     Runtime(RuntimeError),
     TypeError(TypeError),
+    IoError(std::io::Error),
 }
 
 #[derive(Debug, PartialEq)]
@@ -91,6 +92,12 @@ impl From<ObjectifyErrorKind> for ErrorKind {
     }
 }
 
+impl From<std::io::Error> for ErrorKind {
+    fn from(err: std::io::Error) -> Self {
+        ErrorKind::IoError(err)
+    }
+}
+
 impl Error {
     pub fn from_parse_error_and_source(err: ParseError, src: Source) -> Error {
         assert_eq!(err.location.text, &*src.content);
@@ -109,6 +116,7 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),
             ErrorKind::Compile(e) => write!(f, "Compile Error: {:?}", e),
             ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
+            ErrorKind::IoError(e) => write!(f, "I/O Error: {:?}", e),
         }
     }
 }

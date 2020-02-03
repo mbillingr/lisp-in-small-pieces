@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::error::{Error, Result, TypeError};
 use crate::parsing::{parse, Sexpr as PS, SpannedSexpr};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
@@ -77,7 +77,7 @@ impl std::fmt::Display for Sexpr {
 }
 
 impl TrackedSexpr {
-    pub fn from_source(source: &Source) -> Result<Vec<Self>, Error> {
+    pub fn from_source(source: &Source) -> Result<Vec<Self>> {
         parse(&source.content)
             .map(|sexprs| {
                 sexprs
@@ -203,28 +203,28 @@ impl TrackedSexpr {
         }
     }
 
-    pub fn car(&self) -> Option<&Self> {
+    pub fn car(&self) -> Result<&Self> {
         match &self.sexpr {
-            Sexpr::Pair(p) => Some(&p.0),
-            _ => None,
+            Sexpr::Pair(p) => Ok(&p.0),
+            _ => Err(Error::at_expr(TypeError::NoPair, self)),
         }
     }
 
-    pub fn cdr(&self) -> Option<&Self> {
+    pub fn cdr(&self) -> Result<&Self> {
         match &self.sexpr {
-            Sexpr::Pair(p) => Some(&p.1),
-            _ => None,
+            Sexpr::Pair(p) => Ok(&p.1),
+            _ => Err(Error::at_expr(TypeError::NoPair, self)),
         }
     }
 
-    pub fn decons(self) -> Result<(Self, Self), Self> {
+    pub fn decons(self) -> std::result::Result<(Self, Self), Self> {
         match self.sexpr {
             Sexpr::Pair(p) => Ok((p.0, p.1)),
             _ => Err(self),
         }
     }
 
-    pub fn at(&self, idx: usize) -> Option<&Self> {
+    pub fn at(&self, idx: usize) -> Result<&Self> {
         if idx == 0 {
             self.car()
         } else {
@@ -247,13 +247,13 @@ impl TrackedSexpr {
     }
 
     pub fn is_symbol(&self) -> bool {
-        self.as_symbol().is_some()
+        self.as_symbol().is_ok()
     }
 
-    pub fn as_symbol(&self) -> Option<&Symbol> {
+    pub fn as_symbol(&self) -> Result<&Symbol> {
         match &self.sexpr {
-            Sexpr::Symbol(s) => Some(s),
-            _ => None,
+            Sexpr::Symbol(s) => Ok(s),
+            _ => Err(Error::at_expr(TypeError::NoSymbol, self)),
         }
     }
 
@@ -268,7 +268,10 @@ impl TrackedSexpr {
         }
     }
 
-    pub fn scan<E>(&self, mut f: impl FnMut(&Self) -> Result<(), E>) -> Result<&Self, E> {
+    pub fn scan<E>(
+        &self,
+        mut f: impl FnMut(&Self) -> std::result::Result<(), E>,
+    ) -> std::result::Result<&Self, E> {
         let mut x = self;
         while x.is_pair() {
             f(x.car().unwrap())?;
