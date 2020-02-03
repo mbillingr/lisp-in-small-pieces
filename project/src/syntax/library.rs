@@ -1,10 +1,8 @@
 use super::expression::Expression;
 use super::Import;
-use crate::ast_transform::Transformer;
 use crate::env::Env;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
-use crate::syntax::Sequence;
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone)]

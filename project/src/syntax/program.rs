@@ -1,6 +1,6 @@
 use super::expression::Expression;
 use super::import::Import;
-use crate::ast_transform::{Transformer, Visited};
+use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 
 #[derive(Debug, Clone)]

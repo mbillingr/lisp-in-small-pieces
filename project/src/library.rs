@@ -30,13 +30,13 @@ impl Library {
         }
     }
 
-    pub fn lookup(&self, identifier: Symbol) -> Option<&ExportItem> {
+    /*pub fn lookup(&self, identifier: Symbol) -> Option<&ExportItem> {
         self.exports.get(&identifier)
     }
 
     pub fn all_exports(&self) -> impl Iterator<Item = (Symbol, &ExportItem)> {
         self.exports.iter().map(|(s, item)| (*s, item))
-    }
+    }*/
 }
 
 pub struct LibraryBuilder {
@@ -87,8 +87,8 @@ pub fn libname_to_path(mut expr: &TrackedSexpr) -> Result<PathBuf> {
     let mut path = PathBuf::new();
 
     while expr.is_pair() {
-        path.push(format!("{}", expr.car().unwrap()));
-        expr = expr.cdr().unwrap();
+        path.push(format!("{}", expr.car()?));
+        expr = expr.cdr()?;
     }
 
     Ok(path)

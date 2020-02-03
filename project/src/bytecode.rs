@@ -1,5 +1,4 @@
 use crate::error::{Result, RuntimeError, TypeError};
-use crate::library::ExportItem;
 use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
@@ -8,7 +7,6 @@ use crate::syntax::variable::VarDef;
 use crate::syntax::GlobalVariable;
 use crate::utils::Named;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct CodeObject {

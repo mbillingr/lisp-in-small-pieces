@@ -1,5 +1,5 @@
 use crate::env::Env;
-use crate::error::{Error, ErrorKind, Result, TypeError};
+use crate::error::{Error, Result};
 use crate::library::{is_import, libname_to_path, ExportItem, StaticLibrary};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
@@ -16,10 +16,7 @@ use crate::syntax::{
 use crate::utils::Sourced;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::fs::File;
-use std::io::Read;
 use std::path::PathBuf;
-use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {
@@ -66,8 +63,14 @@ impl Translate {
         for expr in exprs[n_imports..].iter().rev() {
             sequence = TrackedSexpr::cons(expr.clone(), sequence, NoSource);
         }
-        sequence = TrackedSexpr::cons(TrackedSexpr::symbol("begin", NoSource), sequence, NoSource);
-        let mut body = self.objectify(&sequence)?;
+
+        let body = if sequence.is_null() {
+            Expression::NoOp(NoOp)
+        } else {
+            sequence =
+                TrackedSexpr::cons(TrackedSexpr::symbol("begin", NoSource), sequence, NoSource);
+            self.objectify(&sequence)?
+        };
 
         let span = exprs.last().unwrap().source().start_at(exprs[0].source());
 
@@ -332,7 +335,7 @@ impl Translate {
     }
 
     fn objectify_import(&mut self, expr: &TrackedSexpr) -> Result<Import> {
-        let mut import_sets = expr.cdr().unwrap();
+        let mut import_sets = expr.cdr()?;
 
         let mut sets = vec![];
 
@@ -365,7 +368,7 @@ impl Translate {
     }
 
     fn objectify_import_set(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
-        let modifier = form.car().unwrap().as_symbol();
+        let modifier = form.car()?.as_symbol();
         match modifier {
             Ok(s) if s == "only" => self.objectify_import_only(form),
             Ok(s) if s == "except" => self.objectify_import_except(form),
@@ -490,11 +493,14 @@ impl Translate {
 
     pub fn objectify_library(
         &mut self,
-        name: &TrackedSexpr,
+        _name: &TrackedSexpr,
         body: &TrackedSexpr,
         span: SourceLocation,
     ) -> Result<Library> {
-        let mut libtrans = Translate::new(Env::new());
+        //let mut libtrans = Translate::new(Env::new());
+        // temporarily fill with default env
+        // according to spec this should be emtpy...
+        let mut libtrans = Translate::new(crate::language::scheme::init_env());
         let lib = libtrans.objectify_library_declarations(body)?;
 
         let mut imports = LibraryImport::new();
@@ -645,47 +651,6 @@ impl Translate {
         }
 
         Ok(slib)
-    }
-
-    fn find_exports(&self, body: &TrackedSexpr) -> Result<Vec<Symbol>> {
-        match &body.sexpr {
-            Sexpr::Nil => Ok(vec![]),
-            Sexpr::Pair(pair) => {
-                let mut exports = match &pair.0 {
-                    car if car.is_pair() => match car.car().unwrap() {
-                        caar if caar == "export" => self.parse_export_spec(car.cdr().unwrap())?,
-                        _ => vec![],
-                    },
-                    car => {
-                        return Err(Error::at_expr(
-                            ObjectifyErrorKind::InvalidLibraryDefinition,
-                            car,
-                        ))
-                    }
-                };
-                exports.extend(self.find_exports(&pair.1)?);
-                Ok(exports)
-            }
-            _ => Err(Error::at_expr(
-                ObjectifyErrorKind::InvalidLibraryDefinition,
-                body,
-            )),
-        }
-    }
-
-    fn parse_export_spec(&self, expr: &TrackedSexpr) -> Result<Vec<Symbol>> {
-        if expr.is_null() {
-            return Ok(vec![]);
-        }
-        if expr.is_pair() {
-            let mut exports = self.parse_export_spec(expr.cdr().unwrap())?;
-            exports.push(*expr.car().unwrap().as_symbol()?);
-            return Ok(exports);
-        }
-        Err(Error::at_expr(
-            ObjectifyErrorKind::InvalidLibraryDefinition,
-            expr,
-        ))
     }
 
     pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: StaticLibrary) {

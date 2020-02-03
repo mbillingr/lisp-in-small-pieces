@@ -4,7 +4,6 @@ pub mod scheme {
     use crate::ast_transform::generate_bytecode::BytecodeGenerator;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
-    use crate::error::ErrorKind::Objectify;
     use crate::error::{Error, Result};
     use crate::library::Library;
     use crate::macro_language::eval_syntax;
@@ -21,7 +20,6 @@ pub mod scheme {
     use crate::syntax::{Expression, GlobalVariable, MagicKeyword, NoOp};
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::PathBuf;
-    use std::rc::Rc;
 
     pub struct Context {
         pub trans: Translate,
@@ -708,9 +706,13 @@ pub mod scheme {
                 r#"(import (testing 1)) (kons 1 2)"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
 
-            compare!(import_user_library:
+            compare!(import_user:
                 r#"(import (testing lib)) #f"#,
                  equals, Scm::False);
+
+            compare!(import_user_macro:
+                r#"(import (testing macro)) (force (delay 42))"#,
+                 equals, Scm::Int(42));
         }
 
         mod definition {

@@ -7,7 +7,6 @@ use super::constant::Constant;
 use super::definition::GlobalDefine;
 use super::fixlet::FixLet;
 use super::function::Function;
-use super::import::Import;
 use super::keyword::MagicKeyword;
 use super::noop::NoOp;
 use super::reference::Reference;
@@ -66,7 +65,7 @@ impl Expression {
         }
     }
 
-    pub fn splice(mut self, other: Self) -> Self {
+    pub fn splice(self, other: Self) -> Self {
         use Expression::*;
         match self {
             Sequence(mut s) => {
