@@ -46,6 +46,11 @@ impl Translate {
         }
     }
 
+    /// Mark the current environment as this translation's base environment
+    pub fn mark_base_env(&mut self) {
+        self.base_env = self.env.clone();
+    }
+
     pub fn objectify_toplevel(&mut self, exprs: &[TrackedSexpr]) -> Result<Program> {
         self.objectify_program(exprs)
     }
@@ -504,6 +509,7 @@ impl Translate {
         // temporarily fill with default env
         // according to spec this should be emtpy...
         let mut libtrans = Translate::new(crate::language::scheme::init_env());
+        libtrans.libs = self.libs.clone();
         let lib = libtrans.objectify_library_declarations(body)?;
 
         let mut imports = LibraryImport::new();
@@ -512,7 +518,9 @@ impl Translate {
 
         for decl in lib {
             match decl {
-                LibraryDeclaration::LibraryImport(_) => unimplemented!(),
+                LibraryDeclaration::LibraryImport(_) => {
+                    eprintln!("WARNING: library imports ignored!")
+                }
                 LibraryDeclaration::LibraryExport(x) => exports.extend(x),
                 LibraryDeclaration::Expression(x) => body = body.splice(x),
             }
@@ -549,12 +557,17 @@ impl Translate {
             Ok(x) if x == "export" => self
                 .objectify_library_export(decl.cdr().unwrap())
                 .map(Into::into),
-            Ok(x) if x == "import" => unimplemented!(),
+            Ok(x) if x == "import" => self.objectify_library_import(decl).map(Into::into),
             _ => Err(Error::at_expr(
                 ObjectifyErrorKind::InvalidLibraryDefinition,
                 decl,
             )),
         }
+    }
+
+    pub fn objectify_library_import(&mut self, decl: &TrackedSexpr) -> Result<LibraryImport> {
+        let import = self.objectify_import(decl)?;
+        Ok(LibraryImport::new())
     }
 
     pub fn objectify_library_export(&mut self, specs: &TrackedSexpr) -> Result<LibraryExport> {

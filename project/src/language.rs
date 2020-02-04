@@ -5,7 +5,7 @@ pub mod scheme {
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
     use crate::error::{Error, Result};
-    use crate::library::Library;
+    use crate::library::{Library, LibraryBuilder};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
     use crate::primitive::{Arity, RuntimePrimitive};
@@ -68,12 +68,20 @@ pub mod scheme {
             Ok(result)
         }
 
-        fn add_library(&mut self, library_name: impl Into<PathBuf>, lib: Library) {
+        pub fn add_library(&mut self, library_name: impl Into<PathBuf>, lib: Library) {
             let name = library_name.into();
             self.trans.add_library(name.clone(), lib.exports);
 
             let name = Scm::string(name.to_str().unwrap()).as_string().unwrap();
             self.vm.add_library(name, lib.values);
+        }
+
+        pub fn import_library(&mut self, library_name: impl Into<PathBuf>) {
+            let name = library_name.into();
+            let parts: Vec<_> = name.iter().map(|s| s.to_str().unwrap()).collect();
+            let parts = parts.join(" ");
+            let expr = format!("(import ({}))", parts);
+            self.eval_str(&expr).unwrap();
         }
     }
 
@@ -153,20 +161,8 @@ pub mod scheme {
 
     pub fn init_env() -> Env {
         predef! {
-            primitive "cons", =2, Scm::cons;
-            primitive "car", =1, Scm::car;
-            primitive "cdr", =1, Scm::cdr;
-            primitive "set-car!", =2, Scm::set_car;
-            primitive "set-cdr!", =2, Scm::set_cdr;
-            primitive "eq?", =2, Scm::ptr_eq;
-            primitive "null?", =1, Scm::is_nil;
-            primitive "<", =2, Scm::num_less;
-            primitive "*", =2, Scm::mul;
-            primitive "/", =2, Scm::div;
-            primitive "+", =2, Scm::add;
-            primitive "-", =2, Scm::sub;
-            primitive "list", >=0, list;
-            primitive "vector", >=0, vector;
+            //primitive "list", >=0, list;
+            //primitive "vector", >=0, vector;
 
             // non-standard stuff
             primitive "primitive?", =1, Scm::is_primitive;
@@ -175,16 +171,41 @@ pub mod scheme {
 
             primitive "disassemble", =1, disassemble;
             @primitive "globals", =0, list_globals;
+        }
+    }
 
-            macro "lambda", expand_lambda;
-            macro "let", expand_let;
+    pub fn create_scheme_base_library() -> Library {
+        build_library! {
+            // example of a variable-argument native
+            //native "foo", >=1, |a: Scm, b: &[Scm]| {println!("{:?} and {:?}", a, b)};
+
+            // example of a primitive function (that works on the current context)
+            //primitive "globals", =0, list_globals;
+
+            native "cons", =2, Scm::cons;
+            native "car", =1, Scm::car;
+            native "cdr", =1, Scm::cdr;
+            native "set-car!", =2, Scm::set_car;
+            native "set-cdr!", =2, Scm::set_cdr;
+            native "eq?", =2, Scm::ptr_eq;
+            native "null?", =1, Scm::is_nil;
+            native "<", =2, Scm::num_less;
+            native "*", =2, Scm::mul;
+            native "/", =2, Scm::div;
+            native "+", =2, Scm::add;
+            native "-", =2, Scm::sub;
+            native "list", >=0, list;
+            native "vector", >=0, vector;
+
             macro "begin", expand_begin;
-            macro "set!", expand_assign;
-            macro "if", expand_alternative;
-            macro "quote", expand_quote;
             macro "define", expand_define;
             macro "define-syntax", expand_define_syntax;
+            macro "if", expand_alternative;
+            macro "lambda", expand_lambda;
+            macro "let", expand_let;
             macro "or", expand_or;
+            macro "quote", expand_quote;
+            macro "set!", expand_assign;
         }
     }
 
@@ -325,6 +346,14 @@ pub mod scheme {
             }
         }
 
+        fn create_testing_context() -> Context {
+            let mut ctx = Context::new();
+            ctx.add_library("scheme/base", create_scheme_base_library());
+            ctx.import_library("scheme/base");
+            ctx.trans.mark_base_env();
+            create_testing_libraries(ctx)
+        }
+
         fn create_testing_libraries(mut ctx: Context) -> Context {
             ctx.add_library(
                 "testing/1",
@@ -373,9 +402,11 @@ pub mod scheme {
             ($name:ident: $src:expr, $cmp:path) => {
                 #[test]
                 fn $name() {
-                    let result = create_testing_libraries(Context::new())
-                        .eval_str($src)
-                        .expect(concat!("Could not evaluate `", $src, "`"));
+                    let result = create_testing_context().eval_str($src).expect(concat!(
+                        "Could not evaluate `",
+                        $src,
+                        "`"
+                    ));
                     if !$cmp(&result) {
                         panic!(
                             r#"assertion failed: `(eq? actual expected)`
@@ -395,9 +426,11 @@ pub mod scheme {
             ($name:ident: $src:expr, $cmp:ident, $expect:expr) => {
                 #[test]
                 fn $name() {
-                    let result = create_testing_libraries(Context::new())
-                        .eval_str($src)
-                        .expect(concat!("Could not evaluate `", $src, "`"));
+                    let result = create_testing_context().eval_str($src).expect(concat!(
+                        "Could not evaluate `",
+                        $src,
+                        "`"
+                    ));
                     if !result.$cmp(&$expect) {
                         panic!(
                             r#"assertion failed: `(eq? actual expected)`
@@ -415,7 +448,7 @@ pub mod scheme {
             ($name:ident: $src:expr, $expect:expr) => {
                 #[test]
                 fn $name() {
-                    match create_testing_libraries(Context::new()).eval_str($src) {
+                    match create_testing_context().eval_str($src) {
                         Ok(r) => panic!(
                             r#"assertion failed:
          expression: `{}`
@@ -576,7 +609,7 @@ pub mod scheme {
         mod extra_syntax {
             use super::*;
 
-            compare!(primitive: "(let ((x 1) (y 2)) (+ x y))", equals, Scm::Int(3));
+            compare!(primitive: "(let ((x 42) (y 8)) (+ x y))", equals, Scm::Int(50));
         }
 
         mod syntactic_closure {
@@ -725,7 +758,7 @@ pub mod scheme {
 
             #[test]
             fn global_definition() {
-                let mut ctx = Context::new();
+                let mut ctx = create_testing_context();
                 ctx.eval_str("(define x 42)").unwrap();
                 assert_eq!(
                     ctx.vm.globals().last(),
@@ -735,7 +768,7 @@ pub mod scheme {
 
             #[test]
             fn local_definition() {
-                let mut ctx = Context::new();
+                let mut ctx = create_testing_context();
                 assert_eq!(
                     ctx.eval_str("((lambda () (define x 42) x))").unwrap(),
                     Scm::Int(42)
@@ -748,14 +781,14 @@ pub mod scheme {
 
             #[test]
             fn define_syntax() {
-                let mut ctx = Context::new();
+                let mut ctx = create_testing_context();
                 ctx.eval_str("(define (foo) 42)").unwrap();
                 assert_eq!(ctx.eval_str("(foo)").unwrap(), Scm::Int(42));
             }
 
             #[test]
             fn define_syntax_local() {
-                let mut ctx = Context::new();
+                let mut ctx = create_testing_context();
                 ctx.eval_str("(define (foo) (define (bar x) (* x 2)))")
                     .unwrap();
                 assert_eq!(ctx.eval_str("((foo) 21)").unwrap(), Scm::Int(42));

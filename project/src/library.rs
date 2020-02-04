@@ -93,3 +93,149 @@ pub fn libname_to_path(mut expr: &TrackedSexpr) -> Result<PathBuf> {
 
     Ok(path)
 }
+
+/// Build library definition.
+///
+/// - Macros are compile-time expanders and have no runtime representation
+/// - Primitives are functions that take a slice of arguments and the current context
+/// - Natives are Rust functions that take each argument separately (they get wrapped in a primitive)
+#[macro_export]
+macro_rules! build_library {
+    () => {build_library!(@ |x|x;)};
+
+    (macro $($rest:tt)*) => {
+        build_library!(@|builder| builder; macro $($rest)*)
+    };
+
+    (primitive $($rest:tt)*) => {
+        build_library!(@|builder| builder; primitive $($rest)*)
+    };
+
+    (native $($rest:tt)*) => {
+        build_library!(@|builder| builder; native $($rest)*)
+    };
+
+    (@$build:expr; macro $name:expr, $func:expr; $($rest:tt)*) => {
+        build_library!(
+            @|builder: LibraryBuilder| $build(builder).add_macro($name, MagicKeyword::new($name, $func));
+            $($rest)*)
+    };
+
+    (@$build:expr; primitive $name:expr, $arity_test:tt $arity:tt, $func:expr; $($rest:tt)*) => {
+        build_library!(
+            @|builder: LibraryBuilder| $build(builder).add_value(
+                $name,
+                Scm::Primitive(make_primitive!($name, $arity_test$arity, $func)));
+            $($rest)*)
+    };
+
+    (@$build:expr; native $name:expr, $arity_test:tt $arity:tt, $func:expr; $($rest:tt)*) => {
+        build_library!(
+            @|builder: LibraryBuilder| $build(builder).add_value(
+                $name,
+                Scm::Primitive(make_primitive!(native $name, $arity_test$arity, $func)));
+            $($rest)*)
+    };
+
+    (@$build:expr;) => {
+        $build(LibraryBuilder::new()).build()
+    };
+}
+
+macro_rules! make_primitive {
+    (native $name:expr, =$arity:tt, $func:expr) => {
+        make_primitive!(
+            $name,
+            =$arity,
+             wrap_native!(=$arity $func))
+    };
+
+    (native $name:expr, >=$arity:tt, $func:expr) => {
+        make_primitive!(
+            $name,
+            >=$arity,
+             wrap_native!(>=$arity $func))
+    };
+
+    ($name:expr, =$arity:expr, $func:expr) => {
+        RuntimePrimitive::new(
+            $name,
+            Arity::Exact($arity),
+            |args, ctx| $func(args, ctx).wrap())
+    };
+
+    ($name:expr, >=$arity:expr, $func:expr) => {
+        RuntimePrimitive::new(
+            $name,
+            Arity::AtLeast($arity),
+            |args, ctx| $func(args, ctx).wrap())
+    };
+}
+
+macro_rules! wrap_native {
+    (=$arity:tt $func:expr) => {
+        |args: &[Scm], _ctx: &VirtualMachine| wrap_native!(@inner args =$arity $func)
+    };
+
+    (>=$arity:tt $func:expr) => {
+        |args: &[Scm], _ctx: &VirtualMachine| wrap_native!(@inner args >=$arity $func)
+    };
+
+    (@inner $args:ident =0 $func:expr) => {
+        match &$args[..] {
+            [] => $func(),
+            _ => unreachable!(),
+        }
+    };
+
+    (@inner $args:ident =1 $func:expr) => {
+        match &$args[..] {
+            [a] => $func(a.into()),
+            _ => unreachable!(),
+        }
+    };
+
+    (@inner $args:ident =2 $func:expr) => {
+        match &$args[..] {
+            [a, b] => $func(a.into(), b.into()),
+            _ => unreachable!(),
+        }
+    };
+
+    (@inner $args:ident =3 $func:expr) => {
+        match &$args[..] {
+            [a, b, c] => $func(a.into(), b.into(), c.into()),
+            _ => unreachable!(),
+        }
+    };
+
+    (@inner $args:ident =4 $func:expr) => {
+        match &$args[..] {
+            [a, b, c, d] => $func(a.into(), b.into(), c.into(), d.into()),
+            _ => unreachable!(),
+        }
+    };
+
+    (@inner $args:ident =5 $func:expr) => {
+        match &$args[..] {
+            [a, b, c, d, e] => $func(a.into(), b.into(), c.into(), d.into(), e.into()),
+            _ => unreachable!(),
+        }
+    };
+
+    (@inner $args:ident >=0 $func:expr) => {
+        $func($args)
+    };
+
+    (@inner $args:ident >=1 $func:expr) => {
+        $func($args[0].into(), &$args[1..])
+    };
+
+    (@inner $args:ident >=2 $func:expr) => {
+        $func($args[0].into(), $args[1].into(), &$args[2..])
+    };
+
+    (@inner $args:ident >=3 $func:expr) => {
+        $func($args[0].into(), $args[1].into(), $args[2].into(), &$args[3..])
+    };
+}

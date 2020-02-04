@@ -1,5 +1,6 @@
 (define-library (testing lib)
-    (export delay force)
+    (export delay force or)
+    (import (scheme base))
     (begin
         (define-syntax delay
             (syntax-rules ()
@@ -7,4 +8,10 @@
 
         (define-syntax force
             (syntax-rules ()
-                ((force x) (x))))))
+                ((force x) (x))))
+
+        (define-syntax or
+            (syntax-rules ()
+                ((or a b) (let ((temp a)) (if temp temp b)))
+            )
+        )))

@@ -1,13 +1,15 @@
 #[macro_use]
 mod utils;
 
+#[macro_use]
+mod library;
+
 mod ast_transform;
 pub mod bytecode;
 mod env;
 mod error;
 mod eval;
 mod language;
-mod library;
 mod macro_language;
 mod objectify;
 mod parsing;

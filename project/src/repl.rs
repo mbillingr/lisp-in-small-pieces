@@ -1,5 +1,5 @@
 use crate::error::{Error, ErrorContext};
-use crate::language::scheme::Context;
+use crate::language::scheme::{create_scheme_base_library, Context};
 use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -9,6 +9,9 @@ pub fn repl() {
     if rl.load_history("repl.hist.txt").is_err() {}
 
     let mut context = Context::new();
+
+    context.add_library("scheme/base", create_scheme_base_library());
+    context.import_library("scheme/base");
 
     loop {
         match rl.readline(">> ") {
