@@ -14,9 +14,11 @@ use crate::syntax::{
     Program, Reference, RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {
@@ -34,7 +36,7 @@ pub enum ObjectifyErrorKind {
 pub struct Translate {
     pub env: Env,
     pub base_env: Env,
-    pub libs: HashMap<PathBuf, StaticLibrary>,
+    pub libs: Rc<RefCell<HashMap<PathBuf, Rc<StaticLibrary>>>>,
 }
 
 impl Translate {
@@ -42,7 +44,15 @@ impl Translate {
         Translate {
             env: base_env.clone(),
             base_env,
-            libs: HashMap::new(),
+            libs: Rc::new(RefCell::new(HashMap::new())),
+        }
+    }
+
+    pub fn same_but_empty(&self) -> Self {
+        Translate {
+            env: Env::new(),
+            base_env: Env::new(),
+            libs: self.libs.clone(),
         }
     }
 
@@ -388,7 +398,14 @@ impl Translate {
 
     fn objectify_import_all(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
         let library_path = libname_to_path(form)?;
-        let lib = self.load_library(form)?;
+
+        //let mut libtrans = Translate::new(Env::new());
+        // temporarily fill with default env
+        // according to spec this should be emtpy...
+        let mut libtrans = Translate::new(crate::language::scheme::init_env());
+        libtrans.libs = self.libs.clone();
+
+        let lib = libtrans.load_library(form)?;
 
         Ok(ImportSet::new(
             form.into(),
@@ -505,12 +522,7 @@ impl Translate {
         body: &TrackedSexpr,
         span: SourceLocation,
     ) -> Result<Library> {
-        //let mut libtrans = Translate::new(Env::new());
-        // temporarily fill with default env
-        // according to spec this should be emtpy...
-        let mut libtrans = Translate::new(crate::language::scheme::init_env());
-        libtrans.libs = self.libs.clone();
-        let lib = libtrans.objectify_library_declarations(body)?;
+        let lib = self.objectify_library_declarations(body)?;
 
         let mut imports = LibraryImport::new();
         let mut exports = LibraryExport::new();
@@ -526,7 +538,7 @@ impl Translate {
             }
         }
 
-        Ok(Library::new(libtrans.env, imports, exports, body, span))
+        Ok(Library::new(self.env.clone(), imports, exports, body, span))
     }
 
     pub fn objectify_library_declarations(
@@ -607,10 +619,10 @@ impl Translate {
         }
     }
 
-    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<&StaticLibrary> {
+    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<Rc<StaticLibrary>> {
         let library_path = libname_to_path(library_name)?;
-        if self.libs.contains_key(&library_path) {
-            Ok(&self.libs[&library_path])
+        if self.libs.borrow().contains_key(&library_path) {
+            Ok(self.libs.borrow()[&library_path].clone())
         } else {
             let mut file_path = library_path.clone();
             file_path.set_extension("sld");
@@ -623,13 +635,17 @@ impl Translate {
             })?;
 
             let lib = self.parse_library(library_code)?;
+            let lib = Self::include_library(&lib)?;
+            let lib = Rc::new(lib);
 
-            self.libs.insert(library_path.clone(), lib);
-            Ok(&self.libs[&library_path])
+            self.libs
+                .borrow_mut()
+                .insert(library_path.clone(), lib.clone());
+            Ok(lib)
         }
     }
 
-    pub fn parse_library(&mut self, code: Source) -> Result<StaticLibrary> {
+    pub fn parse_library(&mut self, code: Source) -> Result<Library> {
         let sexprs = TrackedSexpr::from_source(&code)?;
         if sexprs.len() == 0 {
             return Err(Error::at_span(
@@ -654,8 +670,10 @@ impl Translate {
         let sexpr = &sexprs[0];
         let name = ocar(ocdr(sexpr)?)?;
         let body = ocdr(ocdr(sexpr)?)?;
-        let lib = self.objectify_library(name, body, sexpr.source().clone())?;
+        self.objectify_library(name, body, sexpr.source().clone())
+    }
 
+    fn include_library(lib: &Library) -> Result<StaticLibrary> {
         let mut slib = StaticLibrary::new();
         for name in lib.exports.iter().map(|x| x.exported_name()) {
             let item = match lib.env.find_variable(&name) {
@@ -670,7 +688,9 @@ impl Translate {
     }
 
     pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: StaticLibrary) {
-        self.libs.insert(library_name.into(), library);
+        self.libs
+            .borrow_mut()
+            .insert(library_name.into(), Rc::new(library));
     }
 }
 

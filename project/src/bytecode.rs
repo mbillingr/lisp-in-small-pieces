@@ -16,6 +16,12 @@ pub struct CodeObject {
     ops: Box<[Op]>,
 }
 
+#[derive(Debug)]
+pub struct LibraryObject {
+    code_object: CodeObject,
+    global_symbols: Vec<Symbol>,
+}
+
 impl PartialEq for CodeObject {
     fn eq(&self, _other: &Self) -> bool {
         //self.ops == other.ops && self.constants == other.constants
@@ -98,6 +104,25 @@ impl CodeObject {
             arity,
             constants: constants.into(),
             ops: code.into(),
+        }
+    }
+}
+
+impl LibraryObject {
+    pub fn new(
+        source: SourceLocation,
+        code: impl Into<Box<[Op]>>,
+        constants: impl Into<Box<[Scm]>>,
+        global_symbols: impl Into<Vec<Symbol>>,
+    ) -> Self {
+        LibraryObject {
+            code_object: CodeObject {
+                source,
+                arity: Arity::Exact(0),
+                constants: constants.into(),
+                ops: code.into(),
+            },
+            global_symbols: global_symbols.into(),
         }
     }
 }

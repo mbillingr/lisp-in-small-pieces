@@ -1,4 +1,5 @@
-use crate::bytecode::{CodeObject, Op};
+use crate::bytecode::{CodeObject, LibraryObject, Op};
+use crate::env::Env;
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::library::ExportItem;
 use crate::objectify::Translate;
@@ -9,11 +10,61 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
-    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import,
+    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import, Library,
     LocalReference, PredefinedApplication, PredefinedReference, Program, Reference,
     RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
+use std::path::Path;
+
+pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> {
+    let mut bcgen = BytecodeGenerator::new(vec![], trans);
+    let mut code = vec![];
+    for import in &prog.imports {
+        code.extend(bcgen.compile_import(import)?);
+    }
+    code.extend(bcgen.compile(&prog.body, true)?);
+    code.push(Op::Return);
+    Ok(CodeObject::new(
+        Arity::Exact(0),
+        prog.body.source().clone(),
+        code,
+        bcgen.constants,
+    ))
+}
+
+pub fn compile_function(
+    func: &Function,
+    closure_vars: Vec<Symbol>,
+    trans: &Translate,
+) -> Result<CodeObject> {
+    let mut bcgen = BytecodeGenerator::new(closure_vars, trans);
+    bcgen.env = func.variables.iter().map(|var| var.name()).collect();
+    let mut code = bcgen.compile(&func.body, true)?;
+    if !code.last().map(Op::is_terminal).unwrap_or(false) {
+        code.push(Op::Return);
+    }
+    Ok(CodeObject::new(
+        func.arity(),
+        func.span.clone(),
+        code,
+        bcgen.constants,
+    ))
+}
+
+pub fn compile_library(lib: &Library, trans: &Translate) -> Result<LibraryObject> {
+    let mut bcgen = BytecodeGenerator::new(vec![], &trans);
+    let mut code = bcgen.compile(&lib.body, false)?;
+
+    let global_symbols: Vec<_> = trans.env.globals().map(|gv| gv.name()).collect();
+
+    Ok(LibraryObject::new(
+        lib.source().clone(),
+        code,
+        bcgen.constants,
+        global_symbols,
+    ))
+}
 
 #[derive(Debug)]
 pub struct BytecodeGenerator<'a> {
@@ -31,41 +82,6 @@ impl<'a> BytecodeGenerator<'a> {
             env: vec![],
             current_closure_vars,
         }
-    }
-
-    pub fn compile_program(prog: &Program, trans: &'a Translate) -> Result<CodeObject> {
-        let mut bcgen = Self::new(vec![], trans);
-        let mut code = vec![];
-        for import in &prog.imports {
-            code.extend(bcgen.compile_import(import)?);
-        }
-        code.extend(bcgen.compile(&prog.body, true)?);
-        code.push(Op::Return);
-        Ok(CodeObject::new(
-            Arity::Exact(0),
-            prog.body.source().clone(),
-            code,
-            bcgen.constants,
-        ))
-    }
-
-    pub fn compile_function(
-        func: &Function,
-        closure_vars: Vec<Symbol>,
-        trans: &'a Translate,
-    ) -> Result<CodeObject> {
-        let mut bcgen = Self::new(closure_vars, trans);
-        bcgen.env = func.variables.iter().map(|var| var.name()).collect();
-        let mut code = bcgen.compile(&func.body, true)?;
-        if !code.last().map(Op::is_terminal).unwrap_or(false) {
-            code.push(Op::Return);
-        }
-        Ok(CodeObject::new(
-            func.arity(),
-            func.span.clone(),
-            code,
-            bcgen.constants,
-        ))
     }
 
     fn compile(&mut self, node: &Expression, tail: bool) -> Result<Vec<Op>> {
@@ -170,7 +186,11 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Result<Vec<Op>> {
-        let idx = self.trans.env.find_global_idx(&node.var.name()).unwrap();
+        let idx = self
+            .trans
+            .env
+            .find_global_idx(&node.var.name())
+            .unwrap_or_else(|| panic!("Could not find global: {}", node.var.name()));
         Ok(vec![Op::GlobalRef(idx)])
     }
 
@@ -228,7 +248,7 @@ impl<'a> BytecodeGenerator<'a> {
     fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Result<Vec<Op>> {
         let free_vars = node.free_vars.iter().map(|s| s.var.name()).collect();
 
-        let function = BytecodeGenerator::compile_function(&node.func, free_vars, self.trans)?;
+        let function = compile_function(&node.func, free_vars, self.trans)?;
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];

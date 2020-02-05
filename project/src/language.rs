@@ -1,7 +1,7 @@
 pub mod scheme {
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
-    use crate::ast_transform::generate_bytecode::BytecodeGenerator;
+    use crate::ast_transform::generate_bytecode::{compile_library, compile_program};
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
     use crate::error::{Error, Result};
@@ -19,7 +19,7 @@ pub mod scheme {
     use crate::syntactic_closure::SyntacticClosure;
     use crate::syntax::{Expression, GlobalVariable, MagicKeyword, NoOp};
     use std::ops::{Add, Div, Mul, Sub};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     pub struct Context {
         pub trans: Translate,
@@ -55,7 +55,7 @@ pub mod scheme {
 
             println!("{:#?}", ast);
 
-            let code = BytecodeGenerator::compile_program(&ast, &self.trans)?;
+            let code = compile_program(&ast, &self.trans)?;
             println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
@@ -82,6 +82,29 @@ pub mod scheme {
             let parts = parts.join(" ");
             let expr = format!("(import ({}))", parts);
             self.eval_str(&expr).unwrap();
+        }
+
+        pub fn build_library(&mut self, path: &Path) -> Result<()> {
+            let mut file_path = path.to_owned();
+            file_path.set_extension("sld");
+
+            let library_src = Source::from_file(&file_path).map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => {
+                    Error::at_span(ObjectifyErrorKind::UnknownLibrary(file_path), NoSource)
+                }
+                _ => err.into(),
+            })?;
+
+            let mut trans = self.trans.same_but_empty();
+
+            let lib = trans.parse_library(library_src)?;
+            let lib = lib.transform(&mut Boxify);
+            let lib = lib.transform(&mut Flatten::new());
+            let libobj = compile_library(&lib, &trans)?;
+
+            println!("{:#?}", libobj);
+
+            Ok(())
         }
     }
 

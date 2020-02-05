@@ -1,5 +1,6 @@
 use super::expression::Expression;
 use super::Import;
+use crate::ast_transform::Transformer;
 use crate::env::Env;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
@@ -50,6 +51,12 @@ impl Library {
             body,
             span,
         }
+    }
+
+    pub fn transform(mut self, visitor: &mut impl Transformer) -> Self {
+        //self.imports = self.imports.into_iter().map(|import| import.transform(visitor)).collect();
+        self.body = self.body.transform(visitor);
+        self
     }
 }
 
