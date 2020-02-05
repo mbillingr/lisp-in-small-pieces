@@ -189,6 +189,7 @@ impl Scm {
             (String(a), String(b)) => *a as *const str == *b as *const str,
             (Vector(a), Vector(b)) => *a as *const _ == *b as *const _,
             (Pair(a), Pair(b)) => *a as *const _ == *b as *const _,
+            (Primitive(a), Primitive(b)) => a == b,
             (Cell(a), Cell(b)) => *a as *const _ == *b as *const _,
             _ => false,
         }
@@ -206,6 +207,7 @@ impl Scm {
             (String(a), String(b)) => a == b,
             (Vector(a), Vector(b)) => a.iter().zip(*b).all(|(a, b)| a.get().equals(&b.get())),
             (Pair(a), Pair(b)) => a.0.get().equals(&b.0.get()) && a.1.get().equals(&b.1.get()),
+            (Primitive(a), Primitive(b)) => a == b,
             (Cell(a), Cell(b)) => a.get().equals(&b.get()),
             _ => false,
         }

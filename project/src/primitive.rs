@@ -59,6 +59,12 @@ impl std::fmt::Display for RuntimePrimitive {
     }
 }
 
+impl PartialEq for RuntimePrimitive {
+    fn eq(&self, other: &Self) -> bool {
+        self.func as *const PrimitiveSignature == other.func as *const PrimitiveSignature
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum Arity {
     Exact(u16),
