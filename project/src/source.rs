@@ -78,7 +78,7 @@ impl std::fmt::Display for Span {
             writeln!(f, "{:>4}   {}", line + 1, self.src.extract_line(line))?;
             write!(
                 f,
-                "       {: >2$}{:^>3$}",
+                "      {: >2$}{:^>3$}",
                 "",
                 "",
                 self.start - line_start,
