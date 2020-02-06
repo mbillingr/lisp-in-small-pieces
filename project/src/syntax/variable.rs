@@ -81,15 +81,23 @@ impl std::fmt::Debug for LocalVariable {
 }
 
 #[derive(Clone)]
-pub struct GlobalVariable(Rc<Cell<(Symbol, VarDef)>>);
+pub struct GlobalVariable(Rc<Cell<(Symbol, VarDef, bool)>>);
 
 impl GlobalVariable {
     pub fn new(name: impl Into<Symbol>, def: VarDef) -> Self {
-        GlobalVariable(Rc::new(Cell::new((name.into(), def))))
+        GlobalVariable(Rc::new(Cell::new((name.into(), def, true))))
     }
 
     pub fn defined(name: impl Into<Symbol>, value: Scm) -> Self {
-        GlobalVariable(Rc::new(Cell::new((name.into(), VarDef::Value(value)))))
+        GlobalVariable(Rc::new(Cell::new((
+            name.into(),
+            VarDef::Value(value),
+            true,
+        ))))
+    }
+
+    pub fn constant(name: impl Into<Symbol>, def: VarDef) -> Self {
+        GlobalVariable(Rc::new(Cell::new((name.into(), def, false))))
     }
 
     pub fn value(&self) -> VarDef {
@@ -97,8 +105,22 @@ impl GlobalVariable {
     }
 
     pub fn set_value(&self, value: VarDef) {
-        let (name, _) = self.0.get();
-        self.0.set((name, value));
+        let (name, old_value, mutable) = self.0.get();
+        if mutable || old_value == VarDef::Undefined {
+            self.0.set((name, value, true));
+        } else {
+            panic!("attempt to set immutable {:?} := {}", self, value)
+        }
+    }
+
+    pub fn ensure_value(&self, value: VarDef) {
+        if self.value() != value {
+            self.set_value(value)
+        }
+    }
+
+    pub fn is_mutable(&self) -> bool {
+        self.0.get().2
     }
 }
 
@@ -162,6 +184,18 @@ impl std::fmt::Display for VarDef {
             VarDef::Unknown => write!(f, "?"),
             VarDef::Undefined => write!(f, "-"),
             VarDef::Value(x) => write!(f, "{}", x),
+        }
+    }
+}
+
+impl PartialEq for VarDef {
+    fn eq(&self, other: &Self) -> bool {
+        use VarDef::*;
+        match (self, other) {
+            (Unknown, Unknown) => true,
+            (Undefined, Undefined) => true,
+            (Value(a), Value(b)) => a.equals(b),
+            _ => false,
         }
     }
 }

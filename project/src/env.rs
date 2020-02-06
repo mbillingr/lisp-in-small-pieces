@@ -133,7 +133,7 @@ impl Env {
             assert_eq!(gv.name(), name);
             match value {
                 Scm::Undefined | Scm::Uninitialized => gv.set_value(VarDef::Unknown),
-                val => gv.set_value(VarDef::Value(val)),
+                val => gv.ensure_value(VarDef::Value(val)),
             }
         }
     }

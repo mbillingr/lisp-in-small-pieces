@@ -588,6 +588,8 @@ pub mod scheme {
 
             compare!(modify_free: "(((lambda (x) (lambda () (set! x 21) (+ x x))) 0))", equals, Scm::Int(42));
             compare!(access_free_while_setting: "(((lambda (x) (lambda () (set! x x) x)) 0))", equals, Scm::Int(0));
+
+            assert_error!(immutable_assignment: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
         }
 
         mod application {
@@ -750,12 +752,10 @@ pub mod scheme {
                 r#"(import (rename (testing 2) (invoke call))) (call (lambda () 8))"#,
                  equals, Scm::Int(8));
 
-            compare!(import_shared_value_not_allowed:
+            assert_error!(imports_are_immutable:
                 r#"(import (testing 1))
-                   (import (rename (testing 1) (a c)))
-                   (set! c 42)
-                   (cons a c)"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(42)));
+                   (set! a 42)"#,
+                ObjectifyErrorKind::ImmutableAssignment);
 
             compare!(import_nested_sets:
                 r#"(import (rename (rename (testing 1) (a c)) (c x)))

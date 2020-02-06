@@ -329,6 +329,13 @@ impl Translate {
             Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
                 let gvar = var;
 
+                if !gvar.is_mutable() {
+                    return Err(Error::at_span(
+                        ObjectifyErrorKind::ImmutableAssignment,
+                        span,
+                    ));
+                }
+
                 if let VarDef::Undefined = gvar.value() {
                 } else {
                     match &of {
@@ -362,7 +369,7 @@ impl Translate {
             for item in &import_obj.items {
                 match &item.item {
                     ExportItem::Value(x) => {
-                        import_vars.push(GlobalVariable::new(item.import_name, *x))
+                        import_vars.push(GlobalVariable::constant(item.import_name, *x))
                     }
                     ExportItem::Macro(mkw) => import_macros.push(MagicKeyword {
                         name: item.import_name,
@@ -373,7 +380,7 @@ impl Translate {
 
             for var in import_vars {
                 let gv = self.env.ensure_global(var.clone());
-                gv.set_value(var.value());
+                gv.ensure_value(var.value());
             }
 
             self.env.extend_global(import_macros);
