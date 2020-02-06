@@ -68,7 +68,7 @@ impl Translate {
     pub fn objectify_program(&mut self, exprs: &[TrackedSexpr]) -> Result<Program> {
         let n_imports = exprs.iter().take_while(|&expr| is_import(expr)).count();
 
-        let imports: Vec<_> = exprs[..n_imports]
+        let imports: Import = exprs[..n_imports]
             .iter()
             .rev()
             .map(|expr| self.objectify_import(expr))

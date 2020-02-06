@@ -5,7 +5,7 @@ use crate::source::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub imports: Vec<Import>,
+    pub imports: Import,
     pub body: Expression,
     span: SourceLocation,
 }
@@ -13,7 +13,7 @@ pub struct Program {
 impl_sourced!(Program);
 
 impl Program {
-    pub fn new(imports: Vec<Import>, body: Expression, span: SourceLocation) -> Self {
+    pub fn new(imports: Import, body: Expression, span: SourceLocation) -> Self {
         Program {
             imports,
             body,

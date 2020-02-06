@@ -20,9 +20,7 @@ use std::path::Path;
 pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> {
     let mut bcgen = BytecodeGenerator::new(vec![], trans);
     let mut code = vec![];
-    for import in &prog.imports {
-        code.extend(bcgen.compile_import(import)?);
-    }
+    code.extend(bcgen.compile_import(&prog.imports)?);
     code.extend(bcgen.compile(&prog.body, true)?);
     code.push(Op::Return);
     Ok(CodeObject::new(
@@ -383,6 +381,7 @@ impl<'a> BytecodeGenerator<'a> {
                 if let ExportItem::Macro(_) = item.item {
                     continue;
                 }
+                //let lib = self.get_library(set.library_path)?;
                 let libname = set.library_path.to_str().unwrap();
                 ops.push(self.build_constant(Scm::string(libname)));
                 ops.push(Op::PushVal);

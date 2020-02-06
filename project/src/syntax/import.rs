@@ -2,9 +2,11 @@ use crate::ast_transform::Transformer;
 use crate::library::ExportItem;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
+use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::iter::FromIterator;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -27,6 +29,21 @@ impl Import {
         self.import_sets.extend(other.import_sets);
         self.span = self.span.join(&other.span);
         self
+    }
+}
+
+impl FromIterator<Import> for Import {
+    fn from_iter<T: IntoIterator<Item = Import>>(iter: T) -> Self {
+        let mut iter = iter.into_iter();
+        if let Some(first) = iter.next() {
+            let mut imports = first;
+            for im in iter {
+                imports = imports.join(im);
+            }
+            imports
+        } else {
+            Import::new(vec![], NoSource)
+        }
     }
 }
 
