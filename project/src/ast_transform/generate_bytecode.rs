@@ -15,7 +15,8 @@ use crate::syntax::{
     RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::collections::{HashSet, HashMap};
 
 pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> {
     let mut bcgen = BytecodeGenerator::new(vec![], trans);
@@ -70,6 +71,8 @@ pub struct BytecodeGenerator<'a> {
     constants: Vec<Scm>,
     env: Vec<Symbol>,
     current_closure_vars: Vec<Symbol>,
+    libs: Vec<PathBuf>,
+    imports: Vec<(usize, Symbol, usize)>,
 }
 
 impl<'a> BytecodeGenerator<'a> {
@@ -79,6 +82,8 @@ impl<'a> BytecodeGenerator<'a> {
             constants: vec![],
             env: vec![],
             current_closure_vars,
+            libs: vec![],
+            imports: vec![],
         }
     }
 
@@ -374,25 +379,39 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_import(&mut self, node: &Import) -> Result<Vec<Op>> {
-        let mut ops = vec![];
-
         for set in &node.import_sets {
             for item in &set.items {
                 if let ExportItem::Macro(_) = item.item {
                     continue;
                 }
-                //let lib = self.get_library(set.library_path)?;
-                let libname = set.library_path.to_str().unwrap();
-                ops.push(self.build_constant(Scm::string(libname)));
-                ops.push(Op::PushVal);
-                ops.push(self.build_constant(Scm::Symbol(item.export_name)));
-                ops.push(Op::Import);
-                ops.push(self.build_global_def(item.import_name));
-                ops.push(Op::Drop(1));
+                self.add_import(
+                    &set.library_path,
+                    item.export_name,
+                    self.trans.env.find_global_idx(&item.import_name).unwrap(),
+                );
+
+                /*let libname = set.library_path.to_str().unwrap();
+                import_ops.push(self.build_constant(Scm::string(libname)));
+                import_ops.push(Op::PushVal);
+                import_ops.push(self.build_constant(Scm::Symbol(item.export_name)));
+                import_ops.push(Op::Import);
+                import_ops.push(self.build_global_def(item.import_name));
+                import_ops.push(Op::Drop(1));*/
             }
         }
 
-        Ok(ops)
+        Ok(vec![])
+    }
+
+    fn add_import(&mut self, lib_path: &Path, export_name: Symbol, global_idx: usize) {
+        let libidx = if let Some(idx) = self.libs.iter().position(|p| p == lib_path) {
+            idx
+        } else {
+            self.libs.push(lib_path.to_owned());
+            self.libs.len() - 1
+        };
+
+        self.imports.push((libidx, export_name, global_idx));
     }
 }
 

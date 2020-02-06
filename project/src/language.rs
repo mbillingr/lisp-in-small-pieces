@@ -16,8 +16,10 @@ pub mod scheme {
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
+    use crate::symbol::Symbol;
     use crate::syntactic_closure::SyntacticClosure;
     use crate::syntax::{Expression, GlobalVariable, MagicKeyword, NoOp};
+    use std::collections::HashMap;
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::{Path, PathBuf};
 
