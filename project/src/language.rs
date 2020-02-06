@@ -590,6 +590,7 @@ pub mod scheme {
             compare!(access_free_while_setting: "(((lambda (x) (lambda () (set! x x) x)) 0))", equals, Scm::Int(0));
 
             assert_error!(immutable_assignment: "(set! cons #f)", ObjectifyErrorKind::ImmutableAssignment);
+            compare!(immutable_redefinition: "(begin (define cons #f) cons)", equals, Scm::False);
         }
 
         mod application {

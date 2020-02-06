@@ -299,7 +299,7 @@ impl Translate {
         let var_name = TrackedSexpr::as_symbol(variable).unwrap();
         let gvar = match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
-            Some(Variable::GlobalVariable(v)) => v,
+            Some(Variable::GlobalVariable(v)) if v.is_mutable() => v,
             _ => self.adjoin_global_variable(*var_name, VarDef::Unknown),
         };
 
