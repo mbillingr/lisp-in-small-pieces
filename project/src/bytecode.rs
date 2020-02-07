@@ -1,13 +1,12 @@
 use crate::error::{Result, RuntimeError, TypeError};
-use crate::language::scheme::Context;
 use crate::objectify::Translate;
 use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::library::LibraryExportSpec;
-use crate::syntax::variable::{GlobalPlaceholder, VarDef};
-use crate::syntax::{GlobalVariable, Variable};
+use crate::syntax::variable::GlobalPlaceholder;
+use crate::syntax::Variable;
 use crate::utils::Named;
 use std::collections::HashMap;
 use std::path::Path;
@@ -180,21 +179,6 @@ impl VirtualMachine {
         for (idx, gvar) in self.trans.env.enumerate_globals() {
             self.globals[idx].1 = gvar.name();
         }
-        /*let env = self.trans.env.globals();
-        for gvar in env.skip(self.globals.len()) {
-            match gvar.value() {
-                VarDef::Unknown | VarDef::Undefined => {
-                    self.globals.push((Scm::uninitialized(), gvar.name()))
-                }
-                VarDef::Value(x) => self.globals.push((x, gvar.name())),
-            }
-        }*/
-    }
-
-    pub fn update_globals(&mut self) {
-        /*self.trans
-        .env
-        .update_global_values(self.globals().iter().copied());*/
     }
 
     pub fn add_library(&mut self, name: &'static str, library: Library) {
@@ -342,8 +326,7 @@ impl VirtualMachine {
                         let code = Box::leak(Box::new(lib.code_object.clone()));
                         let closure = Closure::simple(code);
                         let closure = Box::leak(Box::new(closure));
-                        self.eval(closure);
-                        self.update_globals();
+                        self.eval(closure)?;
 
                         let exports = lib
                             .exports

@@ -16,10 +16,8 @@ pub mod scheme {
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
-    use crate::symbol::Symbol;
     use crate::syntactic_closure::SyntacticClosure;
-    use crate::syntax::{Expression, GlobalVariable, MagicKeyword, NoOp};
-    use std::collections::HashMap;
+    use crate::syntax::{Expression, MagicKeyword, NoOp};
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::{Path, PathBuf};
 
@@ -67,7 +65,6 @@ pub mod scheme {
 
             self.vm.synchronize_globals();
             let result = self.vm.eval(closure)?;
-            self.vm.update_globals();
             Ok(result)
         }
 

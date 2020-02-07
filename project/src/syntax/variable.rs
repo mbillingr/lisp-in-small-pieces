@@ -23,7 +23,7 @@ impl Named for Variable {
             GlobalVariable(v) => v.name(),
             MagicKeyword(v) => v.name(),
             FreeVariable(v) => v.name(),
-            GlobalPlaceholder(v) => Symbol::new("n/a"),
+            GlobalPlaceholder(_) => Symbol::new("n/a"),
         }
     }
 }

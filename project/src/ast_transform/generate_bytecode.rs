@@ -1,5 +1,4 @@
 use crate::bytecode::{CodeObject, LibraryObject, Op};
-use crate::env::Env;
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::library::ExportItem;
 use crate::objectify::Translate;
@@ -15,7 +14,6 @@ use crate::syntax::{
     RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> {

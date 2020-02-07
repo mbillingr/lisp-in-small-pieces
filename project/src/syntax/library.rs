@@ -39,7 +39,7 @@ pub enum LibraryExportSpec {
 impl Library {
     pub fn new(
         env: Env,
-        imports: LibraryImport,
+        _imports: LibraryImport,
         exports: LibraryExport,
         body: Expression,
         span: SourceLocation,

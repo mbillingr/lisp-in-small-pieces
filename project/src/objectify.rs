@@ -523,7 +523,7 @@ impl Translate {
     ) -> Result<Library> {
         let lib = self.objectify_library_declarations(body)?;
 
-        let mut imports = LibraryImport::new();
+        let imports = LibraryImport::new();
         let mut exports = LibraryExport::new();
         let mut body = Expression::NoOp(NoOp);
 
@@ -577,7 +577,7 @@ impl Translate {
     }
 
     pub fn objectify_library_import(&mut self, decl: &TrackedSexpr) -> Result<LibraryImport> {
-        let import = self.objectify_import(decl)?;
+        let _import = self.objectify_import(decl)?;
         Ok(LibraryImport::new())
     }
 

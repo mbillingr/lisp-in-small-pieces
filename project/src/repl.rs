@@ -1,11 +1,8 @@
 use crate::error::{Error, ErrorContext};
-use crate::language::scheme::{
-    build_library, create_scheme_base_library, create_scheme_extra_library, Context,
-};
+use crate::language::scheme::{create_scheme_base_library, create_scheme_extra_library, Context};
 use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
-use std::path::Path;
 
 pub fn repl() {
     let mut rl = Editor::<()>::new();
@@ -15,6 +12,8 @@ pub fn repl() {
 
     context.add_library("sunny/base", create_scheme_base_library());
     context.add_library("sunny/extra", create_scheme_extra_library());
+
+    context.import_library("sunny/base");
 
     loop {
         match rl.readline(">> ") {
