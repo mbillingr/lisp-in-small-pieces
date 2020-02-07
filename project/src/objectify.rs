@@ -82,9 +82,10 @@ impl Translate {
         let body = if sequence.is_null() {
             Expression::NoOp(NoOp)
         } else {
-            sequence =
+            /*sequence =
                 TrackedSexpr::cons(TrackedSexpr::symbol("begin", NoSource), sequence, NoSource);
-            self.objectify(&sequence)?
+            self.objectify(&sequence)?*/
+            self.objectify_sequence(&sequence)?
         };
 
         let span = exprs.last().unwrap().source().start_at(exprs[0].source());
@@ -400,10 +401,7 @@ impl Translate {
     fn objectify_import_all(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
         let library_path = libname_to_path(form)?;
 
-        //let mut libtrans = Translate::new(Env::new());
-        // temporarily fill with default env
-        // according to spec this should be emtpy...
-        let mut libtrans = Translate::new(crate::language::scheme::init_env());
+        let mut libtrans = Translate::new(Env::new());
         libtrans.libs = self.libs.clone();
 
         let lib = libtrans.load_library(form)?;

@@ -1,5 +1,7 @@
 use crate::error::{Error, ErrorContext};
-use crate::language::scheme::{build_library, create_scheme_base_library, Context};
+use crate::language::scheme::{
+    build_library, create_scheme_base_library, create_scheme_extra_library, Context,
+};
 use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -12,9 +14,7 @@ pub fn repl() {
     let mut context = Context::new();
 
     context.add_library("scheme/base", create_scheme_base_library());
-    //context.import_library("scheme/base");
-
-    //build_library(&mut context.trans(), Path::new("testing/lib"), 0).unwrap();
+    context.add_library("scheme/extra", create_scheme_extra_library());
 
     loop {
         match rl.readline(">> ") {

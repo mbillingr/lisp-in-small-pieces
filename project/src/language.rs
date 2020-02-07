@@ -29,7 +29,7 @@ pub mod scheme {
 
     impl Context {
         pub fn new() -> Self {
-            let env = init_env();
+            let env = Env::new();
 
             let trans = Translate::new(env);
 
@@ -109,92 +109,14 @@ pub mod scheme {
         compile_library(&lib, &trans, global_offset)
     }
 
-    macro_rules! predef {
-        () => {
-            Env::new()
-        };
+    pub fn create_scheme_extra_library() -> LibraryData {
+        build_library! {
+            native "primitive?", =1, Scm::is_primitive;
+            native "uninitialized?", =1, Scm::is_uninitialized;
+            native "undefined?", =1, Scm::is_undefined;
 
-        (primitive $name:expr, =0, $func:expr; $($rest:tt)*) => {{
-            predef!{
-                @primitive $name, =0,
-                |args: &[Scm], _ctx: &VirtualMachine| {
-                    match &args[..] {
-                        [] => $func(),
-                        _ => unreachable!(),
-                    }
-                };
-                $($rest)*}
-        }};
-
-        (primitive $name:expr, =1, $func:expr; $($rest:tt)*) => {{
-            predef!{
-                @primitive $name, =1,
-                |args: &[Scm], _ctx: &VirtualMachine| {
-                    match &args[..] {
-                        [a] => $func(a.into()),
-                        _ => unreachable!(),
-                    }
-                };
-                $($rest)*}
-        }};
-
-        (primitive $name:expr, =2, $func:expr; $($rest:tt)*) => {{
-            predef!{
-                @primitive $name, =2,
-                |args: &[Scm], _ctx: &VirtualMachine| {
-                    match &args[..] {
-                        [a, b] => $func(a.into(), b.into()),
-                        _ => unreachable!(),
-                    }
-                };
-                $($rest)*}
-        }};
-
-        (primitive $name:expr, =3, $func:expr; $($rest:tt)*) => {{
-            predef!{
-                @primitive $name, =3,
-                |args: &[Scm], _ctx: &VirtualMachine| {
-                    match &args[..] {
-                        [a, b, c] => $func(a.into(), b.into(), c.into()),
-                        _ => unreachable!(),
-                    }
-                };
-                $($rest)*}
-        }};
-
-        (primitive $name:expr, >=$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let mut env = predef!{$($rest)*};
-            let func = RuntimePrimitive::new($name, Arity::AtLeast($arity), |args, _ctx| $func(args).wrap());
-            env.push_global(GlobalVariable::defined($name, Scm::primitive(func)));
-            env
-        }};
-
-        (@primitive $name:expr, =$arity:expr, $func:expr; $($rest:tt)*) => {{
-            let mut env = predef!{$($rest)*};
-            let func = RuntimePrimitive::new($name, Arity::Exact($arity), |args, ctx| $func(args, ctx).wrap());
-            env.push_global(GlobalVariable::defined($name, Scm::primitive(func)));
-            env
-        }};
-
-        (macro $name:expr, $func:ident; $($rest:tt)*) => {{
-            let mut env = predef!{$($rest)*};
-            env.push_global(MagicKeyword::new($name, $func));
-            env
-        }};
-    }
-
-    pub fn init_env() -> Env {
-        predef! {
-            //primitive "list", >=0, list;
-            //primitive "vector", >=0, vector;
-
-            // non-standard stuff
-            primitive "primitive?", =1, Scm::is_primitive;
-            primitive "uninitialized?", =1, Scm::is_uninitialized;
-            primitive "undefined?", =1, Scm::is_undefined;
-
-            primitive "disassemble", =1, disassemble;
-            @primitive "globals", =0, list_globals;
+            native "disassemble", =1, disassemble;
+            primitive "globals", =0, list_globals;
         }
     }
 
@@ -204,7 +126,7 @@ pub mod scheme {
             //native "foo", >=1, |a: Scm, b: &[Scm]| {println!("{:?} and {:?}", a, b)};
 
             // example of a primitive function (that works on the current context)
-            primitive "globals", =0, list_globals;
+            //primitive "globals", =0, list_globals;
 
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
