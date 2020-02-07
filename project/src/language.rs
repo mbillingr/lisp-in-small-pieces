@@ -2,10 +2,10 @@ pub mod scheme {
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::{compile_library, compile_program};
-    use crate::bytecode::{Closure, VirtualMachine};
+    use crate::bytecode::{Closure, LibraryObject, VirtualMachine};
     use crate::env::Env;
     use crate::error::{Error, Result};
-    use crate::library::{Library, LibraryBuilder};
+    use crate::library::{LibraryBuilder, LibraryData};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
     use crate::primitive::{Arity, RuntimePrimitive};
@@ -24,7 +24,6 @@ pub mod scheme {
     use std::path::{Path, PathBuf};
 
     pub struct Context {
-        pub trans: Translate,
         pub vm: VirtualMachine,
     }
 
@@ -34,9 +33,13 @@ pub mod scheme {
 
             let trans = Translate::new(env);
 
-            let vm = VirtualMachine::new(vec![]);
+            let vm = VirtualMachine::new(trans, vec![]);
 
-            Context { trans, vm }
+            Context { vm }
+        }
+
+        pub fn trans(&mut self) -> &mut Translate {
+            &mut self.vm.trans
         }
 
         pub fn eval_str(&mut self, src: &str) -> Result<Scm> {
@@ -51,28 +54,26 @@ pub mod scheme {
         pub fn eval_sexpr(&mut self, sexprs: &[TrackedSexpr]) -> Result<Scm> {
             //println!("{:?} =>", sexprs);
             //println!("{:?}", self.trans);
-            let ast = self.trans.objectify_toplevel(sexprs)?;
+            let ast = self.trans().objectify_toplevel(sexprs)?;
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
             println!("{:#?}", ast);
 
-            let code = compile_program(&ast, &self.trans)?;
+            let code = compile_program(&ast, &self.trans())?;
             println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
-            self.vm.synchronize_globals(self.trans.env.globals());
+            self.vm.synchronize_globals();
             let result = self.vm.eval(closure)?;
-            self.trans
-                .env
-                .update_global_values(self.vm.globals().iter().copied());
+            self.vm.update_globals();
             Ok(result)
         }
 
-        pub fn add_library(&mut self, library_name: impl Into<PathBuf>, lib: Library) {
+        pub fn add_library(&mut self, library_name: impl Into<PathBuf>, lib: LibraryData) {
             let name = library_name.into();
-            self.trans.add_library(name.clone(), lib.exports);
+            self.trans().add_library(name.clone(), lib.exports);
 
             let name = Scm::string(name.to_str().unwrap()).as_string().unwrap();
             self.vm.add_library(name, lib.values);
@@ -85,29 +86,27 @@ pub mod scheme {
             let expr = format!("(import ({}))", parts);
             self.eval_str(&expr).unwrap();
         }
+    }
 
-        pub fn build_library(&mut self, path: &Path) -> Result<()> {
-            let mut file_path = path.to_owned();
-            file_path.set_extension("sld");
+    pub fn build_library(
+        trans: &mut Translate,
+        path: &Path,
+        global_offset: usize,
+    ) -> Result<LibraryObject> {
+        let mut file_path = path.to_owned();
+        file_path.set_extension("sld");
 
-            let library_src = Source::from_file(&file_path).map_err(|err| match err.kind() {
-                std::io::ErrorKind::NotFound => {
-                    Error::at_span(ObjectifyErrorKind::UnknownLibrary(file_path), NoSource)
-                }
-                _ => err.into(),
-            })?;
+        let library_src = Source::from_file(&file_path).map_err(|err| match err.kind() {
+            std::io::ErrorKind::NotFound => {
+                Error::at_span(ObjectifyErrorKind::UnknownLibrary(file_path), NoSource)
+            }
+            _ => err.into(),
+        })?;
 
-            let mut trans = self.trans.same_but_empty();
-
-            let lib = trans.parse_library(library_src)?;
-            let lib = lib.transform(&mut Boxify);
-            let lib = lib.transform(&mut Flatten::new());
-            let libobj = compile_library(&lib, &trans)?;
-
-            println!("{:#?}", libobj);
-
-            Ok(())
-        }
+        let lib = trans.parse_library(library_src)?;
+        let lib = lib.transform(&mut Boxify);
+        let lib = lib.transform(&mut Flatten::new());
+        compile_library(&lib, &trans, global_offset)
     }
 
     macro_rules! predef {
@@ -199,13 +198,13 @@ pub mod scheme {
         }
     }
 
-    pub fn create_scheme_base_library() -> Library {
+    pub fn create_scheme_base_library() -> LibraryData {
         build_library! {
             // example of a variable-argument native
             //native "foo", >=1, |a: Scm, b: &[Scm]| {println!("{:?} and {:?}", a, b)};
 
             // example of a primitive function (that works on the current context)
-            //primitive "globals", =0, list_globals;
+            primitive "globals", =0, list_globals;
 
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
@@ -375,7 +374,7 @@ pub mod scheme {
             let mut ctx = Context::new();
             ctx.add_library("scheme/base", create_scheme_base_library());
             ctx.import_library("scheme/base");
-            ctx.trans.mark_base_env();
+            ctx.trans().mark_base_env();
             create_testing_libraries(ctx)
         }
 

@@ -15,8 +15,8 @@ use crate::syntax::{
     RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::collections::{HashSet, HashMap};
 
 pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> {
     let mut bcgen = BytecodeGenerator::new(vec![], trans);
@@ -24,10 +24,19 @@ pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> 
     code.extend(bcgen.compile_import(&prog.imports)?);
     code.extend(bcgen.compile(&prog.body, true)?);
     code.push(Op::Return);
+
+    let mut library_code = vec![];
+    for lib in bcgen.libs.clone() {
+        library_code.push(bcgen.build_constant(Scm::string(lib.to_str().unwrap())));
+        library_code.push(Op::InitLibrary);
+    }
+
+    library_code.extend(code);
+
     Ok(CodeObject::new(
         Arity::Exact(0),
         prog.body.source().clone(),
-        code,
+        library_code,
         bcgen.constants,
     ))
 }
@@ -36,8 +45,10 @@ pub fn compile_function(
     func: &Function,
     closure_vars: Vec<Symbol>,
     trans: &Translate,
+    global_offset: usize,
 ) -> Result<CodeObject> {
     let mut bcgen = BytecodeGenerator::new(closure_vars, trans);
+    bcgen.set_global_offset(global_offset);
     bcgen.env = func.variables.iter().map(|var| var.name()).collect();
     let mut code = bcgen.compile(&func.body, true)?;
     if !code.last().map(Op::is_terminal).unwrap_or(false) {
@@ -51,9 +62,15 @@ pub fn compile_function(
     ))
 }
 
-pub fn compile_library(lib: &Library, trans: &Translate) -> Result<LibraryObject> {
+pub fn compile_library(
+    lib: &Library,
+    trans: &Translate,
+    global_offset: usize,
+) -> Result<LibraryObject> {
     let mut bcgen = BytecodeGenerator::new(vec![], &trans);
+    bcgen.set_global_offset(global_offset);
     let mut code = bcgen.compile(&lib.body, false)?;
+    code.push(Op::Return);
 
     let global_symbols: Vec<_> = trans.env.globals().map(|gv| gv.name()).collect();
 
@@ -62,6 +79,7 @@ pub fn compile_library(lib: &Library, trans: &Translate) -> Result<LibraryObject
         code,
         bcgen.constants,
         global_symbols,
+        lib.exports.clone(),
     ))
 }
 
@@ -73,6 +91,7 @@ pub struct BytecodeGenerator<'a> {
     current_closure_vars: Vec<Symbol>,
     libs: Vec<PathBuf>,
     imports: Vec<(usize, Symbol, usize)>,
+    global_offset: usize,
 }
 
 impl<'a> BytecodeGenerator<'a> {
@@ -84,7 +103,12 @@ impl<'a> BytecodeGenerator<'a> {
             current_closure_vars,
             libs: vec![],
             imports: vec![],
+            global_offset: 0,
         }
+    }
+
+    pub fn set_global_offset(&mut self, offset: usize) {
+        self.global_offset = offset;
     }
 
     fn compile(&mut self, node: &Expression, tail: bool) -> Result<Vec<Op>> {
@@ -190,9 +214,7 @@ impl<'a> BytecodeGenerator<'a> {
 
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self
-            .trans
-            .env
-            .find_global_idx(&node.var.name())
+            .find_global_idx(node.var.name())
             .unwrap_or_else(|| panic!("Could not find global: {}", node.var.name()));
         Ok(vec![Op::GlobalRef(idx)])
     }
@@ -203,11 +225,7 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_global_set(&mut self, node: &GlobalAssignment, _tail: bool) -> Result<Vec<Op>> {
-        let idx = self
-            .trans
-            .env
-            .find_global_idx(&node.variable.name())
-            .unwrap();
+        let idx = self.find_global_idx(node.variable.name()).unwrap();
         let mut meaning = self.compile(&node.form, false)?;
         meaning.push(Op::GlobalSet(idx));
         Ok(meaning)
@@ -220,7 +238,7 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn build_global_def(&mut self, name: Symbol) -> Op {
-        let idx = self.trans.env.find_global_idx(&name).unwrap();
+        let idx = self.find_global_idx(name).unwrap();
         Op::GlobalDef(idx)
     }
 
@@ -251,7 +269,7 @@ impl<'a> BytecodeGenerator<'a> {
     fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Result<Vec<Op>> {
         let free_vars = node.free_vars.iter().map(|s| s.var.name()).collect();
 
-        let function = compile_function(&node.func, free_vars, self.trans)?;
+        let function = compile_function(&node.func, free_vars, self.trans, self.global_offset)?;
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];
@@ -379,6 +397,7 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_import(&mut self, node: &Import) -> Result<Vec<Op>> {
+        let mut import_ops = vec![];
         for set in &node.import_sets {
             for item in &set.items {
                 if let ExportItem::Macro(_) = item.item {
@@ -387,20 +406,20 @@ impl<'a> BytecodeGenerator<'a> {
                 self.add_import(
                     &set.library_path,
                     item.export_name,
-                    self.trans.env.find_global_idx(&item.import_name).unwrap(),
+                    self.find_global_idx(item.import_name).unwrap(),
                 );
 
-                /*let libname = set.library_path.to_str().unwrap();
+                let libname = set.library_path.to_str().unwrap();
                 import_ops.push(self.build_constant(Scm::string(libname)));
                 import_ops.push(Op::PushVal);
                 import_ops.push(self.build_constant(Scm::Symbol(item.export_name)));
                 import_ops.push(Op::Import);
                 import_ops.push(self.build_global_def(item.import_name));
-                import_ops.push(Op::Drop(1));*/
+                import_ops.push(Op::Drop(1));
             }
         }
 
-        Ok(vec![])
+        Ok(import_ops)
     }
 
     fn add_import(&mut self, lib_path: &Path, export_name: Symbol, global_idx: usize) {
@@ -412,6 +431,13 @@ impl<'a> BytecodeGenerator<'a> {
         };
 
         self.imports.push((libidx, export_name, global_idx));
+    }
+
+    fn find_global_idx(&self, name: Symbol) -> Option<usize> {
+        self.trans
+            .env
+            .find_global_idx(&name)
+            .map(|idx| idx + self.global_offset)
     }
 }
 

@@ -1,14 +1,18 @@
 use crate::error::{Result, RuntimeError, TypeError};
+use crate::language::scheme::Context;
+use crate::objectify::Translate;
 use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
-use crate::syntax::variable::VarDef;
-use crate::syntax::GlobalVariable;
+use crate::syntax::library::LibraryExportSpec;
+use crate::syntax::variable::{GlobalPlaceholder, VarDef};
+use crate::syntax::{GlobalVariable, Variable};
 use crate::utils::Named;
 use std::collections::HashMap;
+use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CodeObject {
     source: SourceLocation,
     arity: Arity,
@@ -20,6 +24,7 @@ pub struct CodeObject {
 pub struct LibraryObject {
     code_object: CodeObject,
     global_symbols: Vec<Symbol>,
+    exports: Vec<LibraryExportSpec>,
 }
 
 impl PartialEq for CodeObject {
@@ -64,6 +69,7 @@ pub enum Op {
     Drop(usize),
 
     Import,
+    InitLibrary,
 
     // Intrinsics
     Cons,
@@ -114,6 +120,7 @@ impl LibraryObject {
         code: impl Into<Box<[Op]>>,
         constants: impl Into<Box<[Scm]>>,
         global_symbols: impl Into<Vec<Symbol>>,
+        exports: Vec<LibraryExportSpec>,
     ) -> Self {
         LibraryObject {
             code_object: CodeObject {
@@ -123,6 +130,7 @@ impl LibraryObject {
                 ops: code.into(),
             },
             global_symbols: global_symbols.into(),
+            exports,
         }
     }
 }
@@ -130,6 +138,7 @@ impl LibraryObject {
 pub type Library = HashMap<Symbol, Scm>;
 
 pub struct VirtualMachine {
+    pub trans: Translate,
     globals: Vec<(Scm, Symbol)>,
     libraries: HashMap<&'static str, Library>,
     value_stack: Vec<Scm>,
@@ -149,8 +158,9 @@ thread_local! {
 }
 
 impl VirtualMachine {
-    pub fn new(globals: Vec<(Scm, Symbol)>) -> Self {
+    pub fn new(trans: Translate, globals: Vec<(Scm, Symbol)>) -> Self {
         VirtualMachine {
+            trans,
             globals,
             libraries: HashMap::new(),
             value_stack: vec![],
@@ -162,7 +172,15 @@ impl VirtualMachine {
         &self.globals
     }
 
-    pub fn synchronize_globals(&mut self, env: impl Iterator<Item = GlobalVariable>) {
+    pub fn synchronize_globals(&mut self) {
+        self.globals.resize(
+            self.trans.env.max_global_idx(),
+            (Scm::Uninitialized, Symbol::new("n/a")),
+        );
+        for (idx, gvar) in self.trans.env.enumerate_globals() {
+            self.globals[idx].1 = gvar.name();
+        }
+        /*let env = self.trans.env.globals();
         for gvar in env.skip(self.globals.len()) {
             match gvar.value() {
                 VarDef::Unknown | VarDef::Undefined => {
@@ -170,7 +188,13 @@ impl VirtualMachine {
                 }
                 VarDef::Value(x) => self.globals.push((x, gvar.name())),
             }
-        }
+        }*/
+    }
+
+    pub fn update_globals(&mut self) {
+        /*self.trans
+        .env
+        .update_global_values(self.globals().iter().copied());*/
     }
 
     pub fn add_library(&mut self, name: &'static str, library: Library) {
@@ -295,6 +319,61 @@ impl VirtualMachine {
                 Op::Drop(n) => {
                     self.value_stack.truncate(self.value_stack.len() - n);
                 }
+                Op::InitLibrary => {
+                    let libname = val.as_string()?;
+                    if !self.libraries.contains_key(libname) {
+                        let global_offset = self.globals.len();
+                        let mut trans = self.trans.same_but_empty();
+                        let lib = crate::language::scheme::build_library(
+                            &mut trans,
+                            Path::new(libname),
+                            global_offset,
+                        )?;
+                        println!("{:#?}", lib);
+
+                        self.trans.env.extend_global(
+                            trans
+                                .env
+                                .globals()
+                                .map(|_| Variable::GlobalPlaceholder(GlobalPlaceholder)),
+                        );
+
+                        self.synchronize_globals();
+                        let code = Box::leak(Box::new(lib.code_object.clone()));
+                        let closure = Closure::simple(code);
+                        let closure = Box::leak(Box::new(closure));
+                        self.eval(closure);
+                        self.update_globals();
+
+                        let exports = lib
+                            .exports
+                            .iter()
+                            .map(|spec| {
+                                let idx = lib
+                                    .global_symbols
+                                    .iter()
+                                    .position(|&n| n == spec.internal_name())
+                                    .unwrap()
+                                    + global_offset;
+                                println!(
+                                    "{} = {} @ {}",
+                                    spec.exported_name(),
+                                    spec.internal_name(),
+                                    idx
+                                );
+                                (spec.exported_name(), self.globals[idx].0)
+                            })
+                            .collect();
+
+                        println!("{:#?}", self.globals);
+
+                        println!("{:?}", exports);
+
+                        self.libraries.insert(libname, exports);
+
+                        //unimplemented!()
+                    }
+                }
                 Op::Import => {
                     // intended use:
                     //   (constant l)   ; load library name
@@ -399,6 +478,7 @@ impl std::fmt::Debug for Op {
             Op::Return => write!(f, "(return)"),
             Op::Halt => write!(f, "(halt)"),
             Op::Drop(n) => write!(f, "(drop {})", n),
+            Op::InitLibrary => write!(f, "(init-library)"),
             Op::Import => write!(f, "(import)"),
             Op::Cons => write!(f, "(cons)"),
             Op::Car => write!(f, "(car)"),

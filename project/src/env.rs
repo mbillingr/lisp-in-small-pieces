@@ -47,15 +47,25 @@ impl Env {
             .borrow()
             .iter()
             .take(pos)
-            .filter_map(|var| {
-                if let Variable::GlobalVariable(gv) = var {
-                    Some(gv)
-                } else {
-                    None
-                }
+            .filter(|var| match var {
+                Variable::GlobalVariable(_) => true,
+                Variable::GlobalPlaceholder(_) => true,
+                _ => false,
             })
             .count();
         Some(idx)
+    }
+
+    pub fn max_global_idx(&self) -> usize {
+        self.globals
+            .borrow()
+            .iter()
+            .filter(|var| match var {
+                Variable::GlobalVariable(_) => true,
+                Variable::GlobalPlaceholder(_) => true,
+                _ => false,
+            })
+            .count()
     }
 
     pub fn find_predef_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
@@ -93,6 +103,26 @@ impl Env {
         })
     }
 
+    pub fn enumerate_globals(&self) -> impl Iterator<Item = (usize, GlobalVariable)> {
+        self.globals
+            .borrow()
+            .clone()
+            .into_iter()
+            .filter(|var| match var {
+                Variable::GlobalVariable(_) => true,
+                Variable::GlobalPlaceholder(_) => true,
+                _ => false,
+            })
+            .enumerate()
+            .filter_map(|(idx, var)| {
+                if let Variable::GlobalVariable(gv) = var {
+                    Some((idx, gv))
+                } else {
+                    None
+                }
+            })
+    }
+
     pub fn ensure_global(&mut self, var: GlobalVariable) -> GlobalVariable {
         match self.find_global(&var.name()) {
             None => {
@@ -119,7 +149,7 @@ impl Env {
 
     pub fn extend_global<T: Into<Variable>>(&mut self, vars: impl IntoIterator<Item = T>) {
         for var in vars.into_iter() {
-            self.push_local(var)
+            self.push_global(var)
         }
     }
 
@@ -132,7 +162,7 @@ impl Env {
         for (gv, (value, name)) in self.globals().zip(values) {
             assert_eq!(gv.name(), name);
             match value {
-                Scm::Undefined | Scm::Uninitialized => gv.set_value(VarDef::Unknown),
+                Scm::Undefined | Scm::Uninitialized => gv.ensure_value(VarDef::Unknown),
                 val => gv.ensure_value(VarDef::Value(val)),
             }
         }

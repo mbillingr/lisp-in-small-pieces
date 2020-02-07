@@ -9,6 +9,7 @@ sum_types! {
     #[derive(Debug, Clone, PartialEq)]
     pub type Variable = LocalVariable
                       | GlobalVariable
+                      | GlobalPlaceholder
                       | MagicKeyword
                       | FreeVariable;
 }
@@ -22,6 +23,7 @@ impl Named for Variable {
             GlobalVariable(v) => v.name(),
             MagicKeyword(v) => v.name(),
             FreeVariable(v) => v.name(),
+            GlobalPlaceholder(v) => Symbol::new("n/a"),
         }
     }
 }
@@ -77,6 +79,15 @@ impl std::fmt::Debug for LocalVariable {
             if self.is_dotted() { " dotted" } else { "" },
             self.name()
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GlobalPlaceholder;
+
+impl GlobalPlaceholder {
+    pub fn new() -> Self {
+        GlobalPlaceholder
     }
 }
 

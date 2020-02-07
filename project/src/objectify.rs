@@ -157,6 +157,7 @@ impl Translate {
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
+            Some(Variable::GlobalPlaceholder(_)) => panic!("Invalid variable"),
             None => self.objectify_free_reference(var_name.clone(), expr.source().clone()),
         }
     }

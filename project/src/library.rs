@@ -11,7 +11,7 @@ pub type StaticLibrary = HashMap<Symbol, ExportItem>;
 pub type DynamicLibrary = HashMap<Symbol, Scm>;
 
 #[derive(Debug, Clone)]
-pub struct Library {
+pub struct LibraryData {
     pub exports: StaticLibrary,
     pub values: DynamicLibrary,
 }
@@ -22,9 +22,9 @@ pub enum ExportItem {
     Macro(MagicKeyword),
 }
 
-impl Library {
+impl LibraryData {
     pub fn new() -> Self {
-        Library {
+        LibraryData {
             exports: HashMap::new(),
             values: HashMap::new(),
         }
@@ -40,17 +40,17 @@ impl Library {
 }
 
 pub struct LibraryBuilder {
-    lib: Library,
+    lib: LibraryData,
 }
 
 impl LibraryBuilder {
     pub fn new() -> Self {
         LibraryBuilder {
-            lib: Library::new(),
+            lib: LibraryData::new(),
         }
     }
 
-    pub fn build(self) -> Library {
+    pub fn build(self) -> LibraryData {
         self.lib
     }
 

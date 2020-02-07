@@ -97,4 +97,11 @@ impl LibraryExportSpec {
             LibraryExportSpec::Rename(_, s) => *s,
         }
     }
+
+    pub fn internal_name(&self) -> Symbol {
+        match self {
+            LibraryExportSpec::Identifier(s) => *s,
+            LibraryExportSpec::Rename(s, _) => *s,
+        }
+    }
 }
