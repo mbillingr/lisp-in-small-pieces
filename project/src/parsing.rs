@@ -109,6 +109,10 @@ impl<'a> Span<'a> {
         };
         (first, second)
     }
+
+    pub fn as_str(&self) -> &str {
+        &self.text[self.start..self.end]
+    }
 }
 
 #[derive(Debug)]
@@ -148,6 +152,7 @@ pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
         src = rest;
         exprs.push(expr);
     }
+    println!("{} -> {:?}", src.as_str(), exprs);
     Ok(exprs)
 }
 
@@ -292,9 +297,24 @@ fn parse_peculiar_identifier(input: Span) -> ParseResult<Span> {
         all((
             parse_explicit_sign,
             parse_sign_subsequent,
-            parse_symbol_subsequent,
+            repeat_0_or_more(parse_symbol_subsequent),
+        )),
+        all((
+            parse_explicit_sign,
+            char('.'),
+            parse_dot_subsequent,
+            repeat_0_or_more(parse_symbol_subsequent),
+        )),
+        all((
+            char('.'),
+            parse_dot_subsequent,
+            repeat_0_or_more(parse_symbol_subsequent),
         )),
     ))(input)
+}
+
+fn parse_dot_subsequent(input: Span) -> ParseResult<Span> {
+    any((parse_sign_subsequent, char('.')))(input)
 }
 
 fn parse_sign_subsequent(input: Span) -> ParseResult<Span> {
@@ -595,7 +615,7 @@ mod combinators {
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input)
-                .and_then(|_| self.1(input))
+                .and_then(|(_, rest)| self.1(rest))
                 .map(|(mut out, rest)| {
                     out.span_mut().start = input.start;
                     (out, rest)
@@ -615,8 +635,8 @@ mod combinators {
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input)
-                .and_then(|_| self.1(input))
-                .and_then(|_| self.2(input))
+                .and_then(|(_, rest)| self.1(rest))
+                .and_then(|(_, rest)| self.2(rest))
                 .map(|(mut out, rest)| {
                     out.span_mut().start = input.start;
                     (out, rest)
@@ -637,9 +657,9 @@ mod combinators {
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input)
-                .and_then(|_| self.1(input))
-                .and_then(|_| self.2(input))
-                .and_then(|_| self.3(input))
+                .and_then(|(_, rest)| self.1(rest))
+                .and_then(|(_, rest)| self.2(rest))
+                .and_then(|(_, rest)| self.3(rest))
                 .map(|(mut out, rest)| {
                     out.span_mut().start = input.start;
                     (out, rest)
@@ -661,10 +681,10 @@ mod combinators {
 
         fn parse_and(&self, input: Span<'a>) -> ParseResult<'a, T> {
             self.0(input)
-                .and_then(|_| self.1(input))
-                .and_then(|_| self.2(input))
-                .and_then(|_| self.3(input))
-                .and_then(|_| self.4(input))
+                .and_then(|(_, rest)| self.1(rest))
+                .and_then(|(_, rest)| self.2(rest))
+                .and_then(|(_, rest)| self.3(rest))
+                .and_then(|(_, rest)| self.4(rest))
                 .map(|(mut out, rest)| {
                     out.span_mut().start = input.start;
                     (out, rest)
@@ -721,6 +741,7 @@ mod tests {
         );
         compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x(y)")));
         compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x y")));
+        compare!(Sexpr::Symbol("..."), _, parse_symbol(Span::new("...")));
     }
 
     #[test]
@@ -744,8 +765,6 @@ mod tests {
             ],
             parse_list(Span::new("(x y . z)"))
         );
-
-        fail!(parse_list(Span::new("(x y .z)")));
     }
 
     #[test]
