@@ -306,6 +306,8 @@ impl VirtualMachine {
                 Op::InitLibrary => {
                     let libname = val.as_string()?;
                     if !self.libraries.contains_key(libname) {
+                        println!("initializing {}", libname);
+
                         let global_offset = self.globals.len();
                         let mut trans = self.trans.same_but_empty();
                         let lib = crate::language::scheme::build_library(
@@ -313,7 +315,6 @@ impl VirtualMachine {
                             Path::new(libname),
                             global_offset,
                         )?;
-                        println!("{:#?}", lib);
 
                         self.trans.env.extend_global(
                             trans
@@ -326,6 +327,7 @@ impl VirtualMachine {
                         let code = Box::leak(Box::new(lib.code_object.clone()));
                         let closure = Closure::simple(code);
                         let closure = Box::leak(Box::new(closure));
+                        println!("{:#?}", code);
                         self.eval(closure)?;
 
                         let exports = lib
@@ -338,19 +340,9 @@ impl VirtualMachine {
                                     .position(|&n| n == spec.internal_name())
                                     .unwrap()
                                     + global_offset;
-                                println!(
-                                    "{} = {} @ {}",
-                                    spec.exported_name(),
-                                    spec.internal_name(),
-                                    idx
-                                );
                                 (spec.exported_name(), self.globals[idx].0)
                             })
                             .collect();
-
-                        println!("{:#?}", self.globals);
-
-                        println!("{:?}", exports);
 
                         self.libraries.insert(libname, exports);
 

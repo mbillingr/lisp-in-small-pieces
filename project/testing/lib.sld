@@ -1,6 +1,6 @@
 (define-library (testing lib)
     (export foo)
-    (import (scheme base))
+    (import (sunny base))
     (begin
         (define (foo x) (bar x))
         (define (bar x) x)))

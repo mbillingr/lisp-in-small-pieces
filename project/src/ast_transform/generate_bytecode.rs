@@ -67,14 +67,25 @@ pub fn compile_library(
 ) -> Result<LibraryObject> {
     let mut bcgen = BytecodeGenerator::new(vec![], &trans);
     bcgen.set_global_offset(global_offset);
-    let mut code = bcgen.compile(&lib.body, false)?;
+
+    let mut code = vec![];
+    code.extend(bcgen.compile_import(&lib.imports)?);
+    code.extend(bcgen.compile(&lib.body, false)?);
     code.push(Op::Return);
+
+    let mut library_code = vec![];
+    for lib in bcgen.libs.clone() {
+        library_code.push(bcgen.build_constant(Scm::string(lib.to_str().unwrap())));
+        library_code.push(Op::InitLibrary);
+    }
+
+    library_code.extend(code);
 
     let global_symbols: Vec<_> = trans.env.globals().map(|gv| gv.name()).collect();
 
     Ok(LibraryObject::new(
         lib.source().clone(),
-        code,
+        library_code,
         bcgen.constants,
         global_symbols,
         lib.exports.clone(),

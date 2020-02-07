@@ -291,8 +291,8 @@ pub mod scheme {
 
         fn create_testing_context() -> Context {
             let mut ctx = Context::new();
-            ctx.add_library("scheme/base", create_scheme_base_library());
-            ctx.import_library("scheme/base");
+            ctx.add_library("sunny/base", create_scheme_base_library());
+            ctx.import_library("sunny/base");
             ctx.trans().mark_base_env();
             create_testing_libraries(ctx)
         }
@@ -688,6 +688,10 @@ pub mod scheme {
             compare!(import_user_macro:
                 r#"(import (testing macro)) (force (delay 42))"#,
                  equals, Scm::Int(42));
+
+            compare!(reexport:
+                r#"(import (testing reexport)) (cons (foo2 7) (foo2 5))"#,
+                 equals, Scm::cons(Scm::Int(7), Scm::Int(5)));
         }
 
         mod definition {

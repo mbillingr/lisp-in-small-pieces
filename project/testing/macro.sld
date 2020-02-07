@@ -1,6 +1,6 @@
 (define-library (testing lib)
     (export delay force or)
-    (import (scheme base))
+    (import (sunny base))
     (begin
         (define-syntax delay
             (syntax-rules ()

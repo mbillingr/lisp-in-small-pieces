@@ -30,6 +30,7 @@ pub enum ObjectifyErrorKind {
     ExpectedSymbol,
     UnknownLibrary(PathBuf),
     InvalidLibraryDefinition,
+    UndefinedVariable(Symbol),
 }
 
 #[derive(Debug)]
@@ -523,19 +524,25 @@ impl Translate {
     ) -> Result<Library> {
         let lib = self.objectify_library_declarations(body)?;
 
-        let imports = LibraryImport::new();
-        let mut exports = LibraryExport::new();
+        let mut imports: Option<Import> = None;
+        let mut exports = LibraryExport::new(NoSource);
         let mut body = Expression::NoOp(NoOp);
 
         for decl in lib {
             match decl {
-                LibraryDeclaration::LibraryImport(_) => {
-                    eprintln!("WARNING: library imports ignored!")
+                LibraryDeclaration::Import(import) => {
+                    imports = if let Some(i) = imports {
+                        Some(i.join(import))
+                    } else {
+                        Some(import)
+                    };
                 }
                 LibraryDeclaration::LibraryExport(x) => exports.extend(x),
                 LibraryDeclaration::Expression(x) => body = body.splice(x),
             }
         }
+
+        let imports = imports.unwrap_or(Import::new(vec![], NoSource));
 
         Ok(Library::new(self.env.clone(), imports, exports, body, span))
     }
@@ -576,21 +583,20 @@ impl Translate {
         }
     }
 
-    pub fn objectify_library_import(&mut self, decl: &TrackedSexpr) -> Result<LibraryImport> {
-        let _import = self.objectify_import(decl)?;
-        Ok(LibraryImport::new())
+    pub fn objectify_library_import(&mut self, decl: &TrackedSexpr) -> Result<Import> {
+        self.objectify_import(decl)
     }
 
     pub fn objectify_library_export(&mut self, specs: &TrackedSexpr) -> Result<LibraryExport> {
         match specs.sexpr {
-            Sexpr::Nil => Ok(LibraryExport::new()),
+            Sexpr::Nil => Ok(LibraryExport::new(specs.source().last_char())),
             Sexpr::Pair(_) => {
                 let car = specs.car().unwrap();
                 let cdr = specs.cdr().unwrap();
 
                 let mut export = self.objectify_library_export(cdr)?;
                 match car.sexpr {
-                    Sexpr::Symbol(ident) => export.adjoin_identifier(ident),
+                    Sexpr::Symbol(ident) => export.adjoin_identifier(ident, car.source()),
                     Sexpr::Pair(_) if car.car().unwrap() == "rename" => {
                         let (old, new) = car
                             .cdr()
@@ -602,7 +608,7 @@ impl Translate {
                             .and_then(|(old, caddar)| {
                                 (caddar.as_symbol().map(|new| (*old, *new)))
                             })?;
-                        export.adjoin_rename(old, new);
+                        export.adjoin_rename(old, new, car.source());
                     }
                     _ => Err(Error::at_expr(
                         ObjectifyErrorKind::InvalidLibraryDefinition,
@@ -674,13 +680,19 @@ impl Translate {
 
     fn include_library(lib: &Library) -> Result<StaticLibrary> {
         let mut slib = StaticLibrary::new();
-        for name in lib.exports.iter().map(|x| x.exported_name()) {
-            let item = match lib.env.find_variable(&name) {
+        for spec in lib.exports.iter() {
+            let item = match lib.env.find_variable(&spec.internal_name()) {
                 Some(Variable::MagicKeyword(mkw)) => ExportItem::Macro(mkw),
                 Some(Variable::GlobalVariable(g)) => ExportItem::Value(g.value()),
-                _ => unreachable!(),
+                None => {
+                    return Err(Error::at_span(
+                        ObjectifyErrorKind::UndefinedVariable(spec.internal_name()),
+                        spec.source().clone(),
+                    ))
+                }
+                other => unreachable!("{:?}", other),
             };
-            slib.insert(name, item);
+            slib.insert(spec.exported_name(), item);
         }
 
         Ok(slib)
