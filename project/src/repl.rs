@@ -13,8 +13,8 @@ pub fn repl() {
 
     let mut context = Context::new();
 
-    context.add_library("scheme/base", create_scheme_base_library());
-    context.add_library("scheme/extra", create_scheme_extra_library());
+    context.add_library("sunny/base", create_scheme_base_library());
+    context.add_library("sunny/extra", create_scheme_extra_library());
 
     loop {
         match rl.readline(">> ") {

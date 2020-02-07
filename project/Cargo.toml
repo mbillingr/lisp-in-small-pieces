@@ -1,5 +1,5 @@
 [package]
-name = "ast"
+name = "sunny"
 version = "0.1.0"
 authors = ["Martin Billinger <mbillingr@users.noreply.github.com>"]
 edition = "2018"
