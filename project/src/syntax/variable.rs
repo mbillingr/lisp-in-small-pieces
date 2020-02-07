@@ -133,6 +133,11 @@ impl GlobalVariable {
     pub fn is_mutable(&self) -> bool {
         self.0.get().2
     }
+
+    pub fn set_mutable(&self, d: bool) {
+        let (name, def, _) = self.0.get();
+        self.0.set((name, def, d));
+    }
 }
 
 impl Named for GlobalVariable {

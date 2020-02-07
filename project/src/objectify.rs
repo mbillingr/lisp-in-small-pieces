@@ -300,15 +300,23 @@ impl Translate {
         let var_name = TrackedSexpr::as_symbol(variable).unwrap();
         let gvar = match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
-            Some(Variable::GlobalVariable(v)) if v.is_mutable() => v,
-            _ => self.adjoin_global_variable(*var_name, VarDef::Unknown),
+            Some(Variable::GlobalVariable(v)) => {
+                v.set_mutable(true);
+                v.set_value(VarDef::Unknown);
+                v
+            }
+            _ => {
+                let v = self.adjoin_global_variable(*var_name, VarDef::Unknown);
+                match &form {
+                    Expression::Constant(c) => v.set_value(VarDef::Value((&c.value).into())),
+                    Expression::Reference(Reference::GlobalReference(gr)) => {
+                        v.set_value(gr.var.value())
+                    }
+                    _ => v.set_value(VarDef::Unknown),
+                }
+                v
+            }
         };
-
-        match &form {
-            Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
-            Expression::Reference(Reference::GlobalReference(gr)) => gvar.set_value(gr.var.value()),
-            _ => gvar.set_value(VarDef::Unknown),
-        }
 
         Ok(GlobalDefine::new(gvar, form, span).into())
     }
@@ -330,23 +338,8 @@ impl Translate {
             Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
                 let gvar = var;
 
-                if !gvar.is_mutable() {
-                    return Err(Error::at_span(
-                        ObjectifyErrorKind::ImmutableAssignment,
-                        span,
-                    ));
-                }
-
-                if let VarDef::Undefined = gvar.value() {
-                } else {
-                    match &of {
-                        Expression::Constant(c) => gvar.set_value(VarDef::Value((&c.value).into())),
-                        Expression::Reference(Reference::GlobalReference(gr)) => {
-                            gvar.set_value(gr.var.value())
-                        }
-                        _ => gvar.set_value(VarDef::Unknown),
-                    }
-                }
+                gvar.set_mutable(true);
+                gvar.set_value(VarDef::Unknown);
 
                 Ok(GlobalAssignment::new(gvar, of, span).into())
             }
