@@ -9,9 +9,9 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    Import, ImportItem, ImportSet, Library, LibraryDeclaration, LibraryExport, LibraryImport,
-    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, PredefinedApplication,
-    Program, Reference, RegularApplication, Sequence, Variable,
+    Import, ImportItem, ImportSet, Library, LibraryDeclaration, LibraryExport, LocalAssignment,
+    LocalReference, LocalVariable, MagicKeyword, NoOp, PredefinedApplication, Program, Reference,
+    RegularApplication, Sequence, Variable,
 };
 use crate::utils::Sourced;
 use std::cell::RefCell;

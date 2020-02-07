@@ -28,7 +28,7 @@ pub use fixlet::FixLet;
 pub use function::Function;
 pub use import::{Import, ImportItem, ImportSet};
 pub use keyword::{MagicKeyword, MagicKeywordHandler};
-pub use library::{Library, LibraryDeclaration, LibraryExport, LibraryImport};
+pub use library::{Library, LibraryDeclaration, LibraryExport};
 pub use noop::NoOp;
 pub use program::Program;
 pub use reference::{

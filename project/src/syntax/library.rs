@@ -24,9 +24,6 @@ sum_type! {
 }
 
 #[derive(Debug, Clone)]
-pub struct LibraryImport {}
-
-#[derive(Debug, Clone)]
 pub struct LibraryExport {
     specs: VecDeque<LibraryExportSpec>,
     span: SourceLocation,
@@ -95,12 +92,6 @@ impl LibraryExport {
 
     pub fn extend(&mut self, more: Self) {
         self.specs.extend(more.specs);
-    }
-}
-
-impl LibraryImport {
-    pub fn new() -> Self {
-        LibraryImport {}
     }
 }
 
