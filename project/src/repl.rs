@@ -1,5 +1,6 @@
 use crate::error::{Error, ErrorContext};
 use crate::language::scheme::{create_scheme_base_library, create_scheme_extra_library, Context};
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -31,6 +32,7 @@ pub fn repl() {
                     }
                 } else {
                     match context.eval_str(&line) {
+                        Ok(Scm::Undefined) => {}
                         Ok(x) => println!("{}", x),
                         Err(e) => report_error(e),
                     }

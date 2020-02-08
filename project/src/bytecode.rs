@@ -225,6 +225,7 @@ impl VirtualMachine {
                 }
                 Op::GlobalDef(idx) => {
                     self.globals[idx].0 = val;
+                    val = Scm::Undefined;
                 }
                 Op::Boxify(idx) => {
                     let x = self.ref_value(idx + frame_offset)?;
@@ -306,7 +307,7 @@ impl VirtualMachine {
                 Op::InitLibrary => {
                     let libname = val.as_string()?;
                     if !self.libraries.contains_key(libname) {
-                        println!("initializing {}", libname);
+                        //println!("initializing {}", libname);
 
                         let global_offset = self.globals.len();
                         let mut trans = self.trans.same_but_empty();
@@ -327,7 +328,6 @@ impl VirtualMachine {
                         let code = Box::leak(Box::new(lib.code_object.clone()));
                         let closure = Closure::simple(code);
                         let closure = Box::leak(Box::new(closure));
-                        println!("{:#?}", code);
                         self.eval(closure)?;
 
                         let exports = lib

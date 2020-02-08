@@ -56,10 +56,10 @@ pub mod scheme {
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
-            println!("{:#?}", ast);
+            //println!("{:#?}", ast);
 
             let code = compile_program(&ast, &self.trans())?;
-            println!("{:#?}", code);
+            //println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 

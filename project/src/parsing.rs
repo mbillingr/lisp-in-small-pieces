@@ -152,7 +152,6 @@ pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
         src = rest;
         exprs.push(expr);
     }
-    println!("{} -> {:?}", src.as_str(), exprs);
     Ok(exprs)
 }
 
