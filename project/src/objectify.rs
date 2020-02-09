@@ -148,6 +148,7 @@ impl Translate {
 
     fn objectify_symbol(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
         let var_name = TrackedSexpr::as_symbol(expr).unwrap();
+        //println!("{} -> {:?} in {:?}", var_name, self.env.find_variable(var_name), self.env);
         match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(v)) => {
                 Ok(LocalReference::new(v, expr.source().clone()).into())

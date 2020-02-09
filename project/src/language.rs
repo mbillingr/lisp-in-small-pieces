@@ -246,14 +246,10 @@ pub mod scheme {
     }
 
     pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
-        let (name, syntax) = expr
-            .at(1)
-            .and_then(|name| name.as_symbol().map(|s| *s))
-            .and_then(|name| expr.at(2).map(|syntax| (name, syntax)))
-            .map_err(|_| Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))?;
-        let handler = eval_syntax(syntax, &trans.env)?;
+        let name = *expr.at(1)?.as_symbol()?;
+        let handler = eval_syntax(expr.cdr()?, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
-        trans.env.push_local(macro_binding);
+        trans.env.push_global(macro_binding);
         Ok(Expression::NoOp(NoOp))
     }
 
@@ -626,6 +622,16 @@ pub mod scheme {
                         (define-syntax count (syntax-rules () ((_ a) 1) ((count a b) 2)))
                         (cons (count x) (count 7 8)))"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+
+            compare!(ellipsis_simple:
+                r#"(begin
+                        (define-syntax add
+                            (syntax-rules (/add)
+                                ((_ /add) 0)
+                                ((_ a /add) a)
+                                ((_ a b ... /add) (+ a (add b ... /add)))))
+                        (add 1 2 3 4 /add))"#,
+                 equals, Scm::Int(10));
         }
 
         mod libraries {

@@ -71,7 +71,7 @@ impl std::fmt::Display for Sexpr {
                 }
                 write!(f, ")")
             }
-            Sexpr::SyntacticClosure(_sc) => write!(f, "<syntactic closure>"),
+            Sexpr::SyntacticClosure(sc) => write!(f, "<{}>", sc.sexpr()),
         }
     }
 }
@@ -286,6 +286,13 @@ impl TrackedSexpr {
             Sexpr::Pair(p) if &p.0.sexpr == x => true,
             Sexpr::Pair(p) => p.1.contains(x),
             _ => false,
+        }
+    }
+
+    pub fn list_len(&self) -> usize {
+        match &self.sexpr {
+            Sexpr::Pair(p) => 1 + p.1.list_len(),
+            _ => 0,
         }
     }
 }

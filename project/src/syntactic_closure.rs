@@ -32,6 +32,10 @@ impl SyntacticClosure {
         self
     }
 
+    pub fn sexpr(&self) -> &TrackedSexpr {
+        &self.sexpr
+    }
+
     pub fn expand(&self, trans: &mut Translate) -> Result<Expression> {
         let mut combined_env = self.closed_syntactic_environment.clone();
         for name in &self.free_names {
