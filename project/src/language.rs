@@ -495,7 +495,7 @@ pub mod scheme {
 
             assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Symbol::new("flummox")));
             assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Symbol::new("foo")));
-            compare!(new_global: "(define the-answer 42)", equals, Scm::Int(42));
+            check!(new_global: "(define the-answer 42)", Scm::is_undefined);
             compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
             compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
 
