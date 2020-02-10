@@ -138,6 +138,13 @@ impl Scm {
         }
     }
 
+    pub fn as_int(&self) -> Result<i64> {
+        match self {
+            Scm::Int(i) => Ok(*i),
+            _ => Err(TypeError::NoInt.into()),
+        }
+    }
+
     pub fn as_symbol(&self) -> Result<Symbol> {
         match self {
             Scm::Symbol(s) => Ok(*s),
@@ -183,6 +190,13 @@ impl Scm {
                 Ok(Scm::Undefined)
             }
             _ => Err(TypeError::NoPair.into()),
+        }
+    }
+
+    pub fn as_closure(&self) -> Result<&'static Closure> {
+        match self {
+            Scm::Closure(cls) => Ok(*cls),
+            _ => Err(TypeError::NoClosure.into()),
         }
     }
 

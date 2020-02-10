@@ -38,9 +38,11 @@ pub enum RuntimeError {
 pub enum TypeError {
     WrongType,
     NotCallable,
+    NoInt,
     NoPair,
     NoSymbol,
     NoString,
+    NoClosure,
 }
 
 #[derive(Debug)]
