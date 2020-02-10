@@ -49,9 +49,7 @@ pub fn compile_function(
     bcgen.set_global_offset(global_offset);
     bcgen.env = func.variables.iter().map(|var| var.name()).collect();
     let mut code = bcgen.compile(&func.body, true)?;
-    if !code.last().map(Op::is_terminal).unwrap_or(false) {
-        code.push(Op::Return);
-    }
+    code.push(Op::Return);
     Ok(CodeObject::new(
         func.arity(),
         func.span.clone(),
