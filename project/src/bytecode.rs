@@ -392,20 +392,16 @@ impl VirtualMachine {
                         let exports = lib
                             .exports
                             .iter()
-                            .map(|spec| {
-                                let idx = lib
-                                    .global_symbols
+                            .filter_map(|spec| {
+                                lib.global_symbols
                                     .iter()
                                     .position(|&n| n == spec.internal_name())
-                                    .unwrap()
-                                    + global_offset;
-                                (spec.exported_name(), self.globals[idx].0)
+                                    .map(|idx| idx + global_offset)
+                                    .map(|idx| (spec.exported_name(), self.globals[idx].0))
                             })
                             .collect();
 
                         self.libraries.insert(libname, exports);
-
-                        //unimplemented!()
                     }
                 }
                 Op::Import => {
