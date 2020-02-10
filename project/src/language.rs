@@ -129,6 +129,7 @@ pub mod scheme {
 
             native "boolean?", =1, Scm::is_bool;
             native "null?", =1, Scm::is_nil;
+            native "pair?", =1, Scm::is_pair;
 
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
@@ -136,6 +137,8 @@ pub mod scheme {
             native "set-car!", =2, Scm::set_car;
             native "set-cdr!", =2, Scm::set_cdr;
             native "eq?", =2, Scm::ptr_eq;
+            native "eqv?", =2, Scm::ptr_eq;
+            native "equal?", =2, Scm::equals;
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;

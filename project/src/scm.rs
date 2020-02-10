@@ -159,6 +159,13 @@ impl Scm {
         }
     }
 
+    pub fn is_pair(&self) -> bool {
+        match self {
+            Scm::Pair(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),
