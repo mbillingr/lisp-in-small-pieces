@@ -1,7 +1,7 @@
 use crate::bytecode::{CodeObject, LibraryObject, Op};
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::library::ExportItem;
-use crate::objectify::Translate;
+use crate::objectify::{ObjectifyErrorKind, Translate};
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
 use crate::symbol::Symbol;
@@ -222,7 +222,7 @@ impl<'a> BytecodeGenerator<'a> {
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Result<Vec<Op>> {
         let idx = self
             .find_global_idx(node.var.name())
-            .unwrap_or_else(|| panic!("Could not find global: {}", node.var.name()));
+            .ok_or_else(|| ObjectifyErrorKind::UndefinedVariable(node.var.name()))?;
         Ok(vec![Op::GlobalRef(idx)])
     }
 
