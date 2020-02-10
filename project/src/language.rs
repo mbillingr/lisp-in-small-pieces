@@ -125,13 +125,15 @@ pub mod scheme {
             // example of a primitive function (that works on the current context)
             //primitive "globals", =0, list_globals;
 
+            native "boolean?", =1, Scm::is_bool;
+            native "null?", =1, Scm::is_nil;
+
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
             native "cdr", =1, Scm::cdr;
             native "set-car!", =2, Scm::set_car;
             native "set-cdr!", =2, Scm::set_cdr;
             native "eq?", =2, Scm::ptr_eq;
-            native "null?", =1, Scm::is_nil;
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;

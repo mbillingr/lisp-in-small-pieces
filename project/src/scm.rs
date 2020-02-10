@@ -101,6 +101,13 @@ impl Scm {
         }
     }
 
+    pub fn is_bool(&self) -> bool {
+        match self {
+            Scm::True | Scm::False => true,
+            _ => false,
+        }
+    }
+
     pub fn is_false(&self) -> bool {
         match self {
             Scm::False => true,
