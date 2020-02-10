@@ -464,7 +464,7 @@ mod tests {
                 Scm::Primitive(RuntimePrimitive::new(
                     "cons",
                     Arity::Exact(2),
-                    |_: &[Scm], _: &VirtualMachine| unimplemented!(),
+                    |_: &[Scm], _: &mut VirtualMachine| unimplemented!(),
                 )),
             ),
             NoSource,

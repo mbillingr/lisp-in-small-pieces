@@ -185,11 +185,24 @@ impl VirtualMachine {
         self.libraries.insert(name, library);
     }
 
-    pub fn eval(&mut self, mut cls: &'static Closure) -> Result<Scm> {
+    pub fn invoke(&mut self, func: Scm, args: &[Scm]) -> Result<Scm> {
+        match func {
+            Scm::Closure(cls) => self.eval(cls, args),
+            Scm::Primitive(pri) => (pri.func())(args, self),
+            Scm::Continuation(_) => unimplemented!(),
+            _ => Err(TypeError::NotCallable.into()),
+        }
+    }
+
+    pub fn eval(&mut self, mut cls: &'static Closure, args: &[Scm]) -> Result<Scm> {
+        self.value_stack.extend_from_slice(args);
+
+        let mut frame_offset =
+            self.value_stack.len() - self.convert_args(cls.code.arity, args.len());
+
         let mut val = Scm::Undefined;
 
         let mut ip: isize = 0;
-        let mut frame_offset = 0;
 
         self.call_stack.push((0, 0, HALT.with(|x| *x)));
 
@@ -264,8 +277,9 @@ impl VirtualMachine {
                     }
                     Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
-                        val = func.invoke(&self.value_stack[n..], self)?;
+                        let args = self.value_stack[n..].to_vec();
                         self.value_stack.truncate(n);
+                        val = func.invoke(&args, self)?;
                     }
                     Scm::Continuation(_cnt) => {
                         //self.value_stack = cnt.stack().clone();
@@ -287,7 +301,9 @@ impl VirtualMachine {
                     }
                     Scm::Primitive(func) => {
                         let n = self.value_stack.len() - nargs;
-                        val = func.invoke(&self.value_stack[n..], self)?;
+                        let args = self.value_stack[n..].to_vec();
+                        self.value_stack.truncate(n);
+                        val = func.invoke(&args, self)?;
 
                         self.value_stack.truncate(frame_offset);
                         let data = self.call_stack.pop().expect("call-stack underflow");
@@ -332,7 +348,7 @@ impl VirtualMachine {
                         let code = Box::leak(Box::new(lib.code_object.clone()));
                         let closure = Closure::simple(code);
                         let closure = Box::leak(Box::new(closure));
-                        self.eval(closure)?;
+                        self.eval(closure, &[])?;
 
                         let exports = lib
                             .exports

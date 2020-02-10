@@ -20,6 +20,7 @@ pub mod scheme {
     use crate::syntax::{Expression, MagicKeyword, NoOp};
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::{Path, PathBuf};
+    use std::time::Instant;
 
     pub struct Context {
         pub vm: VirtualMachine,
@@ -64,7 +65,7 @@ pub mod scheme {
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
             self.vm.synchronize_globals();
-            let result = self.vm.eval(closure)?;
+            let result = self.vm.eval(closure, &[])?;
             Ok(result)
         }
 
@@ -114,6 +115,7 @@ pub mod scheme {
 
             native "disassemble", =1, disassemble;
             primitive "globals", =0, list_globals;
+            primitive "timeit", =1, timeit;
         }
     }
 
@@ -309,6 +311,12 @@ pub mod scheme {
         for (i, (value, name)) in context.globals().iter().enumerate() {
             println!("{:3} {} = {}", i, name, value)
         }
+    }
+
+    pub fn timeit(args: &[Scm], context: &mut VirtualMachine) -> Result<Scm> {
+        let start = Instant::now();
+        context.invoke(args[0], &[])?;
+        Ok(Scm::Int(start.elapsed().as_millis() as i64))
     }
 
     #[cfg(test)]

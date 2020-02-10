@@ -4,7 +4,7 @@ use crate::scm::Scm;
 
 pub type Result = std::result::Result<Scm, Error>;
 
-pub type PrimitiveSignature = fn(args: &[Scm], context: &VirtualMachine) -> Result;
+pub type PrimitiveSignature = fn(args: &[Scm], context: &mut VirtualMachine) -> Result;
 
 #[derive(Copy, Clone)]
 pub struct RuntimePrimitive {
@@ -30,7 +30,7 @@ impl RuntimePrimitive {
         self.arity
     }
 
-    pub fn invoke(&self, args: &[Scm], context: &VirtualMachine) -> Result {
+    pub fn invoke(&self, args: &[Scm], context: &mut VirtualMachine) -> Result {
         if self.arity.check(args.len()) {
             (self.func)(&args, context)
         } else {
