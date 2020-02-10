@@ -149,11 +149,9 @@ fn apply_syntax_rules(
             literals,
             pattern.cdr().unwrap(),
         ) {
-            let bound_vars = bound_vars
-                .into_iter()
-                //.map(|(name, x)| (name, x.into_syntactic_closure(env)))
-                .collect();
+            //println!("{} matched {}", expr, pattern);
             let result = realize_template(template.clone(), &bound_vars, ellipsis)?;
+            //println!("=> {}", result);
             Ok(Rc::new(SyntacticClosure::new(result, env.clone())).into())
         } else {
             apply_syntax_rules(
@@ -326,7 +324,12 @@ fn realize_repeated_template(
     loop {
         match realize_indexed_template(nth, template, bound_vars, ellipsis)? {
             None => return Ok(result),
-            Some(r) => result.push(r),
+            Some((r, cont)) => {
+                result.push(r);
+                if !cont {
+                    return Ok(result);
+                }
+            }
         }
         nth += 1;
     }
@@ -337,7 +340,7 @@ fn realize_indexed_template(
     template: &TrackedSexpr,
     bound_vars: &HashMap<Symbol, Binding>,
     ellipsis: Symbol,
-) -> Result<Option<TrackedSexpr>> {
+) -> Result<Option<(TrackedSexpr, bool)>> {
     use Sexpr::*;
     match &template.sexpr {
         Pair(_) => {
@@ -347,19 +350,21 @@ fn realize_indexed_template(
             let d = realize_indexed_template(idx, cdr, bound_vars, ellipsis)?;
 
             Ok(match (a, d) {
-                (Some(a), Some(d)) => Some(TrackedSexpr::cons(a, d, NoSource)),
+                (Some((a, au)), Some((d, du))) => {
+                    Some((TrackedSexpr::cons(a, d, NoSource), au | du))
+                }
                 _ => None,
             })
         }
         Symbol(s) => Ok(match bound_vars.get(&s) {
-            None => Some(template.clone()),
-            Some(Binding::One(x)) => Some(x.clone()),
+            None => Some((template.clone(), false)),
+            Some(Binding::One(x)) => Some((x.clone(), false)),
             Some(Binding::Sequence(v)) => match v.get(idx) {
                 None => None,
-                Some(Binding::One(x)) => Some(x.clone()),
+                Some(Binding::One(x)) => Some((x.clone(), true)),
                 Some(Binding::Sequence(_)) => unimplemented!("nested ellipses"),
             },
         }),
-        _ => Ok(Some(template.clone())),
+        _ => Ok(Some((template.clone(), false))),
     }
 }

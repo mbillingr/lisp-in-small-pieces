@@ -26,4 +26,4 @@
                  clause1 clause2 ...)
            (if test
                (begin result1 result2 ...)
-               (cond clause1 clouse2 ...)))))))
+               (cond clause1 clause2 ...)))))))
