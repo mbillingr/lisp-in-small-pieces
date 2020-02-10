@@ -144,6 +144,8 @@ pub mod scheme {
             native "list", >=0, list;
             native "vector", >=0, vector;
 
+            native "call/cc", =1, call_with_current_continuation;
+
             macro "begin", expand_begin;
             macro "define", expand_define;
             macro "define-syntax", expand_define_syntax;
@@ -300,6 +302,10 @@ pub mod scheme {
         Scm::vector(args.iter().copied())
     }
 
+    pub fn call_with_current_continuation(_f: Scm) -> Scm {
+        unimplemented!()
+    }
+
     pub fn disassemble(obj: Scm) {
         if let Scm::Closure(cls) = obj {
             println!("free variables: {:?}", cls.free_vars);
@@ -323,12 +329,6 @@ pub mod scheme {
     mod tests {
         use super::*;
         use crate::library::LibraryBuilder;
-
-        impl PartialEq for Scm {
-            fn eq(&self, rhs: &Self) -> bool {
-                self.equals(rhs)
-            }
-        }
 
         fn create_testing_context() -> Context {
             let mut ctx = Context::new();

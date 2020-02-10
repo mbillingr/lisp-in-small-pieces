@@ -443,3 +443,9 @@ impl ResultWrap for () {
         Ok(Scm::Undefined)
     }
 }
+
+impl PartialEq for Scm {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr_eq(other)
+    }
+}

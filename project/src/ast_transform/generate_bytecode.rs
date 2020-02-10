@@ -331,6 +331,7 @@ impl<'a> BytecodeGenerator<'a> {
                         "cons" => Ok(Some(vec![Op::Cons])),
                         "car" => Ok(Some(vec![Op::Car])),
                         "cdr" => Ok(Some(vec![Op::Cdr])),
+                        "call/cc" => Ok(Some(vec![Op::CallCC])),
                         _ => Ok(None),
                     },
                     _ => Ok(None),

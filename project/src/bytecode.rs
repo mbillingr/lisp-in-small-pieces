@@ -1,3 +1,4 @@
+use crate::continuation::Continuation;
 use crate::error::{Result, RuntimeError, TypeError};
 use crate::objectify::Translate;
 use crate::primitive::Arity;
@@ -59,6 +60,7 @@ pub enum Op {
     Jump(isize),
 
     MakeClosure(usize, &'static CodeObject),
+    CallCC,
 
     Call(usize),
     TailCall(usize),
@@ -190,7 +192,7 @@ impl VirtualMachine {
             Scm::Closure(cls) => self.eval(cls, args),
             Scm::Primitive(pri) => (pri.func())(args, self),
             Scm::Continuation(_) => unimplemented!(),
-            _ => Err(TypeError::NotCallable.into()),
+            f => Err(TypeError::NotCallable(f).into()),
         }
     }
 
@@ -265,6 +267,25 @@ impl VirtualMachine {
                     }
                     val = Scm::closure(func, vars);
                 }
+                Op::CallCC => {
+                    self.call_stack.push((frame_offset, ip, cls));
+                    let cnt = Continuation::new(self.value_stack.clone(), self.call_stack.clone());
+                    let cnt = Box::leak(Box::new(cnt));
+
+                    self.value_stack.push(Scm::Continuation(cnt));
+
+                    match val {
+                        Scm::Closure(callee) => {
+                            let n_locals = self.convert_args(callee.code.arity, 1);
+
+                            frame_offset = self.value_stack.len() - n_locals;
+
+                            ip = 0;
+                            cls = callee;
+                        }
+                        _ => unimplemented!(),
+                    }
+                }
                 Op::Call(nargs) => match val {
                     Scm::Closure(callee) => {
                         let n_locals = self.convert_args(callee.code.arity, nargs);
@@ -281,11 +302,18 @@ impl VirtualMachine {
                         self.value_stack.truncate(n);
                         val = func.invoke(&args, self)?;
                     }
-                    Scm::Continuation(_cnt) => {
-                        //self.value_stack = cnt.stack().clone();
-                        unimplemented!()
+                    Scm::Continuation(cnt) => {
+                        val = self.pop_value()?;
+
+                        self.value_stack = cnt.value_stack.clone();
+                        self.call_stack = cnt.call_stack.clone();
+
+                        let data = self.call_stack.pop().unwrap();
+                        frame_offset = data.0;
+                        ip = data.1;
+                        cls = data.2;
                     }
-                    _ => return Err(TypeError::NotCallable.into()),
+                    _ => return Err(TypeError::NotCallable(val).into()),
                 },
                 Op::TailCall(nargs) => match val {
                     Scm::Closure(callee) => {
@@ -311,7 +339,18 @@ impl VirtualMachine {
                         ip = data.1;
                         cls = data.2;
                     }
-                    _ => return Err(TypeError::NotCallable.into()),
+                    Scm::Continuation(cnt) => {
+                        val = self.pop_value()?;
+
+                        self.value_stack = cnt.value_stack.clone();
+                        self.call_stack = cnt.call_stack.clone();
+
+                        let data = self.call_stack.pop().unwrap();
+                        frame_offset = data.0;
+                        ip = data.1;
+                        cls = data.2;
+                    }
+                    _ => return Err(TypeError::NotCallable(val).into()),
                 },
                 Op::Return => {
                     self.value_stack.truncate(frame_offset);
@@ -468,6 +507,7 @@ impl std::fmt::Debug for Op {
                     write!(f, "(make-closure {} {:p})", n_free, *code)
                 }
             }
+            Op::CallCC => write!(f, "(call/cc)"),
             Op::Call(n_args) => write!(f, "(call {})", n_args),
             Op::TailCall(n_args) => write!(f, "(tail-call {})", n_args),
             Op::Return => write!(f, "(return)"),

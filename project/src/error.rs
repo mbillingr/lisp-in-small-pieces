@@ -1,5 +1,6 @@
 use crate::objectify::ObjectifyErrorKind;
 use crate::parsing::{ParseError, ParseErrorKind};
+use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
@@ -37,7 +38,7 @@ pub enum RuntimeError {
 #[derive(Debug, PartialEq)]
 pub enum TypeError {
     WrongType,
-    NotCallable,
+    NotCallable(Scm),
     NoInt,
     NoPair,
     NoSymbol,
