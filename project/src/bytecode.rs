@@ -267,6 +267,10 @@ impl VirtualMachine {
                         val = func.invoke(&self.value_stack[n..], self)?;
                         self.value_stack.truncate(n);
                     }
+                    Scm::Continuation(_cnt) => {
+                        //self.value_stack = cnt.stack().clone();
+                        unimplemented!()
+                    }
                     _ => return Err(TypeError::NotCallable.into()),
                 },
                 Op::TailCall(nargs) => match val {

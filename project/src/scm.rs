@@ -1,4 +1,5 @@
 use crate::bytecode::{Closure, CodeObject};
+use crate::continuation::Continuation;
 use crate::error::{Result, TypeError};
 use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
@@ -22,6 +23,7 @@ pub enum Scm {
 
     Closure(&'static Closure),
     Primitive(RuntimePrimitive),
+    Continuation(&'static Continuation),
 
     Cell(&'static Cell<Scm>),
 }
@@ -291,6 +293,7 @@ impl std::fmt::Display for Scm {
             }
             Scm::Closure(cls) => write!(f, "<closure {:p}>", *cls),
             Scm::Primitive(prim) => write!(f, "<primitive {:?}>", prim),
+            Scm::Continuation(cnt) => write!(f, "<continuation {:?}>", cnt),
             Scm::Cell(c) => write!(f, "{}", c.get()),
         }
     }
