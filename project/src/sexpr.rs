@@ -29,7 +29,7 @@ pub enum Sexpr {
     Pair(Box<(TrackedSexpr, TrackedSexpr)>),
     Vector(Vec<TrackedSexpr>),
 
-    SyntacticClosure(Box<SyntacticClosure>),
+    SyntacticClosure(Rc<SyntacticClosure>),
 }
 
 impl std::fmt::Display for TrackedSexpr {
@@ -246,6 +246,21 @@ impl TrackedSexpr {
         }
     }
 
+    pub fn is_identifier(&self) -> bool {
+        self.is_symbol() || self.is_alias()
+    }
+
+    pub fn is_alias(&self) -> bool {
+        self.as_alias().is_some()
+    }
+
+    pub fn as_alias(&self) -> Option<&Rc<SyntacticClosure>> {
+        match &self.sexpr {
+            Sexpr::SyntacticClosure(sc) if sc.is_alias() => Some(sc),
+            _ => None,
+        }
+    }
+
     pub fn is_symbol(&self) -> bool {
         self.as_symbol().is_ok()
     }
@@ -253,6 +268,7 @@ impl TrackedSexpr {
     pub fn as_symbol(&self) -> Result<&Symbol> {
         match &self.sexpr {
             Sexpr::Symbol(s) => Ok(s),
+            Sexpr::SyntacticClosure(sc) => sc.sexpr().as_symbol(),
             _ => Err(Error::at_expr(TypeError::NoSymbol, self)),
         }
     }

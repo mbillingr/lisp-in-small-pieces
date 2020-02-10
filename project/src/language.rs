@@ -181,9 +181,28 @@ pub mod scheme {
     pub fn expand_lambda(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = &ocdr(expr)?;
         let names = ocar(def)?;
+
+        let mut rebound = vec![];
+        names.scan(|name| -> Result<()> {
+            if let Some(alias) = name.as_alias() {
+                rebound.push((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
+                alias.set_bound(true);
+                alias.rename();
+            }
+            Ok(())
+        })?;
+
         let body = ocdr(def)?;
         let body = scan_out_defines(body.clone())?;
-        trans.objectify_function(names, &body, expr.source().clone())
+
+        let result = trans.objectify_function(names, &body, expr.source().clone())?;
+
+        for (alias, old_name, bound) in rebound {
+            alias.set_bound(bound);
+            alias.set_name(old_name);
+        }
+
+        Ok(result)
     }
 
     pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
@@ -203,6 +222,15 @@ pub mod scheme {
                 })
         })?;
 
+        let mut rebound = vec![];
+        for name in &mut var_names {
+            if let Some(alias) = name.as_alias() {
+                rebound.push((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
+                alias.set_bound(true);
+                alias.rename();
+            }
+        }
+
         let param_list = TrackedSexpr::list(var_names, vars.src.clone());
         let func = make_function(param_list, body.clone(), expr.src.clone());
 
@@ -210,7 +238,14 @@ pub mod scheme {
         call.extend(var_forms);
 
         let new_expr = TrackedSexpr::list(call, expr.src.clone());
-        trans.objectify(&new_expr)
+        let result = trans.objectify(&new_expr)?;
+
+        for (alias, old_name, bound) in rebound {
+            alias.set_bound(bound);
+            alias.set_name(old_name);
+        }
+
+        Ok(result)
     }
 
     pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
@@ -579,12 +614,19 @@ pub mod scheme {
                         (foo x))"#,
                 RuntimeError::UndefinedGlobal(Symbol::new("x")));
 
-            compare!(hygiene_new_binding_defined:
+            compare!(hygiene_new_binding_defined_with_let:
                 r#"(begin
                         (define x 123)
-                        (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
+                        (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) (cons x body)))))
                         (foo x))"#,
-                 equals, Scm::Int(123));
+                 equals, Scm::cons(Scm::Int(42), Scm::Int(123)));
+
+            compare!(hygiene_new_binding_defined_with_lambda:
+                r#"(begin
+                        (define x 123)
+                        (define-syntax foo (syntax-rules () ((foo body) ((lambda (x) (cons x body)) 42))))
+                        (foo x))"#,
+                 equals, Scm::cons(Scm::Int(42), Scm::Int(123)));
 
             compare!(hygiene_preserve_definition_environment:
                 r#"(begin
@@ -623,6 +665,15 @@ pub mod scheme {
                         (cons (count x) (count 7 8)))"#,
                  equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
 
+            compare!(rebind_identifier:
+                r#"(begin
+                        (define-syntax simple-let
+                            (syntax-rules ()
+                                ((_ name value form)
+                                 ((lambda (name) form) value))))
+                        (simple-let x 4 (+ x x)))"#,
+                 equals, Scm::Int(8));
+
             compare!(ellipsis_simple:
                 r#"(begin
                         (define-syntax add
@@ -631,6 +682,25 @@ pub mod scheme {
                                 ((_ a /add) a)
                                 ((_ a b ... /add) (+ a (add b ... /add)))))
                         (add 1 2 3 4 /add))"#,
+                 equals, Scm::Int(10));
+
+            compare!(match_empty_ellipsis:
+                r#"(begin
+                        (define-syntax add
+                            (syntax-rules ()
+                                ((_) 0)
+                                ((_ a b ...) (+ a (add b ...)))))
+                        (add 1 2 3 4))"#,
+                 equals, Scm::Int(10));
+
+            compare!(ellipsis_distribute_vars:
+                r#"(begin
+                        (define-syntax letme
+                            (syntax-rules ()
+                                ((_ ((name val) ...) body1 body2 ...)
+                                 ((lambda (name ...) body1 body2 ...) val ...))))
+                        (letme ((x 4) (y 6))
+                               (+ x y)))"#,
                  equals, Scm::Int(10));
         }
 

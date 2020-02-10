@@ -6,7 +6,7 @@ use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
 use crate::syntactic_closure::SyntacticClosure;
 use crate::syntax::{Expression, MagicKeywordHandler};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
@@ -47,6 +47,7 @@ pub fn eval_syntax_rules(
     rules: TrackedSexpr,
     definition_env: Env,
 ) -> Result<MagicKeywordHandler> {
+    let rules = prepare_rules(ellipsis, &literals, &rules, &definition_env)?;
     Ok(Rc::new(
         move |trans: &mut Translate, expr: &TrackedSexpr| -> Result<Expression> {
             let sexpr = apply_syntax_rules(
@@ -62,6 +63,70 @@ pub fn eval_syntax_rules(
             trans.objectify(&sexpr)
         },
     ))
+}
+
+fn prepare_rules(
+    ellipsis: Symbol,
+    literals: &TrackedSexpr,
+    rules: &TrackedSexpr,
+    definition_env: &Env,
+) -> Result<TrackedSexpr> {
+    if rules.is_null() {
+        return Ok(rules.clone());
+    }
+
+    let rule = rules.car()?;
+    let pattern = rule.at(0)?;
+    let template = rule.at(1)?;
+
+    let mut unclosed = pattern_vars(ellipsis, literals, pattern);
+    unclosed.insert(ellipsis);
+    literals.scan(|lit| {
+        lit.as_symbol().and_then(|s| {
+            unclosed.insert(*s);
+            Ok(())
+        })
+    })?;
+
+    let mut aliases = HashMap::new();
+
+    let pattern = pattern.clone();
+    let template = close_template_symbols(template, &unclosed, &mut aliases, definition_env);
+
+    let rule = TrackedSexpr::list(vec![pattern, template], rule.src.clone());
+    Ok(TrackedSexpr::cons(
+        rule,
+        prepare_rules(ellipsis, literals, rules.cdr().unwrap(), definition_env)?,
+        rules.src.clone(),
+    ))
+}
+
+fn close_template_symbols(
+    template: &TrackedSexpr,
+    unclosed: &HashSet<Symbol>,
+    aliases: &mut HashMap<Symbol, Rc<SyntacticClosure>>,
+    definition_env: &Env,
+) -> TrackedSexpr {
+    match &template.sexpr {
+        Sexpr::Symbol(s) if unclosed.contains(s) => template.clone(),
+        Sexpr::Symbol(s) => aliases
+            .entry(*s)
+            .or_insert_with(|| {
+                Rc::new(SyntacticClosure::new(
+                    template.clone(),
+                    definition_env.clone(),
+                ))
+            })
+            .clone()
+            .into(),
+        Sexpr::Pair(p) => TrackedSexpr::cons(
+            close_template_symbols(&p.0, unclosed, aliases, definition_env),
+            close_template_symbols(&p.1, unclosed, aliases, definition_env),
+            template.src.clone(),
+        ),
+        Sexpr::Vector(_) => unimplemented!(),
+        _ => template.clone(),
+    }
 }
 
 fn apply_syntax_rules(
@@ -86,10 +151,10 @@ fn apply_syntax_rules(
         ) {
             let bound_vars = bound_vars
                 .into_iter()
-                .map(|(name, x)| (name, x.into_syntactic_closure(env)))
+                //.map(|(name, x)| (name, x.into_syntactic_closure(env)))
                 .collect();
             let result = realize_template(template.clone(), &bound_vars, ellipsis)?;
-            Ok(SyntacticClosure::new(result, definition_env.clone()).into())
+            Ok(Rc::new(SyntacticClosure::new(result, env.clone())).into())
         } else {
             apply_syntax_rules(
                 name,
@@ -112,28 +177,15 @@ enum Binding {
     Sequence(Vec<Binding>),
 }
 
-impl Binding {
-    fn into_syntactic_closure(self, env: &Env) -> Binding {
-        match self {
-            Binding::One(x) => Binding::One(SyntacticClosure::new(x, env.clone()).into()),
-            Binding::Sequence(s) => Binding::Sequence(
-                s.into_iter()
-                    .map(|x| x.into_syntactic_closure(env))
-                    .collect(),
-            ),
-        }
-    }
-}
-
 fn match_pattern(
     expr: &TrackedSexpr,
     ellipsis: Symbol,
     literals: &TrackedSexpr,
-    rule: &TrackedSexpr,
+    pattern: &TrackedSexpr,
 ) -> Option<HashMap<Symbol, Binding>> {
     //println!("matching {} and {}", expr, rule);
     use Sexpr::*;
-    match (&rule.sexpr, &expr.sexpr) {
+    match (&pattern.sexpr, &expr.sexpr) {
         (lit, x) if literals.contains(lit) => {
             if lit == x {
                 Some(HashMap::new())
@@ -148,7 +200,7 @@ fn match_pattern(
             binding.insert(*s, Binding::One(expr.clone()));
             Some(binding)
         }
-        (Pair(p), Pair(_)) => {
+        (Pair(p), _) => {
             if p.1
                 .car()
                 .map(|next| next.sexpr == Symbol(ellipsis))
@@ -166,7 +218,10 @@ fn match_pattern(
                     matches.push(m);
                     xp = xp.cdr().unwrap();
                 }
-                let mut bindings = HashMap::new();
+                let mut bindings: HashMap<_, _> = pattern_vars(ellipsis, literals, &p.0)
+                    .into_iter()
+                    .map(|name| (name, vec![]))
+                    .collect();
                 for m in matches {
                     for (k, b) in m {
                         bindings.entry(k).or_insert(vec![]).push(b);
@@ -197,8 +252,34 @@ fn match_pattern(
             match_sequence(&xv, Some(&x.1), ellipsis, literals, &rv, Some(&r.1))
         }
         (Vector(v), Vector(x)) => match_sequence(x, None, ellipsis, literals, v, None),*/
-        _ if rule == expr => Some(HashMap::new()),
+        _ if pattern == expr => Some(HashMap::new()),
         _ => None,
+    }
+}
+
+fn pattern_vars(
+    ellipsis: Symbol,
+    literals: &TrackedSexpr,
+    pattern: &TrackedSexpr,
+) -> HashSet<Symbol> {
+    use Sexpr::*;
+    match &pattern.sexpr {
+        lit if literals.contains(lit) => HashSet::new(),
+        Symbol(s) if s == "_" => HashSet::new(),
+        Symbol(s) if *s == ellipsis => HashSet::new(),
+        Symbol(s) => {
+            let mut vars = HashSet::new();
+            vars.insert(*s);
+            vars
+        }
+        Pair(p) => {
+            let mut a = pattern_vars(ellipsis, literals, &p.0);
+            let b = pattern_vars(ellipsis, literals, &p.1);
+            a.extend(b);
+            a
+        }
+        Vector(_) => unimplemented!(),
+        _ => HashSet::new(),
     }
 }
 
