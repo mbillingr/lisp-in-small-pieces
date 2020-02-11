@@ -142,8 +142,8 @@ pub struct VirtualMachine {
     pub trans: Translate,
     globals: Vec<(Scm, Symbol)>,
     libraries: HashMap<&'static str, Library>,
-    value_stack: Vec<Scm>,
-    call_stack: Vec<(usize, isize, &'static Closure)>,
+    pub value_stack: Vec<Scm>,
+    pub call_stack: Vec<(usize, isize, &'static Closure)>,
 }
 
 thread_local! {
@@ -207,6 +207,16 @@ impl VirtualMachine {
         let mut ip: isize = 0;
 
         self.call_stack.push((0, 0, HALT.with(|x| *x)));
+
+        macro_rules! do_return {
+            () => {{
+                self.value_stack.truncate(frame_offset);
+                let data = self.call_stack.pop().expect("call-stack underflow");
+                frame_offset = data.0;
+                ip = data.1;
+                cls = data.2;
+            }};
+        }
 
         loop {
             let op = &cls.code.ops[ip as usize];
@@ -283,6 +293,13 @@ impl VirtualMachine {
                             ip = 0;
                             cls = callee;
                         }
+                        Scm::Primitive(func) => {
+                            self.call_stack.pop().unwrap();
+                            let n = self.value_stack.len() - 1;
+                            let args = self.value_stack[n..].to_vec();
+                            self.value_stack.truncate(n);
+                            val = func.invoke(&args, self)?;
+                        }
                         _ => unimplemented!(),
                     }
                 }
@@ -333,11 +350,7 @@ impl VirtualMachine {
                         self.value_stack.truncate(n);
                         val = func.invoke(&args, self)?;
 
-                        self.value_stack.truncate(frame_offset);
-                        let data = self.call_stack.pop().expect("call-stack underflow");
-                        frame_offset = data.0;
-                        ip = data.1;
-                        cls = data.2;
+                        do_return!()
                     }
                     Scm::Continuation(cnt) => {
                         val = self.pop_value()?;
@@ -352,13 +365,7 @@ impl VirtualMachine {
                     }
                     _ => return Err(TypeError::NotCallable(val).into()),
                 },
-                Op::Return => {
-                    self.value_stack.truncate(frame_offset);
-                    let data = self.call_stack.pop().expect("call-stack underflow");
-                    frame_offset = data.0;
-                    ip = data.1;
-                    cls = data.2;
-                }
+                Op::Return => do_return!(),
                 Op::Halt => return Ok(val),
                 Op::Drop(n) => {
                     self.value_stack.truncate(self.value_stack.len() - n);
