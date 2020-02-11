@@ -60,12 +60,14 @@ pub mod scheme {
             //println!("{:#?}", ast);
 
             let code = compile_program(&ast, &self.trans())?;
-            //println!("{:#?}", code);
+            println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
             self.vm.synchronize_globals();
             let result = self.vm.eval(closure, &[])?;
+            debug_assert!(self.vm.value_stack.is_empty());
+            debug_assert!(self.vm.call_stack.is_empty());
             Ok(result)
         }
 
@@ -148,6 +150,9 @@ pub mod scheme {
             native "vector", >=0, vector;
 
             native "call/cc", =1, call_with_current_continuation;
+
+            native "display", =1, display;
+            native "newline", =0, newline;
 
             macro "begin", expand_begin;
             macro "define", expand_define;
@@ -309,6 +314,14 @@ pub mod scheme {
         unimplemented!()
     }
 
+    pub fn display(x: Scm) {
+        print!("{}", x);
+    }
+
+    pub fn newline() {
+        println!();
+    }
+
     pub fn disassemble(obj: Scm) {
         if let Scm::Closure(cls) = obj {
             println!("free variables: {:?}", cls.free_vars);
@@ -464,6 +477,7 @@ pub mod scheme {
             compare!(boolean_false: "#f", equals, Scm::False);
             compare!(nil: "'()", equals, Scm::Nil);
             compare!(integer: "42", equals, Scm::Int(42));
+            compare!(negative_integer: "-42", equals, Scm::Int(-42));
             compare!(float: "3.1415", equals, Scm::Float(3.1415));
             compare!(symbol: "'foobar", ptr_eq, Scm::Symbol(Symbol::new("foobar")));
             compare!(string: "\"text\"", equals, Scm::String("text"));
