@@ -42,7 +42,7 @@ pub enum TypeError {
     NoInt,
     NoPair,
     NoSymbol,
-    NoString,
+    NoString(Scm),
     NoClosure,
 }
 

@@ -97,6 +97,26 @@ impl Closure {
             free_vars: Box::new([]),
         }
     }
+
+    pub fn invoke(&'static self, nargs: usize, vm: &mut VirtualMachine) {
+        let n_locals = vm.convert_args(self.code.arity, nargs);
+        vm.push_state();
+        vm.frame_offset = vm.value_stack.len() - n_locals;
+        vm.ip = 0;
+        vm.cls = self;
+    }
+
+    pub fn invoke_tail(&'static self, nargs: usize, vm: &mut VirtualMachine) {
+        let n_locals = vm.convert_args(self.code.arity, nargs);
+
+        let new_frame_offset = vm.value_stack.len() - n_locals;
+        vm.value_stack
+            .copy_within(new_frame_offset.., vm.frame_offset);
+        vm.value_stack.truncate(vm.frame_offset + n_locals);
+
+        vm.ip = 0;
+        vm.cls = self;
+    }
 }
 
 impl CodeObject {
@@ -144,6 +164,10 @@ pub struct VirtualMachine {
     libraries: HashMap<&'static str, Library>,
     pub value_stack: Vec<Scm>,
     pub call_stack: Vec<(usize, isize, &'static Closure)>,
+    ip: isize,
+    cls: &'static Closure,
+    frame_offset: usize,
+    pub val: Scm,
 }
 
 thread_local! {
@@ -166,6 +190,10 @@ impl VirtualMachine {
             libraries: HashMap::new(),
             value_stack: vec![],
             call_stack: vec![],
+            ip: 0,
+            cls: HALT.with(|x| *x),
+            frame_offset: 0,
+            val: Scm::Undefined,
         }
     }
 
@@ -196,78 +224,82 @@ impl VirtualMachine {
         }
     }
 
-    pub fn eval(&mut self, mut cls: &'static Closure, args: &[Scm]) -> Result<Scm> {
+    pub fn eval(&mut self, cls: &'static Closure, args: &[Scm]) -> Result<Scm> {
+        // save old state
+        self.push_state();
+
+        // insert intermediate state that halts the VM,
+        // so that the we exit rather than continue executing the old state.
+        self.ip = 0;
+        self.cls = HALT.with(|x| *x);
+        self.frame_offset = 0;
+        self.push_state();
+
         self.value_stack.extend_from_slice(args);
 
-        let mut frame_offset =
-            self.value_stack.len() - self.convert_args(cls.code.arity, args.len());
+        self.frame_offset = self.value_stack.len() - self.convert_args(cls.code.arity, args.len());
+        self.val = Scm::Undefined;
+        self.ip = 0;
+        self.cls = cls;
 
-        let mut val = Scm::Undefined;
+        let result = self.run();
 
-        let mut ip: isize = 0;
+        // restore old state
+        self.pop_state();
 
-        self.call_stack.push((0, 0, HALT.with(|x| *x)));
+        result
+    }
 
-        macro_rules! do_return {
-            () => {{
-                self.value_stack.truncate(frame_offset);
-                let data = self.call_stack.pop().expect("call-stack underflow");
-                frame_offset = data.0;
-                ip = data.1;
-                cls = data.2;
-            }};
-        }
-
+    fn run(&mut self) -> Result<Scm> {
         loop {
-            let op = &cls.code.ops[ip as usize];
-            ip += 1;
+            let op = &self.cls.code.ops[self.ip as usize];
+            //println!("{:?}", op);
+            self.ip += 1;
             match *op {
-                Op::Constant(idx) => val = cls.code.constants[idx],
-                Op::LocalRef(idx) => val = self.ref_value(idx + frame_offset)?,
+                Op::Constant(idx) => self.val = self.cls.code.constants[idx],
+                Op::LocalRef(idx) => self.val = self.ref_value(idx + self.frame_offset)?,
                 Op::GlobalRef(idx) => {
-                    val = self.globals[idx].0;
-                    if val.is_uninitialized() {
+                    self.val = self.globals[idx].0;
+                    if self.val.is_uninitialized() {
                         return Err(
                             RuntimeError::UndefinedGlobal(self.globals[idx].1.clone()).into()
                         );
                     }
-                    if val.is_cell() {
-                        val = val.get().unwrap();
+                    if self.val.is_cell() {
+                        self.val = self.val.get().unwrap();
                     }
                 }
-                Op::FreeRef(idx) => val = cls.free_vars[idx],
-                Op::PredefRef(idx) => val = self.globals[idx].0,
+                Op::FreeRef(idx) => self.val = self.cls.free_vars[idx],
+                Op::PredefRef(idx) => self.val = self.globals[idx].0,
                 Op::GlobalSet(idx) => {
                     if self.globals[idx].0.is_uninitialized() {
                         return Err(RuntimeError::UndefinedGlobal(self.globals[idx].1).into());
                     }
                     let glob = &mut self.globals[idx].0;
                     if glob.is_cell() {
-                        glob.set(val).unwrap();
+                        glob.set(self.val).unwrap();
                     } else {
-                        *glob = val;
+                        *glob = self.val;
                     }
                 }
                 Op::GlobalDef(idx) => {
-                    self.globals[idx].0 = val;
-                    val = Scm::Undefined;
+                    self.globals[idx].0 = self.val;
+                    self.val = Scm::Undefined;
                 }
                 Op::Boxify(idx) => {
-                    let x = self.ref_value(idx + frame_offset)?;
+                    let x = self.ref_value(idx + self.frame_offset)?;
                     self.push_value(Scm::boxed(x));
                 }
-                Op::BoxSet => {
-                    let boxed = self.pop_value()?;
-                    boxed.set(val).expect("setting unboxed value");
-                }
-                Op::BoxGet => {
-                    val = val.get().expect("getting unboxed value");
-                }
-                Op::PushVal => self.push_value(val),
-                Op::Jump(delta) => ip += delta,
+                Op::BoxSet => self
+                    .pop_value()?
+                    .set(self.val)
+                    .expect("setting unboxed value"),
+                Op::BoxGet => self.val = self.val.get().expect("getting unboxed value"),
+                Op::PushVal => self.push_value(self.val),
+                Op::Jump(delta) => self.ip += delta,
                 Op::JumpFalse(delta) => {
-                    if val.is_false() {
-                        ip += delta
+                    if self.val.is_false() {
+                        self.ip += delta
                     }
                 }
                 Op::MakeClosure(n_free, func) => {
@@ -275,144 +307,45 @@ impl VirtualMachine {
                     for _ in 0..n_free {
                         vars.push(self.pop_value()?);
                     }
-                    val = Scm::closure(func, vars);
+                    self.val = Scm::closure(func, vars);
                 }
                 Op::CallCC => {
-                    self.call_stack.push((frame_offset, ip, cls));
+                    self.push_state();
                     let cnt = Continuation::new(self.value_stack.clone(), self.call_stack.clone());
                     let cnt = Box::leak(Box::new(cnt));
+                    self.pop_state();
 
                     self.value_stack.push(Scm::Continuation(cnt));
 
-                    match val {
-                        Scm::Closure(callee) => {
-                            let n_locals = self.convert_args(callee.code.arity, 1);
-
-                            frame_offset = self.value_stack.len() - n_locals;
-
-                            ip = 0;
-                            cls = callee;
-                        }
-                        Scm::Primitive(func) => {
-                            self.call_stack.pop().unwrap();
-                            let n = self.value_stack.len() - 1;
-                            let args = self.value_stack[n..].to_vec();
-                            self.value_stack.truncate(n);
-                            val = func.invoke(&args, self)?;
-                        }
-                        _ => unimplemented!(),
+                    match self.val {
+                        Scm::Closure(callee) => callee.invoke(1, self),
+                        Scm::Primitive(func) => func.invoke(1, self)?,
+                        Scm::Continuation(cnt) => cnt.invoke(1, self),
+                        _ => return Err(TypeError::NotCallable(self.val).into()),
                     }
                 }
-                Op::Call(nargs) => match val {
-                    Scm::Closure(callee) => {
-                        let n_locals = self.convert_args(callee.code.arity, nargs);
-
-                        self.call_stack.push((frame_offset, ip, cls));
-                        frame_offset = self.value_stack.len() - n_locals;
-
-                        ip = 0;
-                        cls = callee;
-                    }
-                    Scm::Primitive(func) => {
-                        let n = self.value_stack.len() - nargs;
-                        let args = self.value_stack[n..].to_vec();
-                        self.value_stack.truncate(n);
-                        val = func.invoke(&args, self)?;
-                    }
-                    Scm::Continuation(cnt) => {
-                        let n = self.value_stack.len() - nargs;
-                        let args = self.value_stack[n..].to_vec();
-
-                        self.value_stack = cnt.value_stack.clone();
-                        self.call_stack = cnt.call_stack.clone();
-
-                        self.value_stack.extend(args);
-
-                        let data = self.call_stack.pop().unwrap();
-                        frame_offset = data.0;
-                        ip = data.1;
-                        cls = data.2;
-                    }
-                    _ => return Err(TypeError::NotCallable(val).into()),
+                Op::Call(nargs) => match self.val {
+                    Scm::Closure(callee) => callee.invoke(nargs, self),
+                    Scm::Primitive(func) => func.invoke(nargs, self)?,
+                    Scm::Continuation(cnt) => cnt.invoke(nargs, self),
+                    _ => return Err(TypeError::NotCallable(self.val).into()),
                 },
-                Op::TailCall(nargs) => match val {
-                    Scm::Closure(callee) => {
-                        let n_locals = self.convert_args(callee.code.arity, nargs);
-
-                        let new_frame_offset = self.value_stack.len() - n_locals;
-                        self.value_stack
-                            .copy_within(new_frame_offset.., frame_offset);
-                        self.value_stack.truncate(frame_offset + n_locals);
-
-                        ip = 0;
-                        cls = callee;
-                    }
+                Op::TailCall(nargs) => match self.val {
+                    Scm::Closure(callee) => callee.invoke_tail(nargs, self),
                     Scm::Primitive(func) => {
-                        let n = self.value_stack.len() - nargs;
-                        let args = self.value_stack[n..].to_vec();
-                        self.value_stack.truncate(n);
-                        val = func.invoke(&args, self)?;
-
-                        do_return!()
+                        func.invoke(nargs, self)?;
+                        self.do_return();
                     }
-                    Scm::Continuation(cnt) => {
-                        val = self.pop_value()?;
-
-                        self.value_stack = cnt.value_stack.clone();
-                        self.call_stack = cnt.call_stack.clone();
-
-                        let data = self.call_stack.pop().unwrap();
-                        frame_offset = data.0;
-                        ip = data.1;
-                        cls = data.2;
-                    }
-                    _ => return Err(TypeError::NotCallable(val).into()),
+                    Scm::Continuation(cnt) => cnt.invoke(nargs, self),
+                    _ => return Err(TypeError::NotCallable(self.val).into()),
                 },
-                Op::Return => do_return!(),
-                Op::Halt => return Ok(val),
-                Op::Drop(n) => {
-                    self.value_stack.truncate(self.value_stack.len() - n);
-                }
+                Op::Return => self.do_return(),
+                Op::Halt => return Ok(self.val),
+                Op::Drop(n) => self.value_stack.truncate(self.value_stack.len() - n),
                 Op::InitLibrary => {
-                    let libname = val.as_string()?;
-                    if !self.libraries.contains_key(libname) {
-                        //println!("initializing {}", libname);
-
-                        let global_offset = self.globals.len();
-                        let mut trans = self.trans.same_but_empty();
-                        let lib = crate::language::scheme::build_library(
-                            &mut trans,
-                            Path::new(libname),
-                            global_offset,
-                        )?;
-
-                        self.trans.env.extend_global(
-                            trans
-                                .env
-                                .globals()
-                                .map(|_| Variable::GlobalPlaceholder(GlobalPlaceholder)),
-                        );
-
-                        self.synchronize_globals();
-                        let code = Box::leak(Box::new(lib.code_object.clone()));
-                        let closure = Closure::simple(code);
-                        let closure = Box::leak(Box::new(closure));
-                        self.eval(closure, &[])?;
-
-                        let exports = lib
-                            .exports
-                            .iter()
-                            .filter_map(|spec| {
-                                lib.global_symbols
-                                    .iter()
-                                    .position(|&n| n == spec.internal_name())
-                                    .map(|idx| idx + global_offset)
-                                    .map(|idx| (spec.exported_name(), self.globals[idx].0))
-                            })
-                            .collect();
-
-                        self.libraries.insert(libname, exports);
-                    }
+                    let libname = self.val.as_string().unwrap();
+                    self.init_library(libname)?;
+                    self.val = Scm::Undefined;
                 }
                 Op::Import => {
                     // intended use:
@@ -428,25 +361,25 @@ impl VirtualMachine {
                     //   (global-def h) ; store into global variable
                     //
                     //   (drop 1)
-                    // ; The import instruction leaves the library name on the stack.
-                    let identifier = val.as_symbol()?;
+                    // ; The import instruction leaves the library name on the stack for further
+                    // ; use, but this means it heas to be dropped manually at some point...
+                    let identifier = self.val.as_symbol()?;
                     let libname = self.peek_value()?.as_string()?;
-                    if !self.libraries.contains_key(&libname) {
-                        unimplemented!()
-                    }
-                    match self.libraries[&libname].get(&identifier) {
-                        Some(v) => val = *v,
-                        _ => panic!("Invalid import"),
-                    }
+                    self.import(libname, identifier);
                 }
                 Op::Cons => {
                     let car = self.pop_value()?;
-                    val = Scm::cons(car, val);
+                    self.val = Scm::cons(car, self.val);
                 }
-                Op::Car => val = val.car()?,
-                Op::Cdr => val = val.cdr()?,
+                Op::Car => self.val = self.val.car()?,
+                Op::Cdr => self.val = self.val.cdr()?,
             }
         }
+    }
+
+    fn do_return(&mut self) {
+        self.value_stack.truncate(self.frame_offset);
+        self.pop_state();
     }
 
     fn convert_args(&mut self, arity: Arity, n_passed: usize) -> usize {
@@ -466,6 +399,17 @@ impl VirtualMachine {
                 1 + n as usize
             }
         }
+    }
+
+    fn push_state(&mut self) {
+        self.call_stack.push((self.frame_offset, self.ip, self.cls));
+    }
+
+    pub fn pop_state(&mut self) {
+        let data = self.call_stack.pop().unwrap();
+        self.frame_offset = data.0;
+        self.ip = data.1;
+        self.cls = data.2;
     }
 
     fn pop_value(&mut self) -> Result<Scm> {
@@ -489,6 +433,58 @@ impl VirtualMachine {
 
     fn ref_value(&mut self, idx: usize) -> Result<Scm> {
         Ok(self.value_stack[idx])
+    }
+
+    fn init_library(&mut self, libname: &'static str) -> Result<()> {
+        if !self.libraries.contains_key(libname) {
+            //println!("initializing {}", libname);
+
+            let global_offset = self.globals.len();
+            let mut trans = self.trans.same_but_empty();
+            let lib = crate::language::scheme::build_library(
+                &mut trans,
+                Path::new(libname),
+                global_offset,
+            )?;
+
+            self.trans.env.extend_global(
+                trans
+                    .env
+                    .globals()
+                    .map(|_| Variable::GlobalPlaceholder(GlobalPlaceholder)),
+            );
+
+            self.synchronize_globals();
+            let code = Box::leak(Box::new(lib.code_object.clone()));
+            let closure = Closure::simple(code);
+            let closure = Box::leak(Box::new(closure));
+            self.eval(closure, &[])?;
+
+            let exports = lib
+                .exports
+                .iter()
+                .filter_map(|spec| {
+                    lib.global_symbols
+                        .iter()
+                        .position(|&n| n == spec.internal_name())
+                        .map(|idx| idx + global_offset)
+                        .map(|idx| (spec.exported_name(), self.globals[idx].0))
+                })
+                .collect();
+
+            self.libraries.insert(libname, exports);
+        }
+        Ok(())
+    }
+
+    fn import(&mut self, libname: &'static str, identifier: Symbol) {
+        if !self.libraries.contains_key(&libname) {
+            unimplemented!()
+        }
+        match self.libraries[&libname].get(&identifier) {
+            Some(v) => self.val = *v,
+            _ => panic!("Invalid import"),
+        }
     }
 }
 

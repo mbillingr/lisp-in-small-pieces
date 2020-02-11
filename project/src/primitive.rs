@@ -1,10 +1,8 @@
 use crate::bytecode::VirtualMachine;
-use crate::error::{Error, RuntimeError};
+use crate::error::{Result, RuntimeError};
 use crate::scm::Scm;
 
-pub type Result = std::result::Result<Scm, Error>;
-
-pub type PrimitiveSignature = fn(args: &[Scm], context: &mut VirtualMachine) -> Result;
+pub type PrimitiveSignature = fn(args: &[Scm], context: &mut VirtualMachine) -> Result<Scm>;
 
 #[derive(Copy, Clone)]
 pub struct RuntimePrimitive {
@@ -30,9 +28,14 @@ impl RuntimePrimitive {
         self.arity
     }
 
-    pub fn invoke(&self, args: &[Scm], context: &mut VirtualMachine) -> Result {
-        if self.arity.check(args.len()) {
-            (self.func)(&args, context)
+    pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
+        let n = vm.value_stack.len() - nargs;
+        let args = vm.value_stack[n..].to_vec();
+        vm.value_stack.truncate(n);
+
+        if self.arity.check(nargs) {
+            vm.val = (self.func)(&args, vm)?;
+            Ok(())
         } else {
             Err(RuntimeError::IncorrectArity.into())
         }

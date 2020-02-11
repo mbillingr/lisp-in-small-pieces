@@ -15,6 +15,4 @@
                 ((or) #f)
                 ((or a) a)
                 ((or a b) (let ((temp a)) (if temp temp b)))
-                ((or a b ...) (let ((temp a)) (if temp temp (or b ...))))
-            )
-        )))
+                ((or a b ...) (let ((temp a)) (if temp temp (or b ...))))))))

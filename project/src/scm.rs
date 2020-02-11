@@ -155,7 +155,7 @@ impl Scm {
     pub fn as_string(&self) -> Result<&'static str> {
         match self {
             Scm::String(s) => Ok(*s),
-            _ => Err(TypeError::NoString.into()),
+            _ => Err(TypeError::NoString(*self).into()),
         }
     }
 
