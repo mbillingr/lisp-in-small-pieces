@@ -320,10 +320,13 @@ impl VirtualMachine {
                         val = func.invoke(&args, self)?;
                     }
                     Scm::Continuation(cnt) => {
-                        val = self.pop_value()?;
+                        let n = self.value_stack.len() - nargs;
+                        let args = self.value_stack[n..].to_vec();
 
                         self.value_stack = cnt.value_stack.clone();
                         self.call_stack = cnt.call_stack.clone();
+
+                        self.value_stack.extend(args);
 
                         let data = self.call_stack.pop().unwrap();
                         frame_offset = data.0;
@@ -468,14 +471,16 @@ impl VirtualMachine {
     fn pop_value(&mut self) -> Result<Scm> {
         self.value_stack
             .pop()
-            .ok_or(RuntimeError::ValueStackUnderflow.into())
+            .ok_or_else(|| panic!("value stack underflow"))
+        //.ok_or(RuntimeError::ValueStackUnderflow.into())
     }
 
     fn peek_value(&mut self) -> Result<Scm> {
         self.value_stack
             .last()
             .copied()
-            .ok_or(RuntimeError::ValueStackUnderflow.into())
+            .ok_or_else(|| panic!("value stack underflow"))
+        //.ok_or(RuntimeError::ValueStackUnderflow.into())
     }
 
     fn push_value(&mut self, value: Scm) {

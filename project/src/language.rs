@@ -839,5 +839,29 @@ pub mod scheme {
                 assert_eq!(ctx.eval_str("((foo) 21)").unwrap(), Scm::Int(42));
             }
         }
+
+        mod stdlib {
+            use super::*;
+
+            compare!(call_cc:
+                r#" (define cc #f)
+                    (define bar 0)
+                    (define result '())
+
+                    (define (func)
+                      (set! result (cons 0 result))
+                      (call/cc (lambda (k) (set! cc k)))
+                      (set! bar (+ bar 1)))
+
+                    (define (g)
+                      (func)
+                      (set! result (cons bar result)))
+
+                    (g)
+                    (if (< bar 3)
+                        (cc))
+                    result"#,
+                equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
+        }
     }
 }
