@@ -561,8 +561,8 @@ pub mod scheme {
 
             check!(reify_intrinsic: "cons", Scm::is_procedure);
 
-            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Symbol::new("flummox")));
-            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Symbol::new("foo")));
+            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("flummox"))));
+            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("foo"))));
             check!(new_global: "(define the-answer 42)", Scm::is_undefined);
             compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
             compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
@@ -656,7 +656,7 @@ pub mod scheme {
                 r#"(begin
                         (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
                         (foo x))"#,
-                RuntimeError::UndefinedGlobal(Symbol::new("x")));
+                RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("x"))));
 
             compare!(hygiene_new_binding_defined_with_let:
                 r#"(begin
@@ -774,11 +774,11 @@ pub mod scheme {
 
             assert_error!(import_only:
                 r#"(import (only (testing 1) a)) a b"#,
-                RuntimeError::UndefinedGlobal(Symbol::new("b")));
+                RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("b"))));
 
             assert_error!(import_except:
                 r#"(import (except (testing 1) a)) a"#,
-                RuntimeError::UndefinedGlobal(Symbol::new("a")));
+                RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("a"))));
 
             compare!(import_prefixed_values:
                 r#"(import (prefix (testing 1) foo-)) (cons foo-a foo-b)"#,
@@ -824,7 +824,7 @@ pub mod scheme {
                 ctx.eval_str("(define x 42)").unwrap();
                 assert_eq!(
                     ctx.vm.globals().last(),
-                    Some(&(Scm::Int(42), Symbol::new("x")))
+                    Some(&(Scm::Int(42), Scm::Symbol(Symbol::new("x"))))
                 );
             }
 
@@ -837,7 +837,7 @@ pub mod scheme {
                 );
                 assert_ne!(
                     ctx.vm.globals().last().unwrap(),
-                    &(Scm::Int(42), Symbol::new("x"))
+                    &(Scm::Int(42), Scm::Symbol(Symbol::new("x")))
                 );
             }
 

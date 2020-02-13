@@ -160,7 +160,7 @@ pub type Library = HashMap<Symbol, Scm>;
 
 pub struct VirtualMachine {
     pub trans: Translate,
-    globals: Vec<(Scm, Symbol)>,
+    globals: Vec<(Scm, Scm)>,
     libraries: HashMap<&'static str, Library>,
     pub value_stack: Vec<Scm>,
     pub call_stack: Vec<CallstackFrame>,
@@ -183,7 +183,7 @@ thread_local! {
 }
 
 impl VirtualMachine {
-    pub fn new(trans: Translate, globals: Vec<(Scm, Symbol)>) -> Self {
+    pub fn new(trans: Translate, globals: Vec<(Scm, Scm)>) -> Self {
         VirtualMachine {
             trans,
             globals,
@@ -197,17 +197,17 @@ impl VirtualMachine {
         }
     }
 
-    pub fn globals(&self) -> &[(Scm, Symbol)] {
+    pub fn globals(&self) -> &[(Scm, Scm)] {
         &self.globals
     }
 
     pub fn synchronize_globals(&mut self) {
         self.globals.resize(
             self.trans.env.max_global_idx(),
-            (Scm::Uninitialized, Symbol::new("n/a")),
+            (Scm::Uninitialized, Scm::Symbol(Symbol::new("n/a"))),
         );
-        for (idx, gvar) in self.trans.env.enumerate_globals() {
-            self.globals[idx].1 = gvar.name();
+        for (idx, name) in self.trans.env.enumerate_global_names() {
+            self.globals[idx].1 = name;
         }
     }
 
@@ -261,9 +261,7 @@ impl VirtualMachine {
                 Op::GlobalRef(idx) => {
                     self.val = self.globals[idx].0;
                     if self.val.is_uninitialized() {
-                        return Err(
-                            RuntimeError::UndefinedGlobal(self.globals[idx].1.clone()).into()
-                        );
+                        return Err(RuntimeError::UndefinedGlobal(self.globals[idx].1).into());
                     }
                     if self.val.is_cell() {
                         self.val = self.val.get().unwrap();
@@ -454,12 +452,9 @@ impl VirtualMachine {
                 global_offset,
             )?;
 
-            self.trans.env.extend_global(
-                trans
-                    .env
-                    .globals()
-                    .map(|_| Variable::GlobalPlaceholder(GlobalPlaceholder)),
-            );
+            self.trans.env.extend_global(trans.env.globals().map(|var| {
+                Variable::GlobalPlaceholder(GlobalPlaceholder::new(libname, var.name()))
+            }));
 
             self.synchronize_globals();
             let code = Box::leak(Box::new(lib.code_object.clone()));

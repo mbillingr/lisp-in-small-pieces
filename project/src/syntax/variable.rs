@@ -83,11 +83,21 @@ impl std::fmt::Debug for LocalVariable {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GlobalPlaceholder;
+pub struct GlobalPlaceholder {
+    name: Scm,
+}
 
 impl GlobalPlaceholder {
-    pub fn new() -> Self {
-        GlobalPlaceholder
+    pub fn new(libname: &'static str, varname: Symbol) -> Self {
+        let mut name = Scm::Symbol(varname);
+        for part in libname.split('/').rev() {
+            name = Scm::cons(Scm::Symbol(part.into()), name);
+        }
+        GlobalPlaceholder { name }
+    }
+
+    pub fn name(&self) -> Scm {
+        self.name
     }
 }
 

@@ -33,7 +33,7 @@ pub enum CompileError {
 pub enum RuntimeError {
     ValueStackUnderflow,
     IncorrectArity,
-    UndefinedGlobal(Symbol),
+    UndefinedGlobal(Scm),
 }
 
 #[derive(Debug, PartialEq)]

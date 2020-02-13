@@ -103,7 +103,7 @@ impl Env {
         })
     }
 
-    pub fn enumerate_globals(&self) -> impl Iterator<Item = (usize, GlobalVariable)> {
+    pub fn enumerate_global_names(&self) -> impl Iterator<Item = (usize, Scm)> {
         self.globals
             .borrow()
             .clone()
@@ -114,12 +114,10 @@ impl Env {
                 _ => false,
             })
             .enumerate()
-            .filter_map(|(idx, var)| {
-                if let Variable::GlobalVariable(gv) = var {
-                    Some((idx, gv))
-                } else {
-                    None
-                }
+            .filter_map(|(idx, var)| match var {
+                Variable::GlobalVariable(gv) => Some((idx, Scm::Symbol(gv.name()))),
+                Variable::GlobalPlaceholder(gp) => Some((idx, gp.name())),
+                _ => None,
             })
     }
 
