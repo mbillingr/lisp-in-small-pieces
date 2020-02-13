@@ -568,6 +568,16 @@ pub mod scheme {
             compare!(access_free_while_setting: "(((lambda (x) (lambda () (set! x x) x)) 0))", equals, Scm::Int(0));
 
             compare!(immutable_redefinition: "(begin (define cons #f) cons)", equals, Scm::False);
+            compare!(capture_free_variable_in_closure:
+                r#"(begin
+                    (define (outer x)
+                        (define (inner1)
+                            (define (inner2)
+                                x)
+                            inner2)
+                        inner1)
+                    (((outer 42))))"#,
+                 equals, Scm::Int(42));
         }
 
         mod application {
