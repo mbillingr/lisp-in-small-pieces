@@ -174,68 +174,68 @@ macro_rules! make_primitive {
 
 macro_rules! wrap_native {
     (=$arity:tt $func:expr) => {
-        |args: &[Scm], _ctx: &VirtualMachine| wrap_native!(@inner args =$arity $func)
+        |args: &[Scm], _ctx: &VirtualMachine| -> Result<Scm> { wrap_native!(@inner args =$arity $func) }
     };
 
     (>=$arity:tt $func:expr) => {
-        |args: &[Scm], _ctx: &VirtualMachine| wrap_native!(@inner args >=$arity $func)
+        |args: &[Scm], _ctx: &VirtualMachine| -> Result<Scm> { wrap_native!(@inner args >=$arity $func) }
     };
 
     (@inner $args:ident =0 $func:expr) => {
         match &$args[..] {
-            [] => $func(),
+            [] => $func().wrap(),
             _ => unreachable!(),
         }
     };
 
     (@inner $args:ident =1 $func:expr) => {
         match &$args[..] {
-            [a] => $func(a.into()),
+            [a] => $func(a.try_into()?).wrap(),
             _ => unreachable!(),
         }
     };
 
     (@inner $args:ident =2 $func:expr) => {
         match &$args[..] {
-            [a, b] => $func(a.into(), b.into()),
+            [a, b] => $func(a.try_into()?, b.try_into()?).wrap(),
             _ => unreachable!(),
         }
     };
 
     (@inner $args:ident =3 $func:expr) => {
         match &$args[..] {
-            [a, b, c] => $func(a.into(), b.into(), c.into()),
+            [a, b, c] => $func(a.try_into()?, b.try_into()?, c.try_into()?).wrap(),
             _ => unreachable!(),
         }
     };
 
     (@inner $args:ident =4 $func:expr) => {
         match &$args[..] {
-            [a, b, c, d] => $func(a.into(), b.into(), c.into(), d.into()),
+            [a, b, c, d] => $func(a.try_into()?, b.try_into()?, c.try_into()?, d.try_into()?).wrap(),
             _ => unreachable!(),
         }
     };
 
     (@inner $args:ident =5 $func:expr) => {
         match &$args[..] {
-            [a, b, c, d, e] => $func(a.into(), b.into(), c.into(), d.into(), e.into()),
+            [a, b, c, d, e] => $func(a.try_into()?, b.try_into()?, c.try_into()?, d.try_into()?, e.try_into()?).wrap(),
             _ => unreachable!(),
         }
     };
 
     (@inner $args:ident >=0 $func:expr) => {
-        $func($args)
+        $func($args).wrap()
     };
 
     (@inner $args:ident >=1 $func:expr) => {
-        $func($args[0].into(), &$args[1..])
+        $func($args[0].into(), &$args[1..]).wrap()
     };
 
     (@inner $args:ident >=2 $func:expr) => {
-        $func($args[0].into(), $args[1].into(), &$args[2..])
+        $func($args[0].into(), $args[1].into(), &$args[2..]).wrap()
     };
 
     (@inner $args:ident >=3 $func:expr) => {
-        $func($args[0].into(), $args[1].into(), $args[2].into(), &$args[3..])
+        $func($args[0].into(), $args[1].into(), $args[2].into(), &$args[3..]).wrap()
     };
 }

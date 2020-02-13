@@ -40,6 +40,11 @@ impl RuntimePrimitive {
             Err(RuntimeError::IncorrectArity.into())
         }
     }
+
+    pub fn invoke_tail(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
+        self.invoke(nargs, vm)?;
+        vm.do_return()
+    }
 }
 
 impl std::fmt::Debug for RuntimePrimitive {

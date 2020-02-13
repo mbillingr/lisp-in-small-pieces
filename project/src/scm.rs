@@ -1,10 +1,11 @@
-use crate::bytecode::{Closure, CodeObject};
+use crate::bytecode::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::Continuation;
 use crate::error::{Result, TypeError};
 use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use std::cell::Cell;
+use std::convert::TryFrom;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Scm {
@@ -200,6 +201,16 @@ impl Scm {
         }
     }
 
+    pub fn vector_ref(&self, idx: usize) -> Result<Scm> {
+        match self {
+            Scm::Vector(v) => v
+                .get(idx)
+                .map(Cell::get)
+                .ok_or(TypeError::OutOfBounds.into()),
+            _ => Err(TypeError::NoVector.into()),
+        }
+    }
+
     pub fn as_closure(&self) -> Result<&'static Closure> {
         match self {
             Scm::Closure(cls) => Ok(*cls),
@@ -266,6 +277,26 @@ impl Scm {
             Scm::Cell(x) => Ok(x.get()),
             _ => Err(TypeError::WrongType.into()),
         }
+    }
+
+    pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
+        match self {
+            Scm::Closure(cls) => cls.invoke(nargs, vm),
+            Scm::Primitive(func) => func.invoke(nargs, vm)?,
+            Scm::Continuation(cnt) => cnt.invoke(nargs, vm)?,
+            _ => return Err(TypeError::NotCallable(*self).into()),
+        }
+        Ok(())
+    }
+
+    pub fn invoke_tail(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
+        match self {
+            Scm::Closure(cls) => cls.invoke_tail(nargs, vm),
+            Scm::Primitive(func) => func.invoke_tail(nargs, vm)?,
+            Scm::Continuation(cnt) => cnt.invoke_tail(nargs, vm)?,
+            _ => return Err(TypeError::NotCallable(*self).into()),
+        }
+        Ok(())
     }
 }
 
@@ -454,5 +485,22 @@ impl ResultWrap for () {
 impl PartialEq for Scm {
     fn eq(&self, other: &Self) -> bool {
         self.ptr_eq(other)
+    }
+}
+
+impl TryFrom<Scm> for usize {
+    type Error = crate::error::Error;
+    fn try_from(scm: Scm) -> Result<Self> {
+        match scm {
+            Scm::Int(i) if i >= 0 => Ok(i as usize),
+            _ => Err(TypeError::NoPositiveInt(scm).into()),
+        }
+    }
+}
+
+impl TryFrom<&Scm> for usize {
+    type Error = crate::error::Error;
+    fn try_from(scm: &Scm) -> Result<Self> {
+        Self::try_from(*scm)
     }
 }

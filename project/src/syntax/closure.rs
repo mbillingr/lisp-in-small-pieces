@@ -1,6 +1,6 @@
 use super::expression::Expression;
 use super::function::Function;
-use super::reference::{LocalReference, Reference};
+use super::reference::Reference;
 use crate::ast_transform::Transformer;
 use std::convert::TryInto;
 

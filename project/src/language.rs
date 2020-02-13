@@ -4,7 +4,7 @@ pub mod scheme {
     use crate::ast_transform::generate_bytecode::{compile_library, compile_program};
     use crate::bytecode::{Closure, LibraryObject, VirtualMachine};
     use crate::env::Env;
-    use crate::error::{Error, Result};
+    use crate::error::{Error, ErrorKind, Result};
     use crate::library::{LibraryBuilder, LibraryData};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
@@ -18,6 +18,7 @@ pub mod scheme {
     use crate::source::SourceLocation::NoSource;
     use crate::syntactic_closure::SyntacticClosure;
     use crate::syntax::{Expression, MagicKeyword, NoOp};
+    use std::convert::TryInto;
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
@@ -57,7 +58,7 @@ pub mod scheme {
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
-            //println!("{:#?}", ast);
+            println!("{:#?}", ast);
 
             let code = compile_program(&ast, &self.trans())?;
             println!("{:#?}", code);
@@ -148,6 +149,9 @@ pub mod scheme {
             native "-", =2, Scm::sub;
             native "list", >=0, list;
             native "vector", >=0, vector;
+            native "error", =1, raise_error;
+
+            native "vector-ref", =2, Scm::vector_ref;
 
             native "call/cc", =1, call_with_current_continuation;
 
@@ -208,6 +212,8 @@ pub mod scheme {
 
         let body = ocdr(def)?;
         let body = scan_out_defines(body.clone())?;
+
+        println!("{}", body);
 
         let result = trans.objectify_function(names, &body, expr.source().clone())?;
 
@@ -308,6 +314,10 @@ pub mod scheme {
 
     pub fn vector(args: &[Scm]) -> Scm {
         Scm::vector(args.iter().copied())
+    }
+
+    pub fn raise_error(msg: Scm) -> Result<Scm> {
+        Err(ErrorKind::Custom(msg).into())
     }
 
     pub fn call_with_current_continuation(_f: Scm) -> Scm {
@@ -847,7 +857,7 @@ pub mod scheme {
             }
         }
 
-        mod stdlib {
+        mod non_local_control_flow {
             use super::*;
 
             compare!(call_cc:
@@ -868,6 +878,14 @@ pub mod scheme {
                     (if (< bar 3)
                         (cc))
                     result"#,
+                equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
+
+            compare!(dynamic_wind:
+                r#"(dynamic-wind
+                        (lambda () (display "before") (newline) 1)
+                        (lambda () (display "thunk") (newline) 2)
+                        (lambda () (display "after") (newline) 3)
+                    )"#,
                 equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
         }
     }

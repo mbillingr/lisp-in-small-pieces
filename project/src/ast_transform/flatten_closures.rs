@@ -1,7 +1,6 @@
 use super::{Transformer, Visited};
 use crate::syntax::{
-    Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, LocalReference,
-    LocalVariable, Reference, Variable,
+    Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, Reference, Variable,
 };
 use crate::utils::{Named, Sourced};
 use std::convert::TryInto;

@@ -163,7 +163,7 @@ pub struct VirtualMachine {
     globals: Vec<(Scm, Symbol)>,
     libraries: HashMap<&'static str, Library>,
     pub value_stack: Vec<Scm>,
-    pub call_stack: Vec<(usize, isize, &'static Closure)>,
+    pub call_stack: Vec<CallstackFrame>,
     ip: isize,
     cls: &'static Closure,
     frame_offset: usize,
@@ -245,7 +245,7 @@ impl VirtualMachine {
         let result = self.run();
 
         // restore old state
-        self.pop_state();
+        self.pop_state()?;
 
         result
     }
@@ -313,33 +313,22 @@ impl VirtualMachine {
                     self.push_state();
                     let cnt = Continuation::new(self.value_stack.clone(), self.call_stack.clone());
                     let cnt = Box::leak(Box::new(cnt));
-                    self.pop_state();
+                    self.pop_state()?;
 
                     self.value_stack.push(Scm::Continuation(cnt));
 
-                    match self.val {
-                        Scm::Closure(callee) => callee.invoke(1, self),
-                        Scm::Primitive(func) => func.invoke(1, self)?,
-                        Scm::Continuation(cnt) => cnt.invoke(1, self),
-                        _ => return Err(TypeError::NotCallable(self.val).into()),
-                    }
+                    let val = self.val;
+                    val.invoke(1, self)?;
                 }
-                Op::Call(nargs) => match self.val {
-                    Scm::Closure(callee) => callee.invoke(nargs, self),
-                    Scm::Primitive(func) => func.invoke(nargs, self)?,
-                    Scm::Continuation(cnt) => cnt.invoke(nargs, self),
-                    _ => return Err(TypeError::NotCallable(self.val).into()),
-                },
-                Op::TailCall(nargs) => match self.val {
-                    Scm::Closure(callee) => callee.invoke_tail(nargs, self),
-                    Scm::Primitive(func) => {
-                        func.invoke(nargs, self)?;
-                        self.do_return();
-                    }
-                    Scm::Continuation(cnt) => cnt.invoke(nargs, self),
-                    _ => return Err(TypeError::NotCallable(self.val).into()),
-                },
-                Op::Return => self.do_return(),
+                Op::Call(nargs) => {
+                    let val = self.val;
+                    val.invoke(nargs, self)?;
+                }
+                Op::TailCall(nargs) => {
+                    let val = self.val;
+                    val.invoke_tail(nargs, self)?;
+                }
+                Op::Return => self.do_return()?,
                 Op::Halt => return Ok(self.val),
                 Op::Drop(n) => self.value_stack.truncate(self.value_stack.len() - n),
                 Op::InitLibrary => {
@@ -377,9 +366,9 @@ impl VirtualMachine {
         }
     }
 
-    fn do_return(&mut self) {
+    pub fn do_return(&mut self) -> Result<()> {
         self.value_stack.truncate(self.frame_offset);
-        self.pop_state();
+        self.pop_state()
     }
 
     fn convert_args(&mut self, arity: Arity, n_passed: usize) -> usize {
@@ -401,18 +390,36 @@ impl VirtualMachine {
         }
     }
 
+    pub fn push_wind(&mut self, before: Scm, after: Scm) -> Result<()> {
+        self.call_stack.push(CallstackFrame::Wind { before, after });
+        before.invoke(0, self)
+    }
+
     fn push_state(&mut self) {
-        self.call_stack.push((self.frame_offset, self.ip, self.cls));
+        self.call_stack.push(CallstackFrame::Frame {
+            frame_offset: self.frame_offset,
+            ip: self.ip,
+            closure: self.cls,
+        });
     }
 
-    pub fn pop_state(&mut self) {
-        let data = self.call_stack.pop().unwrap();
-        self.frame_offset = data.0;
-        self.ip = data.1;
-        self.cls = data.2;
+    pub fn pop_state(&mut self) -> Result<()> {
+        match self.call_stack.pop().unwrap() {
+            CallstackFrame::Wind { after, .. } => after.invoke(0, self),
+            CallstackFrame::Frame {
+                ip,
+                frame_offset,
+                closure,
+            } => {
+                self.frame_offset = frame_offset;
+                self.ip = ip;
+                self.cls = closure;
+                Ok(())
+            }
+        }
     }
 
-    fn pop_value(&mut self) -> Result<Scm> {
+    pub fn pop_value(&mut self) -> Result<Scm> {
         self.value_stack
             .pop()
             .ok_or_else(|| panic!("value stack underflow"))
@@ -524,4 +531,17 @@ impl std::fmt::Debug for Op {
             Op::Cdr => write!(f, "(cdr)"),
         }
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum CallstackFrame {
+    Wind {
+        before: Scm,
+        after: Scm,
+    },
+    Frame {
+        ip: isize,
+        frame_offset: usize,
+        closure: &'static Closure,
+    },
 }

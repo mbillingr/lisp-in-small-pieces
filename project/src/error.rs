@@ -15,6 +15,7 @@ pub struct Error {
 
 #[derive(Debug)]
 pub enum ErrorKind {
+    Custom(Scm),
     Parse(ParseErrorKind),
     Objectify(ObjectifyErrorKind),
     Compile(CompileError),
@@ -40,10 +41,13 @@ pub enum TypeError {
     WrongType,
     NotCallable(Scm),
     NoInt,
+    NoPositiveInt(Scm),
     NoPair,
+    NoVector,
     NoSymbol,
     NoString(Scm),
     NoClosure,
+    OutOfBounds,
 }
 
 #[derive(Debug)]
@@ -74,6 +78,12 @@ where
             kind: kind.into(),
             context: ErrorContext::None,
         }
+    }
+}
+
+impl From<std::convert::Infallible> for Error {
+    fn from(_: std::convert::Infallible) -> Self {
+        unreachable!()
     }
 }
 
@@ -114,6 +124,7 @@ impl Error {
 impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            ErrorKind::Custom(e) => write!(f, "Error: {}", e),
             ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
             ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
             ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),

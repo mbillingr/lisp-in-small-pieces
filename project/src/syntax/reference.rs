@@ -1,6 +1,6 @@
 use super::expression::Expression;
 use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
-use crate::ast_transform::{Transformer, Visited};
+use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::Variable;
