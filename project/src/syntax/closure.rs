@@ -1,19 +1,19 @@
 use super::expression::Expression;
 use super::function::Function;
-use super::reference::LocalReference;
+use super::reference::{LocalReference, Reference};
 use crate::ast_transform::Transformer;
 use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub struct FlatClosure {
     pub func: Function,
-    pub free_vars: Vec<LocalReference>,
+    pub free_vars: Vec<Reference>,
 }
 
 impl_sourced!(FlatClosure: self.func.span);
 
 impl FlatClosure {
-    pub fn adjoin_free_variables(&mut self, node: &LocalReference) {
+    pub fn adjoin_free_variables(&mut self, node: &Reference) {
         if self.free_vars.iter().find(|&fv| fv == node).is_none() {
             self.free_vars.push(node.clone());
         }

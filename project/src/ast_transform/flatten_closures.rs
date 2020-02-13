@@ -1,14 +1,14 @@
 use super::{Transformer, Visited};
 use crate::syntax::{
     Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, LocalReference,
-    LocalVariable,
+    LocalVariable, Reference, Variable,
 };
-use crate::utils::Named;
+use crate::utils::{Named, Sourced};
 use std::convert::TryInto;
 
 pub struct Flatten {
     current_function: Option<FlatClosure>,
-    bound_vars: Vec<LocalVariable>,
+    bound_vars: Vec<Variable>,
 }
 
 impl Transformer for Flatten {
@@ -16,7 +16,7 @@ impl Transformer for Flatten {
         use crate::syntax::Reference::*;
         use Expression::*;
         match expr {
-            Reference(LocalReference(x)) => self.local_reference(x),
+            Reference(r @ LocalReference(_)) => self.local_reference(r),
             FixLet(x) => self.fixlet(x).into(),
             Function(x) => self.function(x).into(),
             x => Visited::Recurse(x),
@@ -32,8 +32,9 @@ impl Flatten {
         }
     }
 
-    fn local_reference(&mut self, node: LocalReference) -> Visited {
-        if self.bound_vars.contains(&node.var) {
+    fn local_reference(&mut self, node: Reference) -> Visited {
+        let var = node.var();
+        if self.bound_vars.contains(&var) {
             Visited::Recurse(node.into())
         } else {
             self.current_function
@@ -41,7 +42,7 @@ impl Flatten {
                 .unwrap()
                 .adjoin_free_variables(&node);
             Visited::Transformed(
-                FreeReference::new(FreeVariable::new(node.var.name()), node.span).into(),
+                FreeReference::new(FreeVariable::new(var.name()), node.source().clone()).into(),
             )
         }
     }
@@ -54,7 +55,8 @@ impl Flatten {
             .collect();
 
         let n = self.bound_vars.len();
-        self.bound_vars.extend_from_slice(&node.variables);
+        self.bound_vars
+            .extend(node.variables.iter().cloned().map(Variable::from));
 
         let body = node.body.clone().transform(self);
 
@@ -71,7 +73,7 @@ impl Flatten {
 
         let mut trans = Flatten {
             current_function: Some(newfun),
-            bound_vars: node.variables.clone(),
+            bound_vars: node.variables.iter().cloned().map(Variable::from).collect(),
         };
 
         let newbody = node.body.transform(&mut trans);
@@ -85,7 +87,7 @@ impl Flatten {
             .map(Expression::from)
             .map(|r| r.transform(self))
             .map(Expression::try_into)
-            .map(|r| r.expect("expected local reference"))
+            .map(|r| r.expect("expected reference"))
             .collect();
 
         newfun.func.body = Box::new(newbody);

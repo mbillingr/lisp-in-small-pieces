@@ -274,7 +274,7 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Result<Vec<Op>> {
-        let free_vars = node.free_vars.iter().map(|s| s.var.name()).collect();
+        let free_vars = node.free_vars.iter().map(|s| s.var_name()).collect();
 
         let function = compile_function(&node.func, free_vars, self.trans, self.global_offset)?;
         let function = Box::leak(Box::new(function));
@@ -282,7 +282,7 @@ impl<'a> BytecodeGenerator<'a> {
         let mut meaning = vec![];
 
         for fv in node.free_vars.iter().rev() {
-            let m = self.compile_local_ref(fv, false)?;
+            let m = self.compile_reference(fv, false)?;
             meaning.extend(m);
             meaning.push(Op::PushVal);
         }

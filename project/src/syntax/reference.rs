@@ -1,11 +1,13 @@
 use super::expression::Expression;
 use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
-use crate::ast_transform::Transformer;
+use crate::ast_transform::{Transformer, Visited};
 use crate::source::SourceLocation;
-use crate::utils::Sourced;
+use crate::symbol::Symbol;
+use crate::syntax::Variable;
+use crate::utils::{Named, Sourced};
 
 sum_type! {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub type Reference(Expression) = LocalReference
                                    | GlobalReference
                                    | PredefinedReference
@@ -20,6 +22,26 @@ impl Reference {
             GlobalReference(x) => x.default_transform(visitor).into(),
             PredefinedReference(x) => x.default_transform(visitor).into(),
             FreeReference(x) => x.default_transform(visitor).into(),
+        }
+    }
+
+    pub fn var_name(&self) -> Symbol {
+        use Reference::*;
+        match self {
+            LocalReference(r) => r.var.name(),
+            GlobalReference(r) => r.var.name(),
+            PredefinedReference(r) => r.var.name(),
+            FreeReference(r) => r.var.name(),
+        }
+    }
+
+    pub fn var(&self) -> Variable {
+        use Reference::*;
+        match self {
+            LocalReference(r) => r.var.clone().into(),
+            GlobalReference(r) => r.var.clone().into(),
+            PredefinedReference(r) => r.var.clone().into(),
+            FreeReference(r) => r.var.clone().into(),
         }
     }
 }
@@ -115,6 +137,12 @@ pub struct FreeReference {
 }
 
 impl_sourced!(FreeReference);
+
+impl PartialEq for FreeReference {
+    fn eq(&self, other: &Self) -> bool {
+        self.var == other.var
+    }
+}
 
 impl FreeReference {
     pub fn new(var: FreeVariable, span: SourceLocation) -> Self {
