@@ -2,4 +2,4 @@
     (export (rename foo foo2)
             (rename cons kons))
     (import (testing lib)
-            (sunny base)))
+            (sunny core)))

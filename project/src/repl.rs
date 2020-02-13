@@ -11,10 +11,10 @@ pub fn repl() {
 
     let mut context = Context::new();
 
-    context.add_library("sunny/base", create_scheme_base_library());
+    context.add_library("sunny/core", create_scheme_base_library());
     context.add_library("sunny/extra", create_scheme_extra_library());
 
-    context.import_library("sunny/base");
+    context.import_library("sunny/core");
 
     loop {
         match rl.readline(">> ") {

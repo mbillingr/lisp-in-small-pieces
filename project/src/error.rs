@@ -29,11 +29,21 @@ pub enum CompileError {
     MacroUsedAsValue(Symbol),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum RuntimeError {
     ValueStackUnderflow,
     IncorrectArity,
     UndefinedGlobal(Scm),
+}
+
+impl std::fmt::Debug for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RuntimeError::ValueStackUnderflow => write!(f, "value-stack underflow"),
+            RuntimeError::IncorrectArity => write!(f, "incorrect arity"),
+            RuntimeError::UndefinedGlobal(name) => write!(f, "undefined global {}", name),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]

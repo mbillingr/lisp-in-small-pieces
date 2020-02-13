@@ -1,6 +1,6 @@
 (define-library (testing lib)
     (export fib foo find-negative)
-    (import (sunny base))
+    (import (sunny core))
     (begin
         (define (foo x) (bar x))
         (define (bar x) x)

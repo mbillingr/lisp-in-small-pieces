@@ -358,8 +358,8 @@ pub mod scheme {
 
         fn create_testing_context() -> Context {
             let mut ctx = Context::new();
-            ctx.add_library("sunny/base", create_scheme_base_library());
-            ctx.import_library("sunny/base");
+            ctx.add_library("sunny/core", create_scheme_base_library());
+            ctx.import_library("sunny/core");
             ctx.trans().mark_base_env();
             create_testing_libraries(ctx)
         }
