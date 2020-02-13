@@ -571,11 +571,8 @@ pub mod scheme {
             compare!(capture_free_variable_in_closure:
                 r#"(begin
                     (define (outer x)
-                        (define (inner1)
-                            (define (inner2)
-                                x)
-                            inner2)
-                        inner1)
+                        (lambda ()
+                            (lambda () x)))
                     (((outer 42))))"#,
                  equals, Scm::Int(42));
         }
