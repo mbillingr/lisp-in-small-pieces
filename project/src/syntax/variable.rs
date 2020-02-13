@@ -82,7 +82,7 @@ impl std::fmt::Debug for LocalVariable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct GlobalPlaceholder {
     name: Scm,
 }
@@ -98,6 +98,12 @@ impl GlobalPlaceholder {
 
     pub fn name(&self) -> Scm {
         self.name
+    }
+}
+
+impl std::fmt::Debug for GlobalPlaceholder {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "GlobalPlaceholder({})", self.name)
     }
 }
 
@@ -127,10 +133,9 @@ impl GlobalVariable {
 
     pub fn set_value(&self, value: VarDef) {
         let (name, old_value, mutable) = self.0.get();
-        if mutable || old_value == VarDef::Undefined {
-            self.0.set((name, value, true));
-        } else {
-            panic!("attempt to set immutable {:?} := {}", self, value)
+        self.0.set((name, value, true));
+        if !mutable && old_value != VarDef::Undefined {
+            eprintln!("WARNING: setting immutable {:?} := {}", self, value)
         }
     }
 
