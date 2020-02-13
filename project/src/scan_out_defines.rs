@@ -14,7 +14,7 @@ pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
         if is_definition(expr) {
             let vars = std::mem::replace(&mut variables, TrackedSexpr::nil(NoSource));
             variables = TrackedSexpr::cons(definition_variable(expr)?.clone(), vars, NoSource);
-            values = TrackedSexpr::cons(uninit.clone(), TrackedSexpr::nil(NoSource), NoSource);
+            values = TrackedSexpr::cons(uninit.clone(), values.clone(), NoSource);
         }
         Ok(())
     })?;
