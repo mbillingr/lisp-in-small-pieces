@@ -60,8 +60,9 @@ pub enum Op {
     Jump(isize),
 
     MakeClosure(usize, &'static CodeObject),
-    CallCC,
-    CallEP,
+    PushCC(isize),
+    PushEP(isize),
+    PopEP,
 
     Call(usize),
     TailCall(usize),
@@ -77,6 +78,9 @@ pub enum Op {
     Cons,
     Car,
     Cdr,
+
+    // Stack Operations
+    Nip,
 }
 
 impl Op {
@@ -308,24 +312,24 @@ impl VirtualMachine {
                     }
                     self.val = Scm::closure(func, vars);
                 }
-                Op::CallCC => {
-                    let cc = Continuation::new(self);
+                Op::PushCC(offset) => {
+                    let cc = Continuation::new(offset, self);
                     let cc = Box::leak(Box::new(cc));
-
                     self.value_stack.push(Scm::Continuation(cc));
-
-                    let val = self.val;
-                    val.invoke(1, self)?;
                 }
-                Op::CallEP => {
-                    let ep = ExitProcedure::new(self);
+                Op::PushEP(offset) => {
+                    let ep = ExitProcedure::new(offset, self);
                     let ep = Box::leak(Box::new(ep));
-                    self.call_stack.push(CallstackItem::ExitProc(ep));
-
                     self.value_stack.push(Scm::ExitProc(ep));
 
-                    let val = self.val;
-                    val.invoke(1, self)?;
+                    // the exit procedure is valid until this marker is popped from the stack
+                    self.call_stack.push(CallstackItem::ExitProc(ep));
+                }
+                Op::PopEP => {
+                    if let Some(CallstackItem::ExitProc(_)) = self.call_stack.pop() {
+                    } else {
+                        panic!("could not pop exit procedure")
+                    }
                 }
                 Op::Call(nargs) => {
                     let val = self.val;
@@ -369,6 +373,8 @@ impl VirtualMachine {
                 }
                 Op::Car => self.val = self.val.car()?,
                 Op::Cdr => self.val = self.val.cdr()?,
+
+                Op::Nip => self.val = self.value_stack.swap_remove(self.value_stack.len() - 2),
             }
         }
     }
@@ -523,8 +529,9 @@ impl std::fmt::Debug for Op {
                     write!(f, "(make-closure {} {:p})", n_free, *code)
                 }
             }
-            Op::CallCC => write!(f, "(call/cc)"),
-            Op::CallEP => write!(f, "(call/ep)"),
+            Op::PushCC(o) => write!(f, "(push/cc {})", o),
+            Op::PushEP(o) => write!(f, "(push/ep {})", o),
+            Op::PopEP => write!(f, "(pop/ep)"),
             Op::Call(n_args) => write!(f, "(call {})", n_args),
             Op::TailCall(n_args) => write!(f, "(tail-call {})", n_args),
             Op::Return => write!(f, "(return)"),
@@ -535,6 +542,7 @@ impl std::fmt::Debug for Op {
             Op::Cons => write!(f, "(cons)"),
             Op::Car => write!(f, "(car)"),
             Op::Cdr => write!(f, "(cdr)"),
+            Op::Nip => write!(f, "(nip)"),
         }
     }
 }
@@ -550,4 +558,13 @@ pub struct CallstackFrame {
     ip: isize,
     frame_offset: usize,
     closure: &'static Closure,
+}
+
+impl CallstackFrame {
+    pub fn with_ip_offset(self, offset: isize) -> Self {
+        CallstackFrame {
+            ip: self.ip + offset,
+            ..self
+        }
+    }
 }

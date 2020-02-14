@@ -16,10 +16,12 @@ pub struct ExitProcedure {
 }
 
 impl Continuation {
-    pub fn new(vm: &VirtualMachine) -> Self {
+    pub fn new(ip_offset: isize, vm: &VirtualMachine) -> Self {
         let value_stack = vm.value_stack.clone();
         let mut call_stack = vm.call_stack.clone();
-        call_stack.push(CallstackItem::Frame(vm.current_frame()));
+        call_stack.push(CallstackItem::Frame(
+            vm.current_frame().with_ip_offset(ip_offset),
+        ));
 
         Continuation {
             value_stack,
@@ -47,9 +49,9 @@ impl Continuation {
 }
 
 impl ExitProcedure {
-    pub fn new(vm: &VirtualMachine) -> Self {
+    pub fn new(ip_offset: isize, vm: &VirtualMachine) -> Self {
         ExitProcedure {
-            state: vm.current_frame(),
+            state: vm.current_frame().with_ip_offset(ip_offset),
             value_stack_height: vm.value_stack.len(),
             call_stack_height: vm.call_stack.len(),
         }
