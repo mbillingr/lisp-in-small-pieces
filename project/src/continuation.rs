@@ -66,8 +66,6 @@ impl ExitProcedure {
         //          1. Probably not, because the ep might be passet to an unknown function
         //          2. Probably not due to the presence of call/cc
 
-        // TODO: make call/ep play along nicely with dynamic-wind
-
         match vm.call_stack.get(self.call_stack_height) {
             Some(CallstackItem::ExitProc(ep)) if std::ptr::eq(*ep, self) => {}
             _ => return Err(RuntimeError::InvalidExitProcedure.into()),
