@@ -880,13 +880,14 @@ pub mod scheme {
                     result"#,
                 equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
 
-            compare!(dynamic_wind:
-                r#"(dynamic-wind
-                        (lambda () (display "before") (newline) 1)
-                        (lambda () (display "thunk") (newline) 2)
-                        (lambda () (display "after") (newline) 3)
-                    )"#,
-                equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
+            compare!(dynamic_wind_trivial:
+                r#"(import (sunny dynwind))
+                   (define order '())
+                   (cons (dynamic-wind (lambda () (set! order (cons 1 order)))
+                                       (lambda () (set! order (cons 2 order)) 4)
+                                       (lambda () (set! order (cons 3 order))))
+                         order)"#,
+                equals, Scm::list(vec![Scm::Int(4), Scm::Int(3), Scm::Int(2), Scm::Int(1)]));
         }
     }
 }
