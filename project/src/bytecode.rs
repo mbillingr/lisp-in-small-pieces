@@ -388,11 +388,6 @@ impl VirtualMachine {
         }
     }
 
-    pub fn push_wind(&mut self, before: Scm, after: Scm) -> Result<()> {
-        self.call_stack.push(CallstackFrame::Wind { before, after });
-        before.invoke(0, self)
-    }
-
     fn push_state(&mut self) {
         self.call_stack.push(CallstackFrame::Frame {
             frame_offset: self.frame_offset,
@@ -403,7 +398,6 @@ impl VirtualMachine {
 
     pub fn pop_state(&mut self) -> Result<()> {
         match self.call_stack.pop().unwrap() {
-            CallstackFrame::Wind { after, .. } => after.invoke(0, self),
             CallstackFrame::Frame {
                 ip,
                 frame_offset,
@@ -530,10 +524,6 @@ impl std::fmt::Debug for Op {
 
 #[derive(Debug, Copy, Clone)]
 pub enum CallstackFrame {
-    Wind {
-        before: Scm,
-        after: Scm,
-    },
     Frame {
         ip: isize,
         frame_offset: usize,
