@@ -1,5 +1,5 @@
 use crate::bytecode::{Closure, CodeObject, VirtualMachine};
-use crate::continuation::Continuation;
+use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{Result, TypeError};
 use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
@@ -25,6 +25,7 @@ pub enum Scm {
     Closure(&'static Closure),
     Primitive(RuntimePrimitive),
     Continuation(&'static Continuation),
+    ExitProc(&'static ExitProcedure),
 
     Cell(&'static Cell<Scm>),
 }
@@ -284,6 +285,7 @@ impl Scm {
             Scm::Closure(cls) => cls.invoke(nargs, vm),
             Scm::Primitive(func) => func.invoke(nargs, vm)?,
             Scm::Continuation(cnt) => cnt.invoke(nargs, vm)?,
+            Scm::ExitProc(cnt) => cnt.invoke(nargs, vm)?,
             _ => return Err(TypeError::NotCallable(*self).into()),
         }
         Ok(())
@@ -294,6 +296,7 @@ impl Scm {
             Scm::Closure(cls) => cls.invoke_tail(nargs, vm),
             Scm::Primitive(func) => func.invoke_tail(nargs, vm)?,
             Scm::Continuation(cnt) => cnt.invoke_tail(nargs, vm)?,
+            Scm::ExitProc(cnt) => cnt.invoke_tail(nargs, vm)?,
             _ => return Err(TypeError::NotCallable(*self).into()),
         }
         Ok(())
@@ -346,6 +349,7 @@ impl std::fmt::Display for Scm {
             Scm::Closure(cls) => write!(f, "<closure {:p}>", *cls),
             Scm::Primitive(prim) => write!(f, "<primitive {:?}>", prim),
             Scm::Continuation(cnt) => write!(f, "<continuation {:?}>", cnt),
+            Scm::ExitProc(cnt) => write!(f, "<exit-procedure {:?}>", cnt),
             Scm::Cell(c) => write!(f, "{}", c.get()),
         }
     }

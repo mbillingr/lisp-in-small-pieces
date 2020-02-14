@@ -154,6 +154,7 @@ pub mod scheme {
             native "vector-ref", =2, Scm::vector_ref;
 
             native "call/cc", =1, call_with_current_continuation;
+            native "call/ep", =1, call_with_exit_procedure;
 
             native "display", =1, display;
             native "newline", =0, newline;
@@ -321,6 +322,10 @@ pub mod scheme {
     }
 
     pub fn call_with_current_continuation(_f: Scm) -> Scm {
+        unimplemented!()
+    }
+
+    pub fn call_with_exit_procedure(_f: Scm) -> Scm {
         unimplemented!()
     }
 
@@ -859,6 +864,7 @@ pub mod scheme {
 
         mod non_local_control_flow {
             use super::*;
+            use crate::error::RuntimeError;
 
             compare!(call_cc:
                 r#" (define cc #f)
@@ -879,6 +885,18 @@ pub mod scheme {
                         (cc))
                     result"#,
                 equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
+
+            compare!(call_ep:
+                r#" (define (f exit) (exit 2) 3)
+                    (call/ep f)"#,
+                equals, Scm::Int(2));
+
+            assert_error!(call_ep_invalid:
+                r#" (define exit #f)
+                    (call/ep
+                        (lambda (ep) (set! exit ep)))
+                    (exit 42)"#,
+                RuntimeError::InvalidExitProcedure);
 
             compare!(dynamic_wind_trivial:
                 r#"(import (sunny dynwind))

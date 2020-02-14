@@ -1,4 +1,4 @@
-use crate::continuation::Continuation;
+use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{Result, RuntimeError, TypeError};
 use crate::objectify::Translate;
 use crate::primitive::Arity;
@@ -61,6 +61,7 @@ pub enum Op {
 
     MakeClosure(usize, &'static CodeObject),
     CallCC,
+    CallEP,
 
     Call(usize),
     TailCall(usize),
@@ -100,7 +101,7 @@ impl Closure {
 
     pub fn invoke(&'static self, nargs: usize, vm: &mut VirtualMachine) {
         let n_locals = vm.convert_args(self.code.arity, nargs);
-        vm.push_state();
+        vm.push_frame();
         vm.frame_offset = vm.value_stack.len() - n_locals;
         vm.ip = 0;
         vm.cls = self;
@@ -163,7 +164,7 @@ pub struct VirtualMachine {
     globals: Vec<(Scm, Scm)>,
     libraries: HashMap<&'static str, Library>,
     pub value_stack: Vec<Scm>,
-    pub call_stack: Vec<CallstackFrame>,
+    pub call_stack: Vec<CallstackItem>,
     ip: isize,
     cls: &'static Closure,
     frame_offset: usize,
@@ -226,14 +227,14 @@ impl VirtualMachine {
 
     pub fn eval(&mut self, cls: &'static Closure, args: &[Scm]) -> Result<Scm> {
         // save old state
-        self.push_state();
+        self.push_frame();
 
         // insert intermediate state that halts the VM,
         // so that the we exit rather than continue executing the old state.
         self.ip = 0;
         self.cls = HALT.with(|x| *x);
         self.frame_offset = 0;
-        self.push_state();
+        self.push_frame();
 
         self.value_stack.extend_from_slice(args);
 
@@ -308,12 +309,20 @@ impl VirtualMachine {
                     self.val = Scm::closure(func, vars);
                 }
                 Op::CallCC => {
-                    self.push_state();
-                    let cnt = Continuation::new(self.value_stack.clone(), self.call_stack.clone());
-                    let cnt = Box::leak(Box::new(cnt));
-                    self.pop_state()?;
+                    let cc = Continuation::new(self);
+                    let cc = Box::leak(Box::new(cc));
 
-                    self.value_stack.push(Scm::Continuation(cnt));
+                    self.value_stack.push(Scm::Continuation(cc));
+
+                    let val = self.val;
+                    val.invoke(1, self)?;
+                }
+                Op::CallEP => {
+                    let ep = ExitProcedure::new(self);
+                    let ep = Box::leak(Box::new(ep));
+                    self.call_stack.push(CallstackItem::ExitProc(ep));
+
+                    self.value_stack.push(Scm::ExitProc(ep));
 
                     let val = self.val;
                     val.invoke(1, self)?;
@@ -388,27 +397,34 @@ impl VirtualMachine {
         }
     }
 
-    fn push_state(&mut self) {
-        self.call_stack.push(CallstackFrame::Frame {
-            frame_offset: self.frame_offset,
-            ip: self.ip,
-            closure: self.cls,
-        });
+    fn push_frame(&mut self) {
+        self.call_stack
+            .push(CallstackItem::Frame(self.current_frame()));
     }
 
     pub fn pop_state(&mut self) -> Result<()> {
-        match self.call_stack.pop().unwrap() {
-            CallstackFrame::Frame {
-                ip,
-                frame_offset,
-                closure,
-            } => {
-                self.frame_offset = frame_offset;
-                self.ip = ip;
-                self.cls = closure;
-                Ok(())
-            }
+        match self
+            .call_stack
+            .pop()
+            .unwrap_or_else(|| panic!("call stack underflow"))
+        {
+            CallstackItem::Frame(frame) => Ok(self.set_frame(frame)),
+            CallstackItem::ExitProc(_) => self.pop_state(),
         }
+    }
+
+    pub fn current_frame(&self) -> CallstackFrame {
+        CallstackFrame {
+            frame_offset: self.frame_offset,
+            ip: self.ip,
+            closure: self.cls,
+        }
+    }
+
+    pub fn set_frame(&mut self, frame: CallstackFrame) {
+        self.frame_offset = frame.frame_offset;
+        self.ip = frame.ip;
+        self.cls = frame.closure;
     }
 
     pub fn pop_value(&mut self) -> Result<Scm> {
@@ -508,6 +524,7 @@ impl std::fmt::Debug for Op {
                 }
             }
             Op::CallCC => write!(f, "(call/cc)"),
+            Op::CallEP => write!(f, "(call/ep)"),
             Op::Call(n_args) => write!(f, "(call {})", n_args),
             Op::TailCall(n_args) => write!(f, "(tail-call {})", n_args),
             Op::Return => write!(f, "(return)"),
@@ -523,10 +540,14 @@ impl std::fmt::Debug for Op {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum CallstackFrame {
-    Frame {
-        ip: isize,
-        frame_offset: usize,
-        closure: &'static Closure,
-    },
+pub enum CallstackItem {
+    Frame(CallstackFrame),
+    ExitProc(&'static ExitProcedure),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct CallstackFrame {
+    ip: isize,
+    frame_offset: usize,
+    closure: &'static Closure,
 }

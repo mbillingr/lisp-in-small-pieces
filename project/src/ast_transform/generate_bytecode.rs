@@ -332,6 +332,7 @@ impl<'a> BytecodeGenerator<'a> {
                         "car" => Ok(Some(vec![Op::Car])),
                         "cdr" => Ok(Some(vec![Op::Cdr])),
                         "call/cc" => Ok(Some(vec![Op::CallCC])),
+                        "call/ep" => Ok(Some(vec![Op::CallEP])),
                         _ => Ok(None),
                     },
                     _ => Ok(None),

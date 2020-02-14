@@ -34,6 +34,7 @@ pub enum RuntimeError {
     ValueStackUnderflow,
     IncorrectArity,
     UndefinedGlobal(Scm),
+    InvalidExitProcedure,
 }
 
 impl std::fmt::Debug for RuntimeError {
@@ -42,6 +43,7 @@ impl std::fmt::Debug for RuntimeError {
             RuntimeError::ValueStackUnderflow => write!(f, "value-stack underflow"),
             RuntimeError::IncorrectArity => write!(f, "incorrect arity"),
             RuntimeError::UndefinedGlobal(name) => write!(f, "undefined global {}", name),
+            RuntimeError::InvalidExitProcedure => write!(f, "invalid exit procedure"),
         }
     }
 }
