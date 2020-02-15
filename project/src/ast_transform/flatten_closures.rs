@@ -1,6 +1,7 @@
 use super::{Transformer, Visited};
 use crate::syntax::{
-    Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, Reference, Variable,
+    Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, LetContinuation,
+    Reference, Variable,
 };
 use crate::utils::{Named, Sourced};
 use std::convert::TryInto;
@@ -18,6 +19,7 @@ impl Transformer for Flatten {
             Reference(r @ LocalReference(_)) => self.local_reference(r),
             FixLet(x) => self.fixlet(x).into(),
             Function(x) => self.function(x).into(),
+            LetContinuation(l) => self.letcont(l).into(),
             x => Visited::Recurse(x),
         }
     }
@@ -46,6 +48,13 @@ impl Flatten {
         }
     }
 
+    fn letcont(&mut self, node: LetContinuation) -> LetContinuation {
+        self.bound_vars.push(node.variable.clone().into());
+        let body = node.body.transform(self);
+        self.bound_vars.pop();
+        LetContinuation::new(node.kind, node.variable, body, node.span)
+    }
+
     fn fixlet(&mut self, node: FixLet) -> FixLet {
         let arguments = node
             .arguments
@@ -57,11 +66,11 @@ impl Flatten {
         self.bound_vars
             .extend(node.variables.iter().cloned().map(Variable::from));
 
-        let body = node.body.clone().transform(self);
+        let body = node.body.transform(self);
 
         self.bound_vars.truncate(n);
 
-        FixLet::new(node.variables.clone(), arguments, body, node.span)
+        FixLet::new(node.variables, arguments, body, node.span)
     }
 
     fn function(&mut self, node: Function) -> FlatClosure {

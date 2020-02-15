@@ -173,3 +173,17 @@ macro_rules! impl_sourced {
         }
     };
 }
+
+macro_rules! splice {
+    ($a:expr, $($rest:tt)*) => {{
+        let mut collection = $a;
+        collection.extend(splice!(@chain $($rest)*));
+        collection
+    }};
+
+    (@chain $b:expr) => {$b.into_iter()};
+
+    (@chain $b:expr, $($rest:tt)*) => {
+        $b.into_iter().chain(splice!(@chain $($rest)*))
+    };
+}

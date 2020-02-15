@@ -9,9 +9,9 @@ use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
-    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import, Library,
-    LocalReference, PredefinedApplication, PredefinedReference, Program, Reference,
-    RegularApplication, Sequence,
+    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import, LetContKind,
+    LetContinuation, Library, LocalReference, PredefinedApplication, PredefinedReference, Program,
+    Reference, RegularApplication, Sequence,
 };
 use crate::utils::{Named, Sourced};
 use std::path::{Path, PathBuf};
@@ -140,6 +140,7 @@ impl<'a> BytecodeGenerator<'a> {
                 kind: ErrorKind::Compile(CompileError::MacroUsedAsValue(m.name)),
                 context: ErrorContext::Source(node.source().clone()),
             }),
+            LetContinuation(l) => self.compile_letcont(l, tail),
             _ => unimplemented!(
                 "Byte code compilation of:\n {:#?}\n {:?}",
                 node.source(),
@@ -403,6 +404,27 @@ impl<'a> BytecodeGenerator<'a> {
             .find(|&(_, v)| v == name)
             .unwrap()
             .0
+    }
+
+    fn compile_letcont(&mut self, node: &LetContinuation, tail: bool) -> Result<Vec<Op>> {
+        self.env.push(node.variable.name());
+
+        let mut meaning_body = self.compile(&node.body, tail)?;
+
+        self.env.pop();
+
+        if !meaning_body.last().map(Op::is_terminal).unwrap_or(false) {
+            // No need to generate instructions after a terminal instruction.
+            // Tail calls should truncate the value stack correctly.
+            meaning_body.push(Op::Drop(1));
+        }
+
+        let n = meaning_body.len() as isize;
+
+        Ok(match node.kind {
+            LetContKind::IndefiniteContinuation => splice!(vec![Op::PushCC(n)], meaning_body),
+            LetContKind::ExitProcedure => splice!(vec![Op::PushEP(n + 1)], meaning_body, vec![Op::PopEP]),
+        })
     }
 
     fn compile_import(&mut self, node: &Import) -> Result<Vec<Op>> {

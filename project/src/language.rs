@@ -17,7 +17,9 @@ pub mod scheme {
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
     use crate::syntactic_closure::SyntacticClosure;
-    use crate::syntax::{Expression, MagicKeyword, NoOp};
+    use crate::syntax::{
+        Expression, LetContKind, LetContinuation, LocalVariable, MagicKeyword, NoOp,
+    };
     use std::convert::TryInto;
     use std::ops::{Add, Div, Mul, Sub};
     use std::path::{Path, PathBuf};
@@ -153,9 +155,6 @@ pub mod scheme {
 
             native "vector-ref", =2, Scm::vector_ref;
 
-            native "call/cc", =1, call_with_current_continuation;
-            native "call/ep", =1, call_with_exit_procedure;
-
             native "display", =1, display;
             native "newline", =0, newline;
 
@@ -168,6 +167,8 @@ pub mod scheme {
             macro "or", expand_or;
             macro "quote", expand_quote;
             macro "set!", expand_assign;
+            macro "let/cc", expand_letcc;
+            macro "let/ep", expand_letep;
         }
     }
 
@@ -309,6 +310,46 @@ pub mod scheme {
         Ok(Expression::NoOp(NoOp))
     }
 
+    pub fn expand_letcc(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+        expand_letcont(trans, expr, LetContKind::IndefiniteContinuation)
+    }
+
+    pub fn expand_letep(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+        expand_letcont(trans, expr, LetContKind::ExitProcedure)
+    }
+
+    pub fn expand_letcont(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+        kind: LetContKind,
+    ) -> Result<Expression> {
+        let def = ocdr(expr)?;
+        let var_name = ocar(def)?;
+        let body = ocdr(def)?;
+
+        let mut rebound = None;
+        if let Some(alias) = var_name.as_alias() {
+            rebound = Some((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
+            alias.set_bound(true);
+            alias.rename();
+        }
+
+        let var = LocalVariable::new(var_name.as_symbol()?, false, false);
+
+        trans.env.push_local(var.clone());
+        let body = trans.objectify_sequence(body)?;
+        trans.env.drop_frame(1);
+
+        let ast = LetContinuation::new(kind, var, body, expr.source().clone());
+
+        for (alias, old_name, bound) in rebound {
+            alias.set_bound(bound);
+            alias.set_name(old_name);
+        }
+
+        Ok(ast.into())
+    }
+
     pub fn list(args: &[Scm]) -> Scm {
         Scm::list(args.iter().copied())
     }
@@ -319,14 +360,6 @@ pub mod scheme {
 
     pub fn raise_error(msg: Scm) -> Result<Scm> {
         Err(ErrorKind::Custom(msg).into())
-    }
-
-    pub fn call_with_current_continuation(_f: Scm) -> Scm {
-        unimplemented!()
-    }
-
-    pub fn call_with_exit_procedure(_f: Scm) -> Scm {
-        unimplemented!()
     }
 
     pub fn display(x: Scm) {
@@ -866,14 +899,14 @@ pub mod scheme {
             use super::*;
             use crate::error::RuntimeError;
 
-            compare!(call_cc:
+            compare!(let_cc:
                 r#" (define cc #f)
                     (define bar 0)
                     (define result '())
 
                     (define (func)
                       (set! result (cons 0 result))
-                      (call/cc (lambda (k) (set! cc k)))
+                      (let/cc k (set! cc k))
                       (set! bar (+ bar 1)))
 
                     (define (g)
@@ -886,16 +919,15 @@ pub mod scheme {
                     result"#,
                 equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
 
-            compare!(call_ep:
-                r#" (define (f exit) (exit 2) 3)
-                    (call/ep f)"#,
+            compare!(let_ep:
+                r#" (let/ep exit (exit 2) 3)"#,
                 equals, Scm::Int(2));
 
             assert_error!(call_ep_invalid:
-                r#" (define exit #f)
-                    (call/ep
-                        (lambda (ep) (set! exit ep)))
-                    (exit 42)"#,
+                r#" (define cnt #f)
+                    (let/ep exit
+                        (set! cnt exit))
+                    (cnt 42)"#,
                 RuntimeError::InvalidExitProcedure);
 
             compare!(dynamic_wind_trivial:

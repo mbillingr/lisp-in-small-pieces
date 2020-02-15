@@ -1,7 +1,5 @@
 (define-library (synny dynwind)
-    (export call-with-current-continuation
-            call-with-exit-procedure
-            dynamic-wind)
+    (export call/cc call/ep dynamic-wind)
     (import (sunny core)
             (only (sunny conditionals) cond))
     (begin
@@ -52,26 +50,24 @@
             (set-current-point! point)
             (cont res)))
 
-        (define (call-with-current-continuation proc)
-          (call/cc
-            (lambda (cont)
-              (proc (continuation->procedure cont (get-current-point))))))
+        (define (call/cc proc)
+          (let/cc cont
+            (proc (continuation->procedure cont (get-current-point)))))
 
-        (define (call-with-exit-procedure proc)
-          (call/ep
-            (lambda (cont)
-              (proc (continuation->procedure cont (get-current-point))))))
+        (define (call/ep proc)
+          (let/ep cont
+            (proc (continuation->procedure cont (get-current-point)))))
 
         (define (dummy)
           (define runner #f)
           (dynamic-wind (lambda () (display "before") (newline))
                         (lambda () (display "thunk-in") (newline)
-                                   (call-with-current-continuation (lambda (cnt) (set! runner cnt)))
+                                   (call/cc (lambda (cnt) (set! runner cnt)))
                                    (display "thunk-out") (newline))
                         (lambda () (display "after") (newline))))
 
         (define (dummy2)
-          (call-with-exit-procedure
+          (call/ep
             (lambda (exit)
               (dynamic-wind (lambda () (display "before") (newline))
                             (lambda () (display "thunk-in") (newline)

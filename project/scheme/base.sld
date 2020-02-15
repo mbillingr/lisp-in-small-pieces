@@ -1,8 +1,8 @@
 (define-library (scheme base)
     (export call-with-current-continuation call/cc case cond dynamic-wind member memq memv)
-    (import (except (sunny core) call/cc)
+    (import (sunny core)
             (sunny conditionals)
             (sunny dynwind)
             (sunny lists))
     (begin
-      (define call/cc call-with-current-continuation)))
+      (define call-with-current-continuation call/cc)))

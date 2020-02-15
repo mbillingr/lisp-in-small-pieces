@@ -8,6 +8,7 @@ use super::definition::GlobalDefine;
 use super::fixlet::FixLet;
 use super::function::Function;
 use super::keyword::MagicKeyword;
+use super::let_continuation::LetContinuation;
 use super::noop::NoOp;
 use super::reference::Reference;
 use super::sequence::Sequence;
@@ -33,7 +34,8 @@ sum_types! {
                         | BoxWrite
                         | BoxCreate
                         | FlatClosure
-                        | GlobalDefine;
+                        | GlobalDefine
+                        | LetContinuation;
 }
 
 impl Expression {
@@ -62,6 +64,7 @@ impl Expression {
             FlatClosure(x) => x.default_transform(visitor).into(),
             GlobalDefine(x) => x.default_transform(visitor).into(),
             NoOp(x) => x.default_transform(visitor).into(),
+            LetContinuation(x) => x.default_transform(visitor).into(),
         }
     }
 
@@ -97,6 +100,7 @@ impl Sourced for Expression {
             FlatClosure(x) => x.source(),
             GlobalDefine(x) => x.source(),
             NoOp(x) => x.source(),
+            LetContinuation(x) => x.source(),
         }
     }
 }
