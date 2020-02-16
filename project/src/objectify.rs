@@ -1,6 +1,6 @@
 use crate::env::Env;
 use crate::error::{Error, Result};
-use crate::library::{is_import, libname_to_path, ExportItem, StaticLibrary};
+use crate::library::{is_import, libname_to_path};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::source::{Source, SourceLocation};
@@ -8,16 +8,16 @@ use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
-    Alternative, Expression, FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable,
-    Import, ImportItem, ImportSet, Library, LibraryDeclaration, LibraryExport, LocalAssignment,
-    LocalReference, LocalVariable, MagicKeyword, NoOp, PredefinedApplication, Program, Reference,
-    RegularApplication, Sequence, Variable,
+    Alternative, Application, Expression, FixLet, Function, GlobalAssignment, GlobalReference,
+    GlobalVariable, Import, ImportItem, ImportSet, Library, LibraryDeclaration, LibraryExport,
+    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, Program, Reference,
+    Sequence, Variable,
 };
-use crate::utils::Sourced;
+use crate::utils::{Named, Sourced};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
@@ -35,14 +35,16 @@ pub enum ObjectifyErrorKind {
 
 #[derive(Debug)]
 pub struct Translate {
+    pub current_lib: Symbol,
     pub env: Env,
     pub base_env: Env,
-    pub libs: Rc<RefCell<HashMap<PathBuf, Rc<StaticLibrary>>>>,
+    pub libs: Rc<RefCell<HashMap<PathBuf, Rc<Library>>>>,
 }
 
 impl Translate {
     pub fn new(base_env: Env) -> Self {
         Translate {
+            current_lib: Symbol::new("/"),
             env: base_env.clone(),
             base_env,
             libs: Rc::new(RefCell::new(HashMap::new())),
@@ -51,6 +53,7 @@ impl Translate {
 
     pub fn same_but_empty(&self) -> Self {
         Translate {
+            current_lib: self.current_lib,
             env: Env::new(),
             base_env: Env::new(),
             libs: self.libs.clone(),
@@ -160,7 +163,6 @@ impl Translate {
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
             }
-            Some(Variable::GlobalPlaceholder(_)) => panic!("Invalid variable"),
             None => self.objectify_free_reference(var_name.clone(), expr.source().clone()),
         }
     }
@@ -175,7 +177,7 @@ impl Translate {
     }
 
     fn adjoin_global_variable(&mut self, name: Symbol, def: VarDef) -> GlobalVariable {
-        let v = GlobalVariable::new(name, def);
+        let v = GlobalVariable::new(self.current_lib, name, def);
         self.env.push_global(v.clone());
         v
     }
@@ -197,7 +199,7 @@ impl Translate {
 
         match func {
             Expression::Function(f) => self.process_closed_application(f.clone(), args_list, span),
-            _ => Ok(RegularApplication::new(func.clone(), args_list, span).into()),
+            _ => Ok(Application::new(func.clone(), args_list, span).into()),
         }
     }
 
@@ -237,9 +239,11 @@ impl Translate {
         }
 
         let cons_var: GlobalVariable = self
+            .library("sunny/core")
+            .expect("The sunny/core library must be available during compilation")
             .env
-            .find_predef("cons")
-            .expect("The cons pritimive must be available in the predefined environment")
+            .find_predef("sunny/core", "cons")
+            .expect("The cons pritimive must be present in the sunny/core library")
             .clone()
             .try_into()
             .unwrap();
@@ -251,8 +255,12 @@ impl Translate {
 
             let partial_span = span.clone().start_at(x.source());
 
-            dotted =
-                PredefinedApplication::new(cons_var.clone(), vec![x, dotted], partial_span).into();
+            dotted = Application::new(
+                Box::new(GlobalReference::new(cons_var.clone(), NoSource).into()),
+                vec![x, dotted],
+                partial_span,
+            )
+            .into();
         }
 
         args.push(dotted.into());
@@ -364,14 +372,10 @@ impl Translate {
             let mut import_vars = vec![];
             let mut import_macros = vec![];
             for item in &import_obj.items {
-                match &item.item {
-                    ExportItem::Value(x) => {
-                        import_vars.push(GlobalVariable::constant(item.import_name, *x))
-                    }
-                    ExportItem::Macro(mkw) => import_macros.push(MagicKeyword {
-                        name: item.import_name,
-                        ..mkw.clone()
-                    }),
+                match &item.import_var {
+                    Variable::GlobalVariable(gv) => import_vars.push(gv.clone()),
+                    Variable::MagicKeyword(_) => import_macros.push(item.import_var.clone()),
+                    _ => panic!("invalid import"),
                 }
             }
 
@@ -411,9 +415,26 @@ impl Translate {
         Ok(ImportSet::new(
             form.into(),
             library_path,
-            lib.iter()
-                .map(|(s, item)| (*s, item))
-                .map(ImportItem::from_export)
+            lib.exports
+                .iter()
+                .map(|spec| {
+                    let export_var = lib.lookup(spec);
+                    let import_var: Variable = match &export_var {
+                        Variable::GlobalVariable(ex) => GlobalVariable::constant(
+                            self.current_lib,
+                            spec.exported_name(),
+                            ex.value(),
+                        )
+                        .into(),
+                        Variable::MagicKeyword(mkw) => MagicKeyword {
+                            name: spec.exported_name(),
+                            handler: mkw.handler.clone(),
+                        }
+                        .into(),
+                        _ => panic!("invalid import"),
+                    };
+                    ImportItem::new(export_var, import_var)
+                })
                 .collect(),
             form.source().clone(),
         ))
@@ -430,7 +451,7 @@ impl Translate {
             import_set.items = import_set
                 .items
                 .into_iter()
-                .filter(|item| item.import_name == identifier)
+                .filter(|item| item.import_var.name() == identifier)
                 .collect();
             identifiers = identifiers.cdr().unwrap();
         }
@@ -449,7 +470,7 @@ impl Translate {
             import_set.items = import_set
                 .items
                 .into_iter()
-                .filter(|item| item.import_name != identifier)
+                .filter(|item| item.import_var.name() != identifier)
                 .collect();
             identifiers = identifiers.cdr().unwrap();
         }
@@ -475,7 +496,7 @@ impl Translate {
             .items
             .into_iter()
             .map(|item| ImportItem {
-                import_name: prefix + item.import_name,
+                import_var: item.import_var.renamed(prefix + item.import_var.name()),
                 ..item
             })
             .collect();
@@ -509,7 +530,11 @@ impl Translate {
             .items
             .into_iter()
             .map(|item| ImportItem {
-                import_name: *mapping.get(&item.import_name).unwrap_or(&item.import_name),
+                import_var: if let Some(&newname) = mapping.get(&item.import_var.name()) {
+                    item.import_var.renamed(newname)
+                } else {
+                    item.import_var
+                },
                 ..item
             })
             .collect();
@@ -519,10 +544,13 @@ impl Translate {
 
     pub fn objectify_library(
         &mut self,
-        _name: &TrackedSexpr,
+        name: &TrackedSexpr,
         body: &TrackedSexpr,
         span: SourceLocation,
     ) -> Result<Library> {
+        let prev_lib = self.current_lib;
+        self.current_lib = Symbol::from_str(libname_to_path(name)?.to_str().unwrap());
+
         let lib = self.objectify_library_declarations(body)?;
 
         let mut imports: Option<Import> = None;
@@ -544,6 +572,8 @@ impl Translate {
         }
 
         let imports = imports.unwrap_or(Import::new(vec![], NoSource));
+
+        self.current_lib = prev_lib;
 
         Ok(Library::new(self.env.clone(), imports, exports, body, span))
     }
@@ -625,7 +655,7 @@ impl Translate {
         }
     }
 
-    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<Rc<StaticLibrary>> {
+    fn load_library(&mut self, library_name: &TrackedSexpr) -> Result<Rc<Library>> {
         let library_path = libname_to_path(library_name)?;
         if self.libs.borrow().contains_key(&library_path) {
             Ok(self.libs.borrow()[&library_path].clone())
@@ -641,7 +671,6 @@ impl Translate {
             })?;
 
             let lib = self.parse_library(library_code)?;
-            let lib = Self::include_library(&lib)?;
             let lib = Rc::new(lib);
 
             self.libs
@@ -679,30 +708,15 @@ impl Translate {
         self.objectify_library(name, body, sexpr.source().clone())
     }
 
-    fn include_library(lib: &Library) -> Result<StaticLibrary> {
-        let mut slib = StaticLibrary::new();
-        for spec in lib.exports.iter() {
-            let item = match lib.env.find_variable(&spec.internal_name()) {
-                Some(Variable::MagicKeyword(mkw)) => ExportItem::Macro(mkw),
-                Some(Variable::GlobalVariable(g)) => ExportItem::Value(g.value()),
-                None => {
-                    return Err(Error::at_span(
-                        ObjectifyErrorKind::UndefinedVariable(spec.internal_name()),
-                        spec.source().clone(),
-                    ))
-                }
-                other => unreachable!("{:?}", other),
-            };
-            slib.insert(spec.exported_name(), item);
-        }
-
-        Ok(slib)
-    }
-
-    pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: StaticLibrary) {
+    pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
         self.libs
             .borrow_mut()
             .insert(library_name.into(), Rc::new(library));
+    }
+
+    pub fn library(&mut self, libname: &str) -> Option<Rc<Library>> {
+        let path = Path::new(libname);
+        self.libs.borrow().get(path).cloned()
     }
 }
 

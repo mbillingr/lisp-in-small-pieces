@@ -3,13 +3,13 @@ use crate::scm::Scm;
 use crate::symbol::Symbol;
 use crate::utils::Named;
 use std::cell::Cell;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 sum_types! {
     #[derive(Debug, Clone, PartialEq)]
     pub type Variable = LocalVariable
                       | GlobalVariable
-                      | GlobalPlaceholder
                       | MagicKeyword
                       | FreeVariable;
 }
@@ -23,7 +23,18 @@ impl Named for Variable {
             GlobalVariable(v) => v.name(),
             MagicKeyword(v) => v.name(),
             FreeVariable(v) => v.name(),
-            GlobalPlaceholder(_) => Symbol::new("n/a"),
+        }
+    }
+}
+
+impl Variable {
+    pub fn renamed(&self, newname: Symbol) -> Variable {
+        use Variable::*;
+        match self {
+            LocalVariable(v) => LocalVariable(v.renamed(newname)),
+            GlobalVariable(v) => GlobalVariable(v.renamed(newname)),
+            MagicKeyword(v) => MagicKeyword(v.renamed(newname)),
+            FreeVariable(v) => FreeVariable(v.renamed(newname)),
         }
     }
 }
@@ -55,6 +66,10 @@ impl LocalVariable {
     pub fn set_mutable(&self, d: bool) {
         (self.0).1.set(d)
     }
+
+    fn renamed(&self, newname: Symbol) -> LocalVariable {
+        LocalVariable::new(newname, self.is_mutable(), self.is_dotted())
+    }
 }
 
 impl Named for LocalVariable {
@@ -82,61 +97,50 @@ impl std::fmt::Debug for LocalVariable {
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub struct GlobalPlaceholder {
-    name: Scm,
-}
-
-impl GlobalPlaceholder {
-    pub fn new(libname: &'static str, varname: Symbol) -> Self {
-        let mut name = Scm::Symbol(varname);
-        for part in libname.split('/').rev() {
-            name = Scm::cons(Scm::Symbol(part.into()), name);
-        }
-        GlobalPlaceholder { name }
-    }
-
-    pub fn name(&self) -> Scm {
-        self.name
-    }
-}
-
-impl std::fmt::Debug for GlobalPlaceholder {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "GlobalPlaceholder({})", self.name)
-    }
-}
-
 #[derive(Clone)]
-pub struct GlobalVariable(Rc<Cell<(Symbol, VarDef, bool)>>);
+pub struct GlobalVariable(Rc<(Symbol, Symbol, Cell<VarDef>, Cell<bool>)>);
 
 impl GlobalVariable {
-    pub fn new(name: impl Into<Symbol>, def: VarDef) -> Self {
-        GlobalVariable(Rc::new(Cell::new((name.into(), def, true))))
-    }
-
-    pub fn defined(name: impl Into<Symbol>, value: Scm) -> Self {
-        GlobalVariable(Rc::new(Cell::new((
+    pub fn new(module: Symbol, name: impl Into<Symbol>, def: VarDef) -> Self {
+        GlobalVariable(Rc::new((
+            module,
             name.into(),
-            VarDef::Value(value),
-            true,
-        ))))
+            Cell::new(def),
+            Cell::new(true),
+        )))
     }
 
-    pub fn constant(name: impl Into<Symbol>, def: VarDef) -> Self {
-        GlobalVariable(Rc::new(Cell::new((name.into(), def, false))))
+    pub fn defined(module: Symbol, name: impl Into<Symbol>, value: Scm) -> Self {
+        GlobalVariable(Rc::new((
+            module,
+            name.into(),
+            Cell::new(VarDef::Value(value)),
+            Cell::new(true),
+        )))
+    }
+
+    pub fn constant(module: Symbol, name: impl Into<Symbol>, def: VarDef) -> Self {
+        GlobalVariable(Rc::new((
+            module,
+            name.into(),
+            Cell::new(def),
+            Cell::new(false),
+        )))
+    }
+
+    pub fn module(&self) -> Symbol {
+        (&self.0).0
     }
 
     pub fn value(&self) -> VarDef {
-        self.0.get().1
+        (&self.0).2.get()
     }
 
     pub fn set_value(&self, value: VarDef) {
-        let (name, old_value, mutable) = self.0.get();
-        self.0.set((name, value, true));
-        if !mutable && old_value != VarDef::Undefined {
+        if !self.is_mutable() && self.value() != VarDef::Undefined {
             eprintln!("WARNING: setting immutable {:?} := {}", self, value)
         }
+        (&self.0).2.set(value);
     }
 
     pub fn ensure_value(&self, value: VarDef) {
@@ -146,19 +150,28 @@ impl GlobalVariable {
     }
 
     pub fn is_mutable(&self) -> bool {
-        self.0.get().2
+        (&self.0).3.get()
     }
 
     pub fn set_mutable(&self, d: bool) {
-        let (name, def, _) = self.0.get();
-        self.0.set((name, def, d));
+        (&self.0).3.set(d)
+    }
+
+    fn renamed(&self, newname: Symbol) -> GlobalVariable {
+        let gv = GlobalVariable::new(self.module(), newname, self.value());
+        gv.set_mutable(self.is_mutable());
+        gv
+    }
+
+    pub fn full_name(&self) -> Scm {
+        Scm::cons(Scm::Symbol(self.module()), Scm::Symbol(self.name()))
     }
 }
 
 impl Named for GlobalVariable {
     type Name = Symbol;
     fn name(&self) -> Symbol {
-        self.0.get().0
+        (&self.0).1
     }
 }
 
@@ -168,9 +181,24 @@ impl PartialEq for GlobalVariable {
     }
 }
 
+impl Eq for GlobalVariable {}
+
+impl Hash for GlobalVariable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.module().hash(state);
+        self.name().hash(state);
+    }
+}
+
 impl std::fmt::Debug for GlobalVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "global {}: {}", self.name(), self.value())
+        write!(
+            f,
+            "global {} {}: {}",
+            self.module(),
+            self.name(),
+            self.value()
+        )
     }
 }
 
@@ -180,6 +208,10 @@ pub struct FreeVariable(Symbol);
 impl FreeVariable {
     pub fn new(name: impl Into<Symbol>) -> Self {
         FreeVariable(name.into())
+    }
+
+    fn renamed(&self, newname: Symbol) -> FreeVariable {
+        Self::new(newname)
     }
 }
 
@@ -227,6 +259,16 @@ impl PartialEq for VarDef {
             (Undefined, Undefined) => true,
             (Value(a), Value(b)) => a.equals(b),
             _ => false,
+        }
+    }
+}
+
+impl VarDef {
+    pub fn as_scm(&self) -> Scm {
+        match self {
+            VarDef::Unknown => Scm::Undefined,
+            VarDef::Undefined => Scm::Uninitialized,
+            VarDef::Value(x) => *x,
         }
     }
 }

@@ -1,23 +1,27 @@
 use crate::bytecode::{CodeObject, LibraryObject, Op};
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
-use crate::library::ExportItem;
-use crate::objectify::{ObjectifyErrorKind, Translate};
+use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
-    Alternative, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression, FixLet,
-    FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference, Import, LetContKind,
-    LetContinuation, Library, LocalReference, PredefinedApplication, PredefinedReference, Program,
-    Reference, RegularApplication, Sequence,
+    Alternative, Application, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression,
+    FixLet, FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference,
+    GlobalVariable, Import, LetContKind, LetContinuation, Library, LocalReference, Program,
+    Reference, Sequence, Variable,
 };
 use crate::utils::{Named, Sourced};
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-pub fn compile_program(prog: &Program, trans: &Translate) -> Result<CodeObject> {
-    let mut bcgen = BytecodeGenerator::new(vec![], trans);
+pub fn compile_program(
+    prog: &Program,
+    trans: &Translate,
+    glob_alloc: &mut GlobalAllocator,
+) -> Result<CodeObject> {
+    let mut bcgen = BytecodeGenerator::new(vec![], trans, glob_alloc);
     let mut code = vec![];
     code.extend(bcgen.compile_import(&prog.imports)?);
     code.extend(bcgen.compile(&prog.body, true)?);
@@ -43,10 +47,9 @@ pub fn compile_function(
     func: &Function,
     closure_vars: Vec<Symbol>,
     trans: &Translate,
-    global_offset: usize,
+    glob_alloc: &mut GlobalAllocator,
 ) -> Result<CodeObject> {
-    let mut bcgen = BytecodeGenerator::new(closure_vars, trans);
-    bcgen.set_global_offset(global_offset);
+    let mut bcgen = BytecodeGenerator::new(closure_vars, trans, glob_alloc);
     bcgen.env = func.variables.iter().map(|var| var.name()).collect();
     let mut code = bcgen.compile(&func.body, true)?;
     code.push(Op::Return);
@@ -61,10 +64,9 @@ pub fn compile_function(
 pub fn compile_library(
     lib: &Library,
     trans: &Translate,
-    global_offset: usize,
+    glob_alloc: &mut GlobalAllocator,
 ) -> Result<LibraryObject> {
-    let mut bcgen = BytecodeGenerator::new(vec![], &trans);
-    bcgen.set_global_offset(global_offset);
+    let mut bcgen = BytecodeGenerator::new(vec![], &trans, glob_alloc);
 
     let mut code = vec![];
     code.extend(bcgen.compile_import(&lib.imports)?);
@@ -91,35 +93,98 @@ pub fn compile_library(
 }
 
 #[derive(Debug)]
+pub struct GlobalAllocator {
+    globals: HashMap<GlobalVariable, usize>,
+    vars: Vec<GlobalVariable>,
+}
+
+impl GlobalAllocator {
+    pub fn new() -> Self {
+        GlobalAllocator {
+            globals: HashMap::new(),
+            vars: vec![],
+        }
+    }
+
+    pub fn get_idx(&mut self, var: &GlobalVariable) -> usize {
+        if let Some(idx) = self.idx(var) {
+            idx
+        } else {
+            let idx = self.vars.len();
+            self.vars.push(var.clone());
+            self.globals.insert(var.clone(), idx);
+            idx
+        }
+    }
+
+    pub fn idx(&mut self, var: &GlobalVariable) -> Option<usize> {
+        self.globals.get(var).copied()
+    }
+
+    pub fn declare_alias(&mut self, var: &GlobalVariable, alias: &GlobalVariable) -> usize {
+        match (self.idx(var), self.idx(alias)) {
+            (None, None) => {
+                let idx = self.get_idx(var);
+                self.globals.insert(alias.clone(), idx);
+                idx
+            }
+            (Some(idx), None) => {
+                self.globals.insert(alias.clone(), idx);
+                idx
+            }
+            (None, Some(idx)) => {
+                self.globals.insert(var.clone(), idx);
+                self.vars[idx] = var.clone();
+                idx
+            }
+            (Some(idx1), Some(idx2)) => {
+                if idx1 != idx2 {
+                    panic!(
+                        "invalid global alias -- both variables exist: {:?} ({}), {:?} ({})",
+                        var, idx1, alias, idx2
+                    )
+                }
+                idx1
+            }
+        }
+    }
+
+    pub fn n_vars(&self) -> usize {
+        self.vars.len()
+    }
+
+    pub fn find_var(&self, idx: usize) -> &GlobalVariable {
+        &self.vars[idx]
+    }
+}
+
+#[derive(Debug)]
 pub struct BytecodeGenerator<'a> {
     trans: &'a Translate,
     constants: Vec<Scm>,
     env: Vec<Symbol>,
     current_closure_vars: Vec<Symbol>,
     libs: Vec<PathBuf>,
-    imports: Vec<(usize, Symbol, usize)>,
-    global_offset: usize,
+    glob_alloc: &'a mut GlobalAllocator,
 }
 
 impl<'a> BytecodeGenerator<'a> {
-    pub fn new(current_closure_vars: Vec<Symbol>, trans: &'a Translate) -> Self {
+    pub fn new(
+        current_closure_vars: Vec<Symbol>,
+        trans: &'a Translate,
+        glob_alloc: &'a mut GlobalAllocator,
+    ) -> Self {
         BytecodeGenerator {
             trans,
             constants: vec![],
             env: vec![],
             current_closure_vars,
             libs: vec![],
-            imports: vec![],
-            global_offset: 0,
+            glob_alloc,
         }
     }
 
-    pub fn set_global_offset(&mut self, offset: usize) {
-        self.global_offset = offset;
-    }
-
     fn compile(&mut self, node: &Expression, tail: bool) -> Result<Vec<Op>> {
-        use crate::syntax::Application::*;
         use Expression::*;
         match node {
             NoOp(_) => Ok(vec![]),
@@ -130,8 +195,7 @@ impl<'a> BytecodeGenerator<'a> {
             Assignment(a) => self.compile_assignment(a, tail),
             FixLet(f) => self.compile_fixlet(f, tail),
             FlatClosure(c) => self.compile_closure(c, tail),
-            Application(RegularApplication(a)) => self.compile_application(a, tail),
-            Application(PredefinedApplication(p)) => self.compile_predefined_application(p, tail),
+            Application(a) => self.compile_application(a, tail),
             BoxCreate(b) => self.compile_box_create(b, tail),
             BoxWrite(b) => self.compile_box_write(b, tail),
             BoxRead(b) => self.compile_box_read(b, tail),
@@ -155,7 +219,6 @@ impl<'a> BytecodeGenerator<'a> {
             LocalReference(l) => self.compile_local_ref(l, tail),
             FreeReference(f) => self.compile_free_ref(f, tail),
             GlobalReference(g) => self.compile_global_ref(g, tail),
-            PredefinedReference(p) => self.compile_predef_ref(p, tail),
         }
     }
 
@@ -221,19 +284,12 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_global_ref(&mut self, node: &GlobalReference, _tail: bool) -> Result<Vec<Op>> {
-        let idx = self
-            .find_global_idx(node.var.name())
-            .ok_or_else(|| ObjectifyErrorKind::UndefinedVariable(node.var.name()))?;
+        let idx = self.glob_alloc.get_idx(&node.var);
         Ok(vec![Op::GlobalRef(idx)])
     }
 
-    fn compile_predef_ref(&mut self, node: &PredefinedReference, _tail: bool) -> Result<Vec<Op>> {
-        let idx = self.trans.env.find_predef_idx(&node.var.name()).unwrap();
-        Ok(vec![Op::PredefRef(idx)])
-    }
-
     fn compile_global_set(&mut self, node: &GlobalAssignment, _tail: bool) -> Result<Vec<Op>> {
-        let idx = self.find_global_idx(node.variable.name()).unwrap();
+        let idx = self.glob_alloc.get_idx(&node.variable);
         let mut meaning = self.compile(&node.form, false)?;
         meaning.push(Op::GlobalSet(idx));
         Ok(meaning)
@@ -241,12 +297,12 @@ impl<'a> BytecodeGenerator<'a> {
 
     fn compile_global_def(&mut self, node: &GlobalDefine) -> Result<Vec<Op>> {
         let mut meaning = self.compile(&node.form, false)?;
-        meaning.push(self.build_global_def(node.variable.name()));
+        meaning.push(self.build_global_def(&node.variable));
         Ok(meaning)
     }
 
-    fn build_global_def(&mut self, name: Symbol) -> Op {
-        let idx = self.find_global_idx(name).unwrap();
+    fn build_global_def(&mut self, var: &GlobalVariable) -> Op {
+        let idx = self.glob_alloc.get_idx(var);
         Op::GlobalDef(idx)
     }
 
@@ -277,7 +333,7 @@ impl<'a> BytecodeGenerator<'a> {
     fn compile_closure(&mut self, node: &FlatClosure, _tail: bool) -> Result<Vec<Op>> {
         let free_vars = node.free_vars.iter().map(|s| s.var_name()).collect();
 
-        let function = compile_function(&node.func, free_vars, self.trans, self.global_offset)?;
+        let function = compile_function(&node.func, free_vars, self.trans, self.glob_alloc)?;
         let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];
@@ -294,7 +350,7 @@ impl<'a> BytecodeGenerator<'a> {
         Ok(meaning)
     }
 
-    fn compile_application(&mut self, node: &RegularApplication, tail: bool) -> Result<Vec<Op>> {
+    fn compile_application(&mut self, node: &Application, tail: bool) -> Result<Vec<Op>> {
         // todo: does Scheme require that the function is evaluated first?
         let mut meaning = vec![];
 
@@ -341,32 +397,6 @@ impl<'a> BytecodeGenerator<'a> {
             }
             _ => Ok(None),
         }
-    }
-
-    fn compile_predefined_application(
-        &mut self,
-        node: &PredefinedApplication,
-        _tail: bool,
-    ) -> Result<Vec<Op>> {
-        let mut meaning = vec![];
-
-        for a in &node.arguments {
-            let m = self.compile(a, false)?;
-            meaning.extend(m);
-            meaning.push(Op::PushVal);
-        }
-
-        let idx = self
-            .trans
-            .env
-            .find_predef_idx(&node.variable.name())
-            .unwrap();
-        meaning.push(Op::PredefRef(idx));
-
-        let arity = node.arguments.len();
-        meaning.push(Op::Call(arity));
-
-        Ok(meaning)
     }
 
     fn compile_box_create(&mut self, node: &BoxCreate, _tail: bool) -> Result<Vec<Op>> {
@@ -423,52 +453,30 @@ impl<'a> BytecodeGenerator<'a> {
 
         Ok(match node.kind {
             LetContKind::IndefiniteContinuation => splice!(vec![Op::PushCC(n)], meaning_body),
-            LetContKind::ExitProcedure => splice!(vec![Op::PushEP(n + 1)], meaning_body, vec![Op::PopEP]),
+            LetContKind::ExitProcedure => {
+                splice!(vec![Op::PushEP(n + 1)], meaning_body, vec![Op::PopEP])
+            }
         })
     }
 
     fn compile_import(&mut self, node: &Import) -> Result<Vec<Op>> {
-        let mut import_ops = vec![];
         for set in &node.import_sets {
             for item in &set.items {
-                if let ExportItem::Macro(_) = item.item {
-                    continue;
+                match (&item.export_var, &item.import_var) {
+                    (Variable::MagicKeyword(_), _) => continue,
+                    (Variable::GlobalVariable(ex), Variable::GlobalVariable(im)) => {
+                        self.glob_alloc.declare_alias(ex, im);
+                    }
+                    _ => panic!("Invalid Import"),
                 }
-                self.add_import(
-                    &set.library_path,
-                    item.export_name,
-                    self.find_global_idx(item.import_name).unwrap(),
-                );
+            }
 
-                let libname = set.library_path.to_str().unwrap();
-                import_ops.push(self.build_constant(Scm::string(libname)));
-                import_ops.push(Op::PushVal);
-                import_ops.push(self.build_constant(Scm::Symbol(item.export_name)));
-                import_ops.push(Op::Import);
-                import_ops.push(self.build_global_def(item.import_name));
-                import_ops.push(Op::Drop(1));
+            if !self.libs.contains(&set.library_path) {
+                self.libs.push(set.library_path.clone())
             }
         }
 
-        Ok(import_ops)
-    }
-
-    fn add_import(&mut self, lib_path: &Path, export_name: Symbol, global_idx: usize) {
-        let libidx = if let Some(idx) = self.libs.iter().position(|p| p == lib_path) {
-            idx
-        } else {
-            self.libs.push(lib_path.to_owned());
-            self.libs.len() - 1
-        };
-
-        self.imports.push((libidx, export_name, global_idx));
-    }
-
-    fn find_global_idx(&self, name: Symbol) -> Option<usize> {
-        self.trans
-            .env
-            .find_global_idx(&name)
-            .map(|idx| idx + self.global_offset)
+        Ok(vec![])
     }
 }
 
@@ -484,6 +492,7 @@ mod tests {
     fn compile_intrinsics() {
         let expr = Expression::Reference(Reference::GlobalReference(GlobalReference::new(
             GlobalVariable::defined(
+                Symbol::new(""),
                 "no-matter",
                 Scm::Primitive(RuntimePrimitive::new(
                     "cons",
@@ -494,8 +503,10 @@ mod tests {
             NoSource,
         )));
 
+        let mut ga = GlobalAllocator::new();
+
         let trans = Translate::new(Env::new());
-        let mut gen = BytecodeGenerator::new(vec![], &trans);
+        let mut gen = BytecodeGenerator::new(vec![], &trans, &mut ga);
         let code = gen.compile_intrinsic_application(&expr).unwrap();
         assert_eq!(code, Some(vec![Op::Cons]));
     }

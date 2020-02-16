@@ -10,7 +10,6 @@ sum_type! {
     #[derive(Debug, Clone, PartialEq)]
     pub type Reference(Expression) = LocalReference
                                    | GlobalReference
-                                   | PredefinedReference
                                    | FreeReference;
 }
 
@@ -20,7 +19,6 @@ impl Reference {
         match self {
             LocalReference(x) => x.default_transform(visitor).into(),
             GlobalReference(x) => x.default_transform(visitor).into(),
-            PredefinedReference(x) => x.default_transform(visitor).into(),
             FreeReference(x) => x.default_transform(visitor).into(),
         }
     }
@@ -30,7 +28,6 @@ impl Reference {
         match self {
             LocalReference(r) => r.var.name(),
             GlobalReference(r) => r.var.name(),
-            PredefinedReference(r) => r.var.name(),
             FreeReference(r) => r.var.name(),
         }
     }
@@ -40,7 +37,6 @@ impl Reference {
         match self {
             LocalReference(r) => r.var.clone().into(),
             GlobalReference(r) => r.var.clone().into(),
-            PredefinedReference(r) => r.var.clone().into(),
             FreeReference(r) => r.var.clone().into(),
         }
     }
@@ -52,7 +48,6 @@ impl Sourced for Reference {
         match self {
             LocalReference(x) => x.source(),
             GlobalReference(x) => x.source(),
-            PredefinedReference(x) => x.source(),
             FreeReference(x) => x.source(),
         }
     }
@@ -99,30 +94,6 @@ impl PartialEq for GlobalReference {
 impl GlobalReference {
     pub fn new(var: GlobalVariable, span: SourceLocation) -> Self {
         GlobalReference { var, span }
-    }
-
-    pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
-        self
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PredefinedReference {
-    pub var: GlobalVariable,
-    pub span: SourceLocation,
-}
-
-impl_sourced!(PredefinedReference);
-
-impl PartialEq for PredefinedReference {
-    fn eq(&self, other: &Self) -> bool {
-        self.var == other.var
-    }
-}
-
-impl PredefinedReference {
-    pub fn new(var: GlobalVariable, span: SourceLocation) -> Self {
-        PredefinedReference { var, span }
     }
 
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {

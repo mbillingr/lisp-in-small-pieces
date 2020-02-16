@@ -2,10 +2,13 @@ use super::expression::Expression;
 use super::Import;
 use crate::ast_transform::Transformer;
 use crate::env::Env;
+use crate::library::ExportItem;
 use crate::source::SourceLocation;
+use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
+use crate::syntax::{GlobalVariable, NoOp, Variable};
 use crate::utils::Sourced;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone)]
 pub struct Library {
@@ -62,10 +65,37 @@ impl Library {
         }
     }
 
+    pub fn construct(lib_name: Symbol, items: HashMap<Symbol, ExportItem>) -> Self {
+        let mut env = Env::new();
+        let mut exports = LibraryExport::new(NoSource);
+
+        for (name, item) in items {
+            match item {
+                ExportItem::Value(def) => {
+                    env.push_global(GlobalVariable::constant(lib_name, name, def))
+                }
+                ExportItem::Macro(mkw) => env.push_global(mkw),
+            }
+            exports.adjoin_identifier(name, &NoSource);
+        }
+
+        Library::new(
+            env,
+            Import::empty(),
+            exports,
+            Expression::NoOp(NoOp),
+            NoSource,
+        )
+    }
+
     pub fn transform(mut self, visitor: &mut impl Transformer) -> Self {
         //self.imports = self.imports.into_iter().map(|import| import.transform(visitor)).collect();
         self.body = self.body.transform(visitor);
         self
+    }
+
+    pub fn lookup(&self, spec: &LibraryExportSpec) -> Variable {
+        self.env.find_variable(&spec.internal_name()).unwrap()
     }
 }
 

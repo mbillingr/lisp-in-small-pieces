@@ -1,11 +1,9 @@
 use crate::ast_transform::Transformer;
-use crate::library::ExportItem;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
+use crate::syntax::Variable;
 use std::iter::FromIterator;
 use std::path::PathBuf;
 
@@ -19,6 +17,13 @@ impl_sourced!(Import);
 impl Import {
     pub fn new(import_sets: Vec<ImportSet>, span: SourceLocation) -> Self {
         Import { import_sets, span }
+    }
+
+    pub fn empty() -> Self {
+        Import {
+            import_sets: vec![],
+            span: NoSource,
+        }
     }
 
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
@@ -51,7 +56,8 @@ impl FromIterator<Import> for Import {
 pub struct ImportSet {
     pub library_name: Scm,
     pub library_path: PathBuf,
-    pub items: HashSet<ImportItem>,
+    pub library_symb: Symbol,
+    pub items: Vec<ImportItem>,
     pub span: SourceLocation,
 }
 impl_sourced!(ImportSet);
@@ -60,10 +66,11 @@ impl ImportSet {
     pub fn new(
         library_name: Scm,
         library_path: PathBuf,
-        items: HashSet<ImportItem>,
+        items: Vec<ImportItem>,
         span: SourceLocation,
     ) -> Self {
         ImportSet {
+            library_symb: library_path.to_str().unwrap().into(),
             library_path,
             library_name,
             items: items.into(),
@@ -74,32 +81,30 @@ impl ImportSet {
 
 #[derive(Debug, Clone)]
 pub struct ImportItem {
-    pub export_name: Symbol,
-    pub import_name: Symbol,
-    pub item: ExportItem,
+    pub export_var: Variable,
+    pub import_var: Variable,
 }
 
 impl ImportItem {
-    pub fn from_export((export_name, item_ref): (Symbol, &ExportItem)) -> Self {
+    pub fn new(export_var: Variable, import_var: Variable) -> Self {
         ImportItem {
-            export_name,
-            import_name: export_name,
-            item: item_ref.clone(),
+            export_var,
+            import_var,
         }
     }
 }
 
 impl PartialEq for ImportItem {
     fn eq(&self, other: &Self) -> bool {
-        self.export_name == other.export_name && self.import_name == other.import_name
+        self.export_var == other.export_var && self.import_var == other.import_var
     }
 }
 
 impl Eq for ImportItem {}
 
-impl Hash for ImportItem {
+/*impl Hash for ImportItem {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.export_name.hash(state);
-        self.import_name.hash(state);
+        self.export_var.hash(state);
+        self.import_var.hash(state);
     }
-}
+}*/

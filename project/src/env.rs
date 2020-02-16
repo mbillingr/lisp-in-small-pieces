@@ -28,20 +28,36 @@ impl Env {
         self.locals().rfind(|var| name.eq(&var.name()))
     }
 
-    pub fn find_global(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
-        self.globals().rfind(|var| name.eq(&var.name()))
+    pub fn find_global(
+        &self,
+        module: &(impl PartialEq<Symbol> + ?Sized),
+        name: &(impl PartialEq<Symbol> + ?Sized),
+    ) -> Option<GlobalVariable> {
+        self.globals()
+            .rfind(|var| module.eq(&var.module()) && name.eq(&var.name()))
     }
 
-    pub fn find_predef(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<GlobalVariable> {
-        self.globals().find(|var| name.eq(&var.name()))
+    pub fn find_predef(
+        &self,
+        module: &(impl PartialEq<Symbol> + ?Sized),
+        name: &(impl PartialEq<Symbol> + ?Sized),
+    ) -> Option<GlobalVariable> {
+        self.globals()
+            .find(|var| module.eq(&var.module()) && name.eq(&var.name()))
     }
 
-    pub fn find_global_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
-        let pos = self
-            .globals
-            .borrow()
-            .iter()
-            .rposition(|var| name.eq(&var.name()))?;
+    pub fn find_global_idx(
+        &self,
+        module: &(impl PartialEq<Symbol> + ?Sized),
+        name: &(impl PartialEq<Symbol> + ?Sized),
+    ) -> Option<usize> {
+        let pos = self.globals.borrow().iter().rposition(|var| {
+            if let Variable::GlobalVariable(gv) = var {
+                module.eq(&gv.module()) && name.eq(&gv.name())
+            } else {
+                false
+            }
+        })?;
         let idx = self
             .globals
             .borrow()
@@ -49,7 +65,6 @@ impl Env {
             .take(pos)
             .filter(|var| match var {
                 Variable::GlobalVariable(_) => true,
-                Variable::GlobalPlaceholder(_) => true,
                 _ => false,
             })
             .count();
@@ -62,16 +77,19 @@ impl Env {
             .iter()
             .filter(|var| match var {
                 Variable::GlobalVariable(_) => true,
-                Variable::GlobalPlaceholder(_) => true,
                 _ => false,
             })
             .count()
     }
 
-    pub fn find_predef_idx(&self, name: &(impl PartialEq<Symbol> + ?Sized)) -> Option<usize> {
+    pub fn find_predef_idx(
+        &self,
+        module: &(impl PartialEq<Symbol> + ?Sized),
+        name: &(impl PartialEq<Symbol> + ?Sized),
+    ) -> Option<usize> {
         self.globals()
             .enumerate()
-            .find(|(_, var)| name.eq(&var.name()))
+            .find(|(_, var)| module.eq(&var.module()) && name.eq(&var.name()))
             .map(|(idx, _)| idx)
     }
 
@@ -110,19 +128,17 @@ impl Env {
             .into_iter()
             .filter(|var| match var {
                 Variable::GlobalVariable(_) => true,
-                Variable::GlobalPlaceholder(_) => true,
                 _ => false,
             })
             .enumerate()
             .filter_map(|(idx, var)| match var {
                 Variable::GlobalVariable(gv) => Some((idx, Scm::Symbol(gv.name()))),
-                Variable::GlobalPlaceholder(gp) => Some((idx, gp.name())),
                 _ => None,
             })
     }
 
     pub fn ensure_global(&mut self, var: GlobalVariable) -> GlobalVariable {
-        match self.find_global(&var.name()) {
+        match self.find_global(&var.module(), &var.name()) {
             None => {
                 self.globals.borrow_mut().push(var.clone().into());
                 var

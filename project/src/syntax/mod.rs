@@ -19,7 +19,7 @@ pub mod sequence;
 pub mod variable;
 
 pub use alternative::Alternative;
-pub use application::{Application, PredefinedApplication, RegularApplication};
+pub use application::Application;
 pub use assignment::{Assignment, GlobalAssignment, LocalAssignment};
 pub use boxes::{BoxCreate, BoxRead, BoxWrite};
 pub use closure::FlatClosure;
@@ -33,8 +33,6 @@ pub use let_continuation::{LetContKind, LetContinuation};
 pub use library::{Library, LibraryDeclaration, LibraryExport};
 pub use noop::NoOp;
 pub use program::Program;
-pub use reference::{
-    FreeReference, GlobalReference, LocalReference, PredefinedReference, Reference,
-};
+pub use reference::{FreeReference, GlobalReference, LocalReference, Reference};
 pub use sequence::Sequence;
 pub use variable::{FreeVariable, GlobalVariable, LocalVariable, Variable};

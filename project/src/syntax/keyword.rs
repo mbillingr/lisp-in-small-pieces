@@ -35,6 +35,13 @@ impl MagicKeyword {
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
         self
     }
+
+    pub fn renamed(&self, newname: Symbol) -> MagicKeyword {
+        MagicKeyword {
+            name: newname,
+            handler: self.handler.clone(),
+        }
+    }
 }
 
 impl Named for MagicKeyword {

@@ -1,8 +1,8 @@
 pub mod scheme {
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
-    use crate::ast_transform::generate_bytecode::{compile_library, compile_program};
-    use crate::bytecode::{Closure, LibraryObject, VirtualMachine};
+    use crate::ast_transform::generate_bytecode::compile_program;
+    use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
     use crate::error::{Error, ErrorKind, Result};
     use crate::library::{LibraryBuilder, LibraryData};
@@ -16,9 +16,10 @@ pub mod scheme {
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
+    use crate::symbol::Symbol;
     use crate::syntactic_closure::SyntacticClosure;
     use crate::syntax::{
-        Expression, LetContKind, LetContinuation, LocalVariable, MagicKeyword, NoOp,
+        Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
     use std::convert::TryInto;
     use std::ops::{Add, Div, Mul, Sub};
@@ -35,7 +36,7 @@ pub mod scheme {
 
             let trans = Translate::new(env);
 
-            let vm = VirtualMachine::new(trans, vec![]);
+            let vm = VirtualMachine::new(trans);
 
             Context { vm }
         }
@@ -60,10 +61,14 @@ pub mod scheme {
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 
-            println!("{:#?}", ast);
+            //println!("{:#?}", ast);
 
-            let code = compile_program(&ast, &self.trans())?;
-            println!("{:#?}", code);
+            for set in &ast.imports.import_sets {
+                self.vm.init_library(set.library_symb.as_str())?;
+            }
+
+            let code = compile_program(&ast, &self.vm.trans, &mut self.vm.ga)?;
+            //println!("{:#?}", code);
             let code = Box::leak(Box::new(code));
             let closure = Box::leak(Box::new(Closure::simple(code)));
 
@@ -76,10 +81,13 @@ pub mod scheme {
 
         pub fn add_library(&mut self, library_name: impl Into<PathBuf>, lib: LibraryData) {
             let name = library_name.into();
-            self.trans().add_library(name.clone(), lib.exports);
+            let name_str = Scm::string(name.to_str().unwrap()).as_string().unwrap();
 
-            let name = Scm::string(name.to_str().unwrap()).as_string().unwrap();
-            self.vm.add_library(name, lib.values);
+            let library = Library::construct(Symbol::from(name_str), lib.exports);
+
+            self.vm.add_library(name_str, &library);
+
+            self.trans().add_library(name.clone(), library);
         }
 
         pub fn import_library(&mut self, library_name: impl Into<PathBuf>) {
@@ -91,11 +99,7 @@ pub mod scheme {
         }
     }
 
-    pub fn build_library(
-        trans: &mut Translate,
-        path: &Path,
-        global_offset: usize,
-    ) -> Result<LibraryObject> {
+    pub fn load_library(trans: &mut Translate, path: &Path) -> Result<Library> {
         let mut file_path = path.to_owned();
         file_path.set_extension("sld");
 
@@ -109,7 +113,7 @@ pub mod scheme {
         let lib = trans.parse_library(library_src)?;
         let lib = lib.transform(&mut Boxify);
         let lib = lib.transform(&mut Flatten::new());
-        compile_library(&lib, &trans, global_offset)
+        Ok(lib)
     }
 
     pub fn create_scheme_extra_library() -> LibraryData {
@@ -131,6 +135,7 @@ pub mod scheme {
 
             // example of a primitive function (that works on the current context)
             //primitive "globals", =0, list_globals;
+            primitive "globals", =0, list_globals;
 
             native "boolean?", =1, Scm::is_bool;
             native "null?", =1, Scm::is_nil;
@@ -214,8 +219,6 @@ pub mod scheme {
 
         let body = ocdr(def)?;
         let body = scan_out_defines(body.clone())?;
-
-        println!("{}", body);
 
         let result = trans.objectify_function(names, &body, expr.source().clone())?;
 
@@ -378,8 +381,8 @@ pub mod scheme {
     }
 
     pub fn list_globals(_args: &[Scm], context: &VirtualMachine) {
-        for (i, (value, name)) in context.globals().iter().enumerate() {
-            println!("{:3} {} = {}", i, name, value)
+        for (i, value) in context.globals().iter().enumerate() {
+            println!("{:3} {} = {}", i, context.ga.find_var(i).full_name(), value)
         }
     }
 
@@ -595,12 +598,11 @@ pub mod scheme {
         mod variables {
             use super::*;
             use crate::error::RuntimeError;
-            use crate::symbol::Symbol;
 
             check!(reify_intrinsic: "cons", Scm::is_procedure);
 
-            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("flummox"))));
-            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("foo"))));
+            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("flummox"))));
+            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("foo"))));
             check!(new_global: "(define the-answer 42)", Scm::is_undefined);
             compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
             compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
@@ -682,7 +684,6 @@ pub mod scheme {
         mod macros {
             use super::*;
             use crate::error::RuntimeError;
-            use crate::symbol::Symbol;
 
             compare!(primitive:
                 r#"(begin
@@ -694,7 +695,7 @@ pub mod scheme {
                 r#"(begin
                         (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
                         (foo x))"#,
-                RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("x"))));
+                RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("x"))));
 
             compare!(hygiene_new_binding_defined_with_let:
                 r#"(begin
@@ -789,7 +790,6 @@ pub mod scheme {
         mod libraries {
             use super::*;
             use crate::error::RuntimeError;
-            use crate::symbol::Symbol;
 
             assert_error!(nonexisting_library: "(import (test foo bar)) #f",
                 ObjectifyErrorKind::UnknownLibrary(["test", "foo", "bar.sld"].iter().collect()));
@@ -812,11 +812,11 @@ pub mod scheme {
 
             assert_error!(import_only:
                 r#"(import (only (testing 1) a)) a b"#,
-                RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("b"))));
+                RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("b"))));
 
             assert_error!(import_except:
                 r#"(import (except (testing 1) a)) a"#,
-                RuntimeError::UndefinedGlobal(Scm::Symbol(Symbol::new("a"))));
+                RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("a"))));
 
             compare!(import_prefixed_values:
                 r#"(import (prefix (testing 1) foo-)) (cons foo-a foo-b)"#,
@@ -848,22 +848,18 @@ pub mod scheme {
                  equals, Scm::Int(42));
 
             compare!(reexport:
-                r#"(import (testing reexport)) (cons (foo2 7) (foo2 5))"#,
-                 equals, Scm::cons(Scm::Int(7), Scm::Int(5)));
+                r#"(import (testing reexport)) (cons (foo 7) (kons 5 '()))"#,
+                 equals, Scm::list(vec![Scm::Int(7), Scm::Int(5)]));
         }
 
         mod definition {
             use super::*;
-            use crate::symbol::Symbol;
 
             #[test]
             fn global_definition() {
                 let mut ctx = create_testing_context();
                 ctx.eval_str("(define x 42)").unwrap();
-                assert_eq!(
-                    ctx.vm.globals().last(),
-                    Some(&(Scm::Int(42), Scm::Symbol(Symbol::new("x"))))
-                );
+                assert_eq!(ctx.vm.globals().last(), Some(&(Scm::Int(42))));
             }
 
             #[test]
@@ -873,10 +869,7 @@ pub mod scheme {
                     ctx.eval_str("((lambda () (define x 42) x))").unwrap(),
                     Scm::Int(42)
                 );
-                assert_ne!(
-                    ctx.vm.globals().last().unwrap(),
-                    &(Scm::Int(42), Scm::Symbol(Symbol::new("x")))
-                );
+                assert_ne!(ctx.vm.globals().last().unwrap(), &(Scm::Int(42)));
             }
 
             #[test]

@@ -1,5 +1,5 @@
 (define-library (testing reexport)
-    (export (rename foo foo2)
+    (export foo
             (rename cons kons))
     (import (testing lib)
             (sunny core)))

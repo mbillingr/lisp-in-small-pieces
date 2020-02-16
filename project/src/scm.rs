@@ -58,6 +58,10 @@ impl Scm {
         Scm::Closure(Box::leak(Box::new(Closure::new(func, free_vars.into()))))
     }
 
+    pub fn symbol(s: impl Into<Symbol>) -> Self {
+        Scm::Symbol(s.into())
+    }
+
     pub fn string(s: impl Into<Box<str>>) -> Self {
         Scm::String(Box::leak(s.into()))
     }
@@ -488,7 +492,7 @@ impl ResultWrap for () {
 
 impl PartialEq for Scm {
     fn eq(&self, other: &Self) -> bool {
-        self.ptr_eq(other)
+        self.equals(other)
     }
 }
 

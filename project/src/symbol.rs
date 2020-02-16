@@ -60,6 +60,10 @@ impl Symbol {
     pub fn ptr_eq(&self, other: &Self) -> bool {
         self.0 as *const str == other.0 as *const str
     }
+
+    pub fn as_str(&self) -> &'static str {
+        self.0
+    }
 }
 
 impl PartialEq for Symbol {
