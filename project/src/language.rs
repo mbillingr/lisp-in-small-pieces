@@ -135,7 +135,6 @@ pub mod scheme {
 
             // example of a primitive function (that works on the current context)
             //primitive "globals", =0, list_globals;
-            primitive "globals", =0, list_globals;
 
             native "boolean?", =1, Scm::is_bool;
             native "null?", =1, Scm::is_nil;

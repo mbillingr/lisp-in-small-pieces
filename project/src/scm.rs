@@ -305,6 +305,22 @@ impl Scm {
         }
         Ok(())
     }
+
+    pub fn caar(&self) -> Result<Scm> {
+        self.car()?.car()
+    }
+
+    pub fn cadr(&self) -> Result<Scm> {
+        self.cdr()?.car()
+    }
+
+    pub fn cdar(&self) -> Result<Scm> {
+        self.car()?.cdr()
+    }
+
+    pub fn cddr(&self) -> Result<Scm> {
+        self.cdr()?.cdr()
+    }
 }
 
 impl std::fmt::Display for Scm {

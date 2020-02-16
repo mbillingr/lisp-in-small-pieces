@@ -1,7 +1,12 @@
 (define-library (sunny lists)
-    (export member memq memv)
+    (export caar cadr cdar cddr member memq memv)
     (import (sunny core))
     (begin
+      (define (caar x) (car (car x)))
+      (define (cadr x) (car (cdr x)))
+      (define (cdar x) (cdr (car x)))
+      (define (cddr x) (cdr (cdr x)))
+
       (define (memq obj list)
         (if (pair? list)
             (if (eq? obj (car list))
