@@ -175,14 +175,14 @@ impl Scm {
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),
-            _ => Err(TypeError::NoPair.into()),
+            _ => Err(TypeError::NoPair(*self).into()),
         }
     }
 
     pub fn cdr(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.1.get()),
-            _ => Err(TypeError::NoPair.into()),
+            _ => Err(TypeError::NoPair(*self).into()),
         }
     }
 
@@ -192,7 +192,7 @@ impl Scm {
                 p.0.set(x);
                 Ok(Scm::Undefined)
             }
-            _ => Err(TypeError::NoPair.into()),
+            _ => Err(TypeError::NoPair(*self).into()),
         }
     }
 
@@ -202,7 +202,7 @@ impl Scm {
                 p.1.set(x);
                 Ok(Scm::Undefined)
             }
-            _ => Err(TypeError::NoPair.into()),
+            _ => Err(TypeError::NoPair(*self).into()),
         }
     }
 

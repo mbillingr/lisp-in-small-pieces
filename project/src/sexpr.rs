@@ -206,14 +206,14 @@ impl TrackedSexpr {
     pub fn car(&self) -> Result<&Self> {
         match &self.sexpr {
             Sexpr::Pair(p) => Ok(&p.0),
-            _ => Err(Error::at_expr(TypeError::NoPair, self)),
+            _ => Err(Error::at_expr(TypeError::NoPair(self.into()), self)),
         }
     }
 
     pub fn cdr(&self) -> Result<&Self> {
         match &self.sexpr {
             Sexpr::Pair(p) => Ok(&p.1),
-            _ => Err(Error::at_expr(TypeError::NoPair, self)),
+            _ => Err(Error::at_expr(TypeError::NoPair(self.into()), self)),
         }
     }
 

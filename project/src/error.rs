@@ -54,7 +54,7 @@ pub enum TypeError {
     NotCallable(Scm),
     NoInt,
     NoPositiveInt(Scm),
-    NoPair,
+    NoPair(Scm),
     NoVector,
     NoSymbol,
     NoString(Scm),
