@@ -1,8 +1,7 @@
 (define-library (sunny conditionals)
-    (export case cond)
+    (export and case cond)
     (import (sunny core))
     (begin
-
       (define-syntax cond
         (syntax-rules (else =>)
           ((cond (else result1 result2 ...))
@@ -60,4 +59,11 @@
              clause clauses ...)
            (if (memv key '(atoms ...))
                (begin result1 result2 ...)
-               (case key clause clauses ...)))))))
+               (case key clause clauses ...)))))
+
+      (define-syntax and
+        (syntax-rules ()
+          ((and) #t)
+          ((and test) test)
+          ((and test1 test2 ...)
+           (if test1 (and test2 ...) #f))))))
