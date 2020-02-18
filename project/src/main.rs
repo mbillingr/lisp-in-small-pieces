@@ -14,6 +14,7 @@ mod language;
 mod macro_language;
 mod objectify;
 mod parsing;
+mod ports;
 mod primitive;
 mod repl;
 mod scan_out_defines;

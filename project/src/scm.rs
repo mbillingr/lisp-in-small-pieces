@@ -1,24 +1,28 @@
 use crate::bytecode::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{Result, TypeError};
+use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use std::cell::Cell;
 use std::convert::TryFrom;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum Scm {
     Undefined,
     Uninitialized,
     Nil,
     True,
     False,
+    Eof,
     Int(i64),
     Float(f64),
+    Char(char),
     Symbol(Symbol),
     String(&'static str),
     Vector(&'static [Cell<Scm>]),
+    Bytevector(&'static [u8]),
 
     Pair(&'static (Cell<Scm>, Cell<Scm>)),
 
@@ -26,6 +30,8 @@ pub enum Scm {
     Primitive(RuntimePrimitive),
     Continuation(&'static Continuation),
     ExitProc(&'static ExitProcedure),
+
+    Port(&'static SchemePort),
 
     Cell(&'static Cell<Scm>),
 }
@@ -109,6 +115,13 @@ impl Scm {
         }
     }
 
+    pub fn is_eof(&self) -> bool {
+        match self {
+            Scm::Eof => true,
+            _ => false,
+        }
+    }
+
     pub fn is_bool(&self) -> bool {
         match self {
             Scm::True | Scm::False => true,
@@ -148,6 +161,13 @@ impl Scm {
         match self {
             Scm::Int(i) => Ok(*i),
             _ => Err(TypeError::NoInt.into()),
+        }
+    }
+
+    pub fn as_char(&self) -> Result<char> {
+        match self {
+            Scm::Char(ch) => Ok(*ch),
+            _ => Err(TypeError::NoChar(*self).into()),
         }
     }
 
@@ -220,6 +240,31 @@ impl Scm {
         match self {
             Scm::Closure(cls) => Ok(*cls),
             _ => Err(TypeError::NoClosure.into()),
+        }
+    }
+
+    pub fn as_port(&self) -> Result<&'static SchemePort> {
+        match self {
+            Scm::Port(p) => Ok(*p),
+            _ => Err(TypeError::NoPort(*self).into()),
+        }
+    }
+
+    pub fn as_bytevec(&self) -> Result<&'static [u8]> {
+        match self {
+            Scm::Bytevector(v) => Ok(*v),
+            _ => Err(TypeError::NoBytevector(*self).into()),
+        }
+    }
+
+    pub fn as_mut_bytevec(&self) -> Result<&'static mut [u8]> {
+        match self {
+            Scm::Bytevector(v) => unsafe {
+                let ptr = *v as *const _;
+                let mut_ptr = ptr as *mut _;
+                Ok(&mut *mut_ptr)
+            },
+            _ => Err(TypeError::NoBytevector(*self).into()),
         }
     }
 
@@ -323,6 +368,12 @@ impl Scm {
     }
 }
 
+impl std::fmt::Debug for Scm {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
 impl std::fmt::Display for Scm {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -331,8 +382,10 @@ impl std::fmt::Display for Scm {
             Scm::Nil => write!(f, "'()"),
             Scm::True => write!(f, "#t"),
             Scm::False => write!(f, "#f"),
+            Scm::Eof => write!(f, "<eof>"),
             Scm::Int(i) => write!(f, "{}", i),
             Scm::Float(x) => write!(f, "{}", x),
+            Scm::Char(c) => write!(f, "{}", c),
             Scm::Symbol(s) => write!(f, "{}", s),
             Scm::String(s) => write!(f, "{}", s),
             Scm::Vector(v) => {
@@ -343,6 +396,18 @@ impl std::fmt::Display for Scm {
 
                     for x in items {
                         write!(f, " {}", x.get())?;
+                    }
+                }
+                write!(f, ")")
+            }
+            Scm::Bytevector(v) => {
+                write!(f, "#u8(")?;
+                let mut items = v.iter();
+                if let Some(x) = items.next() {
+                    write!(f, "{}", x)?;
+
+                    for x in items {
+                        write!(f, " {}", x)?;
                     }
                 }
                 write!(f, ")")
@@ -370,6 +435,7 @@ impl std::fmt::Display for Scm {
             Scm::Primitive(prim) => write!(f, "<primitive {:?}>", prim),
             Scm::Continuation(cnt) => write!(f, "<continuation {:?}>", cnt),
             Scm::ExitProc(cnt) => write!(f, "<exit-procedure {:?}>", cnt),
+            Scm::Port(p) => write!(f, "<port {:?}>", p),
             Scm::Cell(c) => write!(f, "{}", c.get()),
         }
     }
@@ -387,9 +453,54 @@ impl From<bool> for Scm {
     }
 }
 
+impl From<char> for Scm {
+    fn from(ch: char) -> Scm {
+        Scm::Char(ch)
+    }
+}
+
+impl From<u8> for Scm {
+    fn from(x: u8) -> Scm {
+        Scm::Int(x as i64)
+    }
+}
+
+impl From<i32> for Scm {
+    fn from(x: i32) -> Scm {
+        Scm::Int(x as i64)
+    }
+}
+
 impl From<i64> for Scm {
     fn from(x: i64) -> Scm {
         Scm::Int(x)
+    }
+}
+
+impl From<usize> for Scm {
+    fn from(x: usize) -> Scm {
+        Scm::Int(x as i64)
+    }
+}
+
+impl From<Vec<u8>> for Scm {
+    fn from(x: Vec<u8>) -> Scm {
+        let x = Box::leak(x.into_boxed_slice());
+        Scm::Bytevector(x)
+    }
+}
+
+impl From<String> for Scm {
+    fn from(s: String) -> Scm {
+        let s = Box::leak(s.into_boxed_str());
+        Scm::String(s)
+    }
+}
+
+impl From<SchemePort> for Scm {
+    fn from(p: SchemePort) -> Scm {
+        let p = Box::leak(Box::new(p));
+        Scm::Port(p)
     }
 }
 
@@ -503,6 +614,12 @@ where
 impl ResultWrap for () {
     fn wrap(self) -> Result<Scm> {
         Ok(Scm::Undefined)
+    }
+}
+
+impl ResultWrap for Result<()> {
+    fn wrap(self) -> Result<Scm> {
+        self.map(|_| Scm::Undefined)
     }
 }
 

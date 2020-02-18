@@ -22,6 +22,7 @@ pub enum ErrorKind {
     Runtime(RuntimeError),
     TypeError(TypeError),
     IoError(std::io::Error),
+    Utf8Error(std::str::Utf8Error),
 }
 
 #[derive(Debug, PartialEq)]
@@ -35,6 +36,9 @@ pub enum RuntimeError {
     IncorrectArity,
     UndefinedGlobal(Scm),
     InvalidExitProcedure,
+    ClosedPort,
+    WrongPortKind,
+    WriteError,
 }
 
 impl std::fmt::Debug for RuntimeError {
@@ -44,6 +48,9 @@ impl std::fmt::Debug for RuntimeError {
             RuntimeError::IncorrectArity => write!(f, "incorrect arity"),
             RuntimeError::UndefinedGlobal(name) => write!(f, "undefined global {}", name),
             RuntimeError::InvalidExitProcedure => write!(f, "invalid exit procedure"),
+            RuntimeError::ClosedPort => write!(f, "access to closed port"),
+            RuntimeError::WrongPortKind => write!(f, "wrong kind of port (input/output)"),
+            RuntimeError::WriteError => write!(f, "write error"),
         }
     }
 }
@@ -53,12 +60,16 @@ pub enum TypeError {
     WrongType,
     NotCallable(Scm),
     NoInt,
+    NoU8,
     NoPositiveInt(Scm),
     NoPair(Scm),
     NoVector,
+    NoBytevector(Scm),
+    NoChar(Scm),
     NoSymbol,
     NoString(Scm),
     NoClosure,
+    NoPort(Scm),
     OutOfBounds,
 }
 
@@ -123,6 +134,18 @@ impl From<std::io::Error> for ErrorKind {
     }
 }
 
+impl From<std::str::Utf8Error> for ErrorKind {
+    fn from(err: std::str::Utf8Error) -> Self {
+        ErrorKind::Utf8Error(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for ErrorKind {
+    fn from(err: std::string::FromUtf8Error) -> Self {
+        ErrorKind::Utf8Error(err.utf8_error())
+    }
+}
+
 impl Error {
     pub fn from_parse_error_and_source(err: ParseError, src: Source) -> Error {
         assert_eq!(err.location.text, &*src.content);
@@ -143,6 +166,7 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::Compile(e) => write!(f, "Compile Error: {:?}", e),
             ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
             ErrorKind::IoError(e) => write!(f, "I/O Error: {:?}", e),
+            ErrorKind::Utf8Error(e) => write!(f, "Utf8 Error: {:?}", e),
         }
     }
 }

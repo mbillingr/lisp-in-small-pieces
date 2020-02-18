@@ -4,10 +4,11 @@ pub mod scheme {
     use crate::ast_transform::generate_bytecode::compile_program;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
-    use crate::error::{Error, ErrorKind, Result};
+    use crate::error::{Error, ErrorKind, Result, RuntimeError, TypeError};
     use crate::library::{LibraryBuilder, LibraryData};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
+    use crate::ports::SchemePort;
     use crate::primitive::{Arity, RuntimePrimitive};
     use crate::scan_out_defines::{
         definition_value, definition_variable, make_function, scan_out_defines,
@@ -159,9 +160,6 @@ pub mod scheme {
 
             native "vector-ref", =2, Scm::vector_ref;
 
-            native "display", =1, display;
-            native "newline", =0, newline;
-
             macro "begin", expand_begin;
             macro "define", expand_define;
             macro "define-syntax", expand_define_syntax;
@@ -173,6 +171,82 @@ pub mod scheme {
             macro "set!", expand_assign;
             macro "let/cc", expand_letcc;
             macro "let/ep", expand_letep;
+        }
+    }
+
+    pub fn create_scheme_ports_library() -> LibraryData {
+        build_library! {
+            native "eof-object?", =1, Scm::is_eof;
+            native "input-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_input_port) };
+            native "output-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_output_port) };
+            native "port?", =1, |port: Scm| { port.as_port().is_ok() };
+
+            native "port-open?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_open) };
+            native "close-port", =1, |port: Scm| -> Result<()> { port.as_port()?.close() };
+
+            native "open-standard-input", =0, || -> Scm { SchemePort::std_input().into() };
+            native "open-standard-output", =0, || -> Scm { SchemePort::std_output().into() };
+            native "open-standard-error", =0, || -> Scm { SchemePort::std_error().into() };
+
+            native "open-input-file", =1, |name: Scm| -> Result<Scm> { Ok(SchemePort::file_input(name.as_string()?)?.into()) };
+            native "open-output-file", =1, |name: Scm| -> Result<Scm> { Ok(SchemePort::file_output(name.as_string()?)?.into()) };
+            native "open-input-string", =1, |s: Scm| -> Result<Scm> { Ok(SchemePort::string_input(s.as_string()?).into()) };
+            native "open-output-string", =0, || -> Result<Scm> { Ok(SchemePort::bytes_output().into()) };
+            native "get-output-string", =1, |port: Scm| -> Result<Scm> { Ok(String::from_utf8(port.as_port()?.clone_data()?)?.into()) };
+            native "open-input-bytevector", =1, |s: Scm| -> Result<Scm> { Ok(SchemePort::bytes_input(s.as_bytevec()?).into()) };
+            native "open-output-bytevector", =0, || -> Result<Scm> { Ok(SchemePort::bytes_output().into()) };
+            native "get-output-bytevector", =1, |port: Scm| -> Result<Scm> { Ok(port.as_port()?.clone_data()?.into()) };
+
+            native "read-char", =1, |port: Scm| -> Result<Scm> { port.as_port()?.read_char() };
+            native "peek-char", =1, |port: Scm| -> Result<Scm> { port.as_port()?.peek_char() };
+            native "read-line", =1, |port: Scm| -> Result<Scm> { port.as_port()?.read_line() };
+            native "read-string", =2, |k: usize, port: Scm| -> Result<Scm> { port.as_port()?.read_string(k) };
+            native "read-u8", =1, |port: Scm| -> Result<Scm> { port.as_port()?.read_u8() };
+            native "peek-u8", =1, |port: Scm| -> Result<Scm> { port.as_port()?.peek_u8() };
+            native "read-bytevector", =2, |k: usize, port: Scm| -> Result<Scm> { port.as_port()?.read_bytevector(k) };
+            native "read-bytevector!", >=2, |vec: Scm, port: Scm, args: &[Scm]| -> Result<Scm> {
+                let buf = vec.as_mut_bytevec()?;
+                let (start, end) = match args {
+                    [] => (0, buf.len()),
+                    [s] => (s.try_into()?, buf.len()),
+                    [s, e] => (s.try_into()?, e.try_into()?),
+                    _ => return Err(RuntimeError::IncorrectArity.into())
+                };
+                port.as_port()?.read_into_bytevector(start, end, buf)
+            };
+
+            native "display", =2, |obj: Scm, port: Scm| -> Result<()> { port.as_port()?.display(obj) };
+            native "newline", =1, |port: Scm| -> Result<()> { port.as_port()?.write_char('\n') };
+            native "write-char", =2, |ch: Scm, port: Scm| -> Result<()> { port.as_port()?.write_char(ch.as_char()?) };
+            native "write-string", >=2, |s: Scm, port: Scm, args: &[Scm]| -> Result<()> {
+                let buf = s.as_string()?;
+                let (start, end) = match args {
+                    [] => (0, buf.chars().count()),
+                    [s] => (s.try_into()?, buf.chars().count()),
+                    [s, e] => (s.try_into()?, e.try_into()?),
+                    _ => return Err(RuntimeError::IncorrectArity.into())
+                };
+                port.as_port()?.write_string(buf, start, end)
+            };
+            native "write-u8", =2, |x: Scm, port: Scm| -> Result<()> {
+                let x = x.as_int()?;
+                if x >= 0 && x <= 255 {
+                    port.as_port()?.write_u8(x as u8)
+                } else {
+                    Err(TypeError::NoU8.into())
+                }
+             };
+            native "write-bytevector", >=2, |s: Scm, port: Scm, args: &[Scm]| -> Result<()> {
+                let buf = s.as_bytevec()?;
+                let (start, end) = match args {
+                    [] => (0, buf.len()),
+                    [s] => (s.try_into()?, buf.len()),
+                    [s, e] => (s.try_into()?, e.try_into()?),
+                    _ => return Err(RuntimeError::IncorrectArity.into())
+                };
+                port.as_port()?.write_bytevector(buf, start, end)
+            };
+            native "flush-output-port", =1, |port: Scm| -> Result<()> { port.as_port()?.flush_output() };
         }
     }
 
@@ -362,14 +436,6 @@ pub mod scheme {
 
     pub fn raise_error(msg: Scm) -> Result<Scm> {
         Err(ErrorKind::Custom(msg).into())
-    }
-
-    pub fn display(x: Scm) {
-        print!("{}", x);
-    }
-
-    pub fn newline() {
-        println!();
     }
 
     pub fn disassemble(obj: Scm) {

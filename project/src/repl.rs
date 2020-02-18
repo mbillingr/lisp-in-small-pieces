@@ -1,5 +1,7 @@
 use crate::error::{Error, ErrorContext};
-use crate::language::scheme::{create_scheme_base_library, create_scheme_extra_library, Context};
+use crate::language::scheme::{
+    create_scheme_base_library, create_scheme_extra_library, create_scheme_ports_library, Context,
+};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
@@ -13,6 +15,7 @@ pub fn repl() {
 
     context.add_library("sunny/core", create_scheme_base_library());
     context.add_library("sunny/extra", create_scheme_extra_library());
+    context.add_library("sunny/ports-core", create_scheme_ports_library());
 
     context.import_library("sunny/core");
 
