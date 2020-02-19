@@ -144,11 +144,9 @@ pub enum Sexpr<'a> {
 
 pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
     let mut exprs = vec![];
-    let src = Span::new(src);
-    let (_, mut src) = opt(whitespace)(src)?;
+    let mut src = Span::new(src);
     while !src.is_empty() {
         let (expr, rest) = parse_sexpr(src)?;
-        let (_, rest) = opt(whitespace)(rest)?;
         src = rest;
         exprs.push(expr);
     }
@@ -156,11 +154,18 @@ pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
 }
 
 fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
-    any((
+    let (_, src) = opt(parse_intertoken_space)(src)?;
+    let (expr, rest) = any((
         any((parse_abbreviation, parse_dot, parse_boolean, parse_symbol)),
         any((parse_list, parse_vector, parse_string, parse_number)),
         parse_invalid,
-    ))(src)
+    ))(src)?;
+    let (_, rest) = opt(parse_intertoken_space)(rest)?;
+    Ok((expr, rest))
+}
+
+fn parse_intertoken_space(src: Span) -> ParseResult<Span> {
+    repeat_1_or_more(any((whitespace, parse_comment)))(src)
 }
 
 fn parse_invalid<T>(input: Span) -> ParseResult<T> {
@@ -169,6 +174,13 @@ fn parse_invalid<T>(input: Span) -> ParseResult<T> {
         location: input,
         fatal: true,
     })
+}
+
+fn parse_comment(src: Span) -> ParseResult<Span> {
+    all((
+        char(';'),
+        repeat_0_or_more(all((not(char('\n')), any_char))),
+    ))(src)
 }
 
 fn parse_dot(input: Span) -> ParseResult<SpannedSexpr> {
@@ -842,6 +854,16 @@ mod tests {
         compare!(
             vec![Sexpr::Symbol("unquote-splicing"), Sexpr::Symbol("abc")],
             parse_abbreviation(Span::new(",@abc"))
+        );
+    }
+
+    #[test]
+    fn comment_parsing() {
+        compare!(
+            vec![Sexpr::Symbol("x"), Sexpr::Symbol("y"), Sexpr::Symbol("z")],
+            parse_sexpr(Span::new(
+                "; preceding comment\n (x ; inner comment\n y z)  ; trailing comment\n"
+            ))
         );
     }
 
