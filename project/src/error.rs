@@ -13,6 +13,15 @@ pub struct Error {
     pub context: ErrorContext,
 }
 
+impl Error {
+    pub fn chain(self, other: Error) -> Self {
+        Error {
+            kind: ErrorKind::Chained(Box::new(self), Box::new(other)),
+            context: ErrorContext::None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ErrorKind {
     Custom(Scm),
@@ -23,6 +32,8 @@ pub enum ErrorKind {
     TypeError(TypeError),
     IoError(std::io::Error),
     Utf8Error(std::str::Utf8Error),
+
+    Chained(Box<Error>, Box<Error>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -70,6 +81,7 @@ pub enum TypeError {
     NoString(Scm),
     NoClosure,
     NoPort(Scm),
+    NoRustObject(Scm),
     OutOfBounds,
 }
 
@@ -167,6 +179,7 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
             ErrorKind::IoError(e) => write!(f, "I/O Error: {:?}", e),
             ErrorKind::Utf8Error(e) => write!(f, "Utf8 Error: {:?}", e),
+            ErrorKind::Chained(e1, e2) => write!(f, "{} followed by {}", e1.kind, e2.kind),
         }
     }
 }
