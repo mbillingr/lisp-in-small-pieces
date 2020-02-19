@@ -15,7 +15,7 @@ use crate::syntax::{
 };
 use crate::utils::{Named, Sourced};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -446,17 +446,27 @@ impl Translate {
 
         let mut import_set = self.objectify_import_set(import_set)?;
 
+        let mut only_names = HashSet::new();
+
         while identifiers.is_pair() {
             let identifier = *identifiers.car().unwrap().as_symbol().unwrap();
-            import_set.items = import_set
-                .items
-                .into_iter()
-                .filter(|item| item.import_var.name() == identifier)
-                .collect();
+            only_names.insert(identifier);
             identifiers = identifiers.cdr().unwrap();
         }
+        import_set.items = import_set
+            .items
+            .into_iter()
+            .filter(|item| only_names.remove(&item.import_var.name()))
+            .collect();
 
-        Ok(import_set)
+        if only_names.is_empty() {
+            Ok(import_set)
+        } else {
+            Err(
+                ObjectifyErrorKind::UndefinedVariable(only_names.into_iter().next().unwrap())
+                    .into(),
+            )
+        }
     }
 
     fn objectify_import_except(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
