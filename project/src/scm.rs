@@ -5,6 +5,7 @@ use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
+use std::any::Any;
 use std::cell::Cell;
 use std::convert::TryFrom;
 
@@ -34,6 +35,7 @@ pub enum Scm {
     Port(&'static SchemePort),
 
     Cell(&'static Cell<Scm>),
+    Rust(&'static Box<dyn Any>),
 }
 
 impl Scm {
@@ -92,6 +94,12 @@ impl Scm {
 
     pub fn primitive(proc: RuntimePrimitive) -> Self {
         Scm::Primitive(proc)
+    }
+
+    pub fn rust_object<T: 'static>(obj: T) -> Self {
+        let boxed: Box<dyn Any> = Box::new(obj);
+        let obj = Box::leak(Box::new(boxed));
+        Scm::Rust(obj)
     }
 
     pub fn is_undefined(&self) -> bool {
@@ -182,6 +190,17 @@ impl Scm {
         match self {
             Scm::String(s) => Ok(*s),
             _ => Err(TypeError::NoString(*self).into()),
+        }
+    }
+
+    pub fn is_rust_object(&self) -> bool {
+        self.as_rust_object().is_ok()
+    }
+
+    pub fn as_rust_object(&self) -> Result<&'static dyn Any> {
+        match self {
+            Scm::Rust(o) => Ok(&***o),
+            _ => Err(TypeError::NoRustObject(*self).into()),
         }
     }
 
@@ -437,6 +456,7 @@ impl std::fmt::Display for Scm {
             Scm::ExitProc(cnt) => write!(f, "<exit-procedure {:?}>", cnt),
             Scm::Port(p) => write!(f, "<port {:?}>", p),
             Scm::Cell(c) => write!(f, "{}", c.get()),
+            Scm::Rust(o) => write!(f, "<rust object {:p}>", **o),
         }
     }
 }
