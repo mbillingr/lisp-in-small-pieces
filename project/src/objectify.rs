@@ -105,7 +105,7 @@ impl Translate {
             _ => {
                 let m = self.objectify(ocar(expr)?)?;
                 if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {
-                    handler(self, expr)
+                    handler.invoke(self, expr)
                 } else {
                     self.objectify_application(&m, ocdr(expr)?, expr.source().clone())
                 }

@@ -7,12 +7,30 @@ use crate::symbol::Symbol;
 use crate::utils::Named;
 use std::rc::Rc;
 
-pub type MagicKeywordHandler = Rc<dyn Fn(&mut Translate, &TrackedSexpr) -> Result<Expression>>;
-
 #[derive(Clone)]
 pub struct MagicKeyword {
     pub name: Symbol,
     pub handler: MagicKeywordHandler,
+}
+
+#[derive(Clone)]
+pub struct MagicKeywordHandler(Rc<Rc<dyn Fn(&mut Translate, &TrackedSexpr) -> Result<Expression>>>);
+
+impl MagicKeywordHandler {
+    pub fn new(
+        handler: impl Fn(&mut Translate, &TrackedSexpr) -> Result<Expression> + 'static,
+    ) -> Self {
+        MagicKeywordHandler(Rc::new(Rc::new(handler)))
+    }
+
+    pub fn invoke(&self, trans: &mut Translate, sexpr: &TrackedSexpr) -> Result<Expression> {
+        (self.0)(trans, sexpr)
+    }
+
+    pub unsafe fn replace(&self, other: Self) {
+        let tmp = &*self.0 as *const _ as *mut _;
+        *tmp = (*other.0).clone();
+    }
 }
 
 impl std::fmt::Debug for MagicKeyword {
@@ -28,7 +46,7 @@ impl MagicKeyword {
     ) -> Self {
         MagicKeyword {
             name: name.into(),
-            handler: Rc::new(handler),
+            handler: MagicKeywordHandler::new(handler),
         }
     }
 
@@ -42,6 +60,10 @@ impl MagicKeyword {
             handler: self.handler.clone(),
         }
     }
+
+    pub unsafe fn replace_handler(&self, handler: MagicKeywordHandler) {
+        self.handler.replace(handler)
+    }
 }
 
 impl Named for MagicKeyword {
@@ -53,6 +75,12 @@ impl Named for MagicKeyword {
 
 impl PartialEq for MagicKeyword {
     fn eq(&self, other: &Self) -> bool {
-        self.name.ptr_eq(&other.name) && Rc::ptr_eq(&self.handler, &other.handler)
+        self.name.ptr_eq(&other.name) && self.handler == other.handler
+    }
+}
+
+impl PartialEq for MagicKeywordHandler {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
     }
 }

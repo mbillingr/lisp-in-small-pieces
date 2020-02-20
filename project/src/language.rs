@@ -160,9 +160,11 @@ pub mod scheme {
 
             native "vector-ref", =2, Scm::vector_ref;
 
+            macro "define-syntax", expand_define_syntax;
+            macro "let-syntax", expand_let_syntax;
+            macro "letrec-syntax", expand_letrec_syntax;
             macro "begin", expand_begin;
             macro "define", expand_define;
-            macro "define-syntax", expand_define_syntax;
             macro "if", expand_alternative;
             macro "lambda", expand_lambda;
             macro "let", expand_let;
@@ -378,14 +380,6 @@ pub mod scheme {
         trans.objectify_definition(definee, &form, expr.source().clone())
     }
 
-    pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
-        let name = *expr.at(1)?.as_symbol()?;
-        let handler = eval_syntax(expr.cdr()?, &trans.env)?;
-        let macro_binding = MagicKeyword { name, handler };
-        trans.env.push_global(macro_binding);
-        Ok(Expression::NoOp(NoOp))
-    }
-
     pub fn expand_letcc(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         expand_letcont(trans, expr, LetContKind::IndefiniteContinuation)
     }
@@ -424,6 +418,71 @@ pub mod scheme {
         }
 
         Ok(ast.into())
+    }
+
+    pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+        let name = *expr.at(1)?.as_symbol()?;
+        let handler = eval_syntax(expr.cdr()?, &trans.env)?;
+        let macro_binding = MagicKeyword { name, handler };
+        trans.env.push_global(macro_binding);
+        Ok(Expression::NoOp(NoOp))
+    }
+
+    pub fn expand_let_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+        let def = ocdr(expr)?;
+        let bindings = ocar(def)?;
+        let body = ocdr(def)?;
+
+        let mut macros = vec![];
+        bindings.scan(|v| -> Result<()> {
+            let name = *v.car()?.as_symbol()?;
+            let handler = eval_syntax(v, &trans.env)?;
+            let macro_binding = MagicKeyword { name, handler };
+            macros.push(macro_binding);
+            Ok(())
+        })?;
+
+        let n_macros = macros.len();
+        trans.env.extend_local(macros);
+
+        let result = trans.objectify_sequence(body);
+
+        trans.env.drop_frame(n_macros);
+
+        result
+    }
+
+    pub fn expand_letrec_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+        let def = ocdr(expr)?;
+        let bindings = ocar(def)?;
+        let body = ocdr(def)?;
+
+        let mut macros = vec![];
+        bindings.scan(|v| -> Result<()> {
+            let name = *v.car()?.as_symbol()?;
+            let macro_binding = MagicKeyword::new(name, |_, _| unimplemented!());
+            trans.env.push_local(macro_binding.clone());
+            macros.push(macro_binding);
+            Ok(())
+        })?;
+
+        let n_macros = macros.len();
+        let mut macros = macros.into_iter();
+
+        bindings.scan(|v| -> Result<()> {
+            let handler = eval_syntax(v, &trans.env)?;
+            let macro_binding = macros.next().unwrap();
+            unsafe {
+                macro_binding.replace_handler(handler);
+            }
+            Ok(())
+        })?;
+
+        let result = trans.objectify_sequence(body);
+
+        trans.env.drop_frame(n_macros);
+
+        result
     }
 
     pub fn list(args: &[Scm]) -> Scm {
@@ -850,6 +909,33 @@ pub mod scheme {
                         (letme ((x 4) (y 6))
                                (+ x y)))"#,
                  equals, Scm::Int(10));
+
+            compare!(let_syntax_allows_macro_in_body:
+                r#"(define (force _) #f)
+                   (let-syntax ((force (syntax-rules () ((force x) (x)))))
+                     (force (lambda () 4)))"#,
+                 equals, Scm::Int(4));
+
+            compare!(let_syntax_limited_to_scope:
+                r#"(define (force _) #f)
+                   (let-syntax ((force (syntax-rules () ((force x) (x)))))
+                     0)
+                   (force (lambda () 4))"#,
+                 equals, Scm::False);
+
+            compare!(let_syntax_not_recursive:
+                r#"(define (force _) #f)
+                   (let-syntax ((force (syntax-rules () ((_ x) (x))))
+                                (really-force (syntax-rules () ((_ x) (force x)))))
+                     (really-force (lambda () 4)))"#,
+                 equals, Scm::False);
+
+            compare!(letrec_syntax_allow_recursive:
+                r#"(define (force _) #f)
+                   (letrec-syntax ((really-force (syntax-rules () ((_ x) (force x))))
+                                   (force (syntax-rules () ((_ x) (x)))))
+                     (really-force (lambda () 4)))"#,
+                 equals, Scm::Int(4));
         }
 
         mod libraries {

@@ -48,7 +48,7 @@ pub fn eval_syntax_rules(
     definition_env: Env,
 ) -> Result<MagicKeywordHandler> {
     let rules = prepare_rules(ellipsis, &literals, &rules, &definition_env)?;
-    Ok(Rc::new(
+    Ok(MagicKeywordHandler::new(
         move |trans: &mut Translate, expr: &TrackedSexpr| -> Result<Expression> {
             let sexpr = apply_syntax_rules(
                 name,
