@@ -5,6 +5,7 @@ use crate::symbol::Symbol;
 use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
 use std::rc::Rc;
+use crate::scm::Scm;
 
 #[derive(Debug, Clone)]
 pub struct TrackedSexpr {
@@ -206,14 +207,14 @@ impl TrackedSexpr {
     pub fn car(&self) -> Result<&Self> {
         match &self.sexpr {
             Sexpr::Pair(p) => Ok(&p.0),
-            _ => Err(Error::at_expr(TypeError::NoPair(self.into()), self)),
+            _ => Err(Error::at_expr(TypeError::NoPair(Scm::string(format!("{}", self))), self)),
         }
     }
 
     pub fn cdr(&self) -> Result<&Self> {
         match &self.sexpr {
             Sexpr::Pair(p) => Ok(&p.1),
-            _ => Err(Error::at_expr(TypeError::NoPair(self.into()), self)),
+            _ => Err(Error::at_expr(TypeError::NoPair(Scm::string(format!("{}", self))), self)),
         }
     }
 
