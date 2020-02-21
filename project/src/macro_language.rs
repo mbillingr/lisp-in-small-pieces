@@ -162,7 +162,8 @@ fn apply_syntax_rules(
                 }
             };
             //println!("=> {}", result);
-            Ok(Rc::new(SyntacticClosure::new(result, env.clone())).into())
+            //Ok(Rc::new(SyntacticClosure::new(result, env.clone())).into())
+            Ok(result)
         } else {
             apply_syntax_rules(
                 name,
@@ -296,19 +297,28 @@ fn realize_template(
         Pair(_) => {
             let car = template.car().unwrap();
             let cdr = template.cdr().unwrap();
-            if cdr.car().and_then(|x| x.as_symbol()).ok() == Some(&ellipsis) {
-                let rep = realize_repeated_template(idx, &car, bound_vars, ellipsis)?;
-                let mut rest = realize_template(idx, cdr.cdr().unwrap(), bound_vars, ellipsis)?;
-                for r in rep.into_iter().rev() {
-                    rest = TrackedSexpr::cons(r, rest, NoSource);
-                }
-                Ok(rest)
+            if car.as_symbol().ok() == Some(&ellipsis) {
+                realize_template(
+                    idx,
+                    cdr.car().unwrap(),
+                    bound_vars,
+                    crate::symbol::Symbol::uninterned(""),
+                )
             } else {
-                Ok(TrackedSexpr::cons(
-                    realize_template(idx, &car, bound_vars, ellipsis)?,
-                    realize_template(idx, &cdr, bound_vars, ellipsis)?,
-                    NoSource,
-                ))
+                if cdr.car().and_then(|x| x.as_symbol()).ok() == Some(&ellipsis) {
+                    let rep = realize_repeated_template(idx, &car, bound_vars, ellipsis)?;
+                    let mut rest = realize_template(idx, cdr.cdr().unwrap(), bound_vars, ellipsis)?;
+                    for r in rep.into_iter().rev() {
+                        rest = TrackedSexpr::cons(r, rest, NoSource);
+                    }
+                    Ok(rest)
+                } else {
+                    Ok(TrackedSexpr::cons(
+                        realize_template(idx, &car, bound_vars, ellipsis)?,
+                        realize_template(idx, &cdr, bound_vars, ellipsis)?,
+                        NoSource,
+                    ))
+                }
             }
         }
         Symbol(s) => match bound_vars.get(&s) {
@@ -392,9 +402,6 @@ impl MultiIndex {
     pub fn next(&self) -> Self {
         let mut index = self.index.clone();
         *index.last_mut().unwrap() += 1;
-        if *index.last().unwrap() > 3 {
-            panic!()
-        }
         MultiIndex { index }
     }
 }
