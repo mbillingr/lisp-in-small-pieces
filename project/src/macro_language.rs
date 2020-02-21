@@ -150,7 +150,17 @@ fn apply_syntax_rules(
             pattern.cdr().unwrap(),
         ) {
             //println!("{} matched {}", expr, pattern);
-            let result = realize_template(template.clone(), &bound_vars, ellipsis)?;
+            let result = match realize_template(&MultiIndex::new(), template, &bound_vars, ellipsis)
+            {
+                Ok(r) => r,
+                Err(MultiIndexError::Fail(_)) => unreachable!(),
+                Err(MultiIndexError::IndexTooShallow) => {
+                    return Err(Error::at_expr(
+                        ObjectifyErrorKind::MismatchedEllipses,
+                        template,
+                    ))
+                }
+            };
             //println!("=> {}", result);
             Ok(Rc::new(SyntacticClosure::new(result, env.clone())).into())
         } else {
@@ -167,12 +177,6 @@ fn apply_syntax_rules(
     } else {
         Err(Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))
     }
-}
-
-#[derive(Debug, Clone)]
-enum Binding {
-    One(TrackedSexpr),
-    Sequence(Vec<Binding>),
 }
 
 fn match_pattern(
@@ -282,89 +286,128 @@ fn pattern_vars(
 }
 
 fn realize_template(
-    template: TrackedSexpr,
+    idx: &MultiIndex,
+    template: &TrackedSexpr,
     bound_vars: &HashMap<Symbol, Binding>,
     ellipsis: Symbol,
-) -> Result<TrackedSexpr> {
+) -> MultiIndexResult<TrackedSexpr> {
     use Sexpr::*;
     match &template.sexpr {
         Pair(_) => {
-            let (car, cdr) = template.decons().unwrap();
+            let car = template.car().unwrap();
+            let cdr = template.cdr().unwrap();
             if cdr.car().and_then(|x| x.as_symbol()).ok() == Some(&ellipsis) {
-                let rep = realize_repeated_template(0, &car, bound_vars, ellipsis)?;
-                let mut rest = realize_template(cdr.cdr().unwrap().clone(), bound_vars, ellipsis)?;
+                let rep = realize_repeated_template(idx, &car, bound_vars, ellipsis)?;
+                let mut rest = realize_template(idx, cdr.cdr().unwrap(), bound_vars, ellipsis)?;
                 for r in rep.into_iter().rev() {
                     rest = TrackedSexpr::cons(r, rest, NoSource);
                 }
                 Ok(rest)
             } else {
                 Ok(TrackedSexpr::cons(
-                    realize_template(car, bound_vars, ellipsis)?,
-                    realize_template(cdr, bound_vars, ellipsis)?,
+                    realize_template(idx, &car, bound_vars, ellipsis)?,
+                    realize_template(idx, &cdr, bound_vars, ellipsis)?,
                     NoSource,
                 ))
             }
         }
-        Symbol(s) => Ok(match bound_vars.get(&s) {
-            None => template,
-            Some(Binding::One(x)) => x.clone(),
-            Some(Binding::Sequence(_)) => unimplemented!(),
-        }),
-        _ => Ok(template),
+        Symbol(s) => match bound_vars.get(&s) {
+            None => Ok(template.clone()),
+            Some(binding) => binding.get(idx.as_ref()).map(|x| x.clone()),
+        },
+        _ => Ok(template.clone()),
     }
 }
 
 fn realize_repeated_template(
-    mut nth: usize,
+    idx: &MultiIndex,
     template: &TrackedSexpr,
     bound_vars: &HashMap<Symbol, Binding>,
     ellipsis: Symbol,
-) -> Result<Vec<TrackedSexpr>> {
+) -> MultiIndexResult<Vec<TrackedSexpr>> {
+    use MultiIndexError::*;
+    let mut idx = idx.next_level();
     let mut result = vec![];
     loop {
-        match realize_indexed_template(nth, template, bound_vars, ellipsis)? {
-            None => return Ok(result),
-            Some((r, cont)) => {
+        match realize_template(&idx, template, bound_vars, ellipsis) {
+            Err(Fail(level)) if level < idx.len() - 1 => return Err(Fail(level)),
+            Err(Fail(_)) => return Ok(result),
+            Err(e) => return Err(e),
+            Ok(r) => {
                 result.push(r);
-                if !cont {
-                    return Ok(result);
-                }
             }
         }
-        nth += 1;
+        idx = idx.next();
     }
 }
 
-fn realize_indexed_template(
-    idx: usize,
-    template: &TrackedSexpr,
-    bound_vars: &HashMap<Symbol, Binding>,
-    ellipsis: Symbol,
-) -> Result<Option<(TrackedSexpr, bool)>> {
-    use Sexpr::*;
-    match &template.sexpr {
-        Pair(_) => {
-            let car = template.car().unwrap();
-            let cdr = template.cdr().unwrap();
-            let a = realize_indexed_template(idx, car, bound_vars, ellipsis)?;
-            let d = realize_indexed_template(idx, cdr, bound_vars, ellipsis)?;
+#[derive(Debug, Clone)]
+enum Binding {
+    One(TrackedSexpr),
+    Sequence(Vec<Binding>),
+}
 
-            Ok(match (a, d) {
-                (Some((a, au)), Some((d, du))) => {
-                    Some((TrackedSexpr::cons(a, d, NoSource), au | du))
+impl Binding {
+    pub fn get(&self, index: &[usize]) -> MultiIndexResult<&TrackedSexpr> {
+        use MultiIndexError::*;
+        match self {
+            Binding::One(sexpr) => Ok(sexpr),
+            Binding::Sequence(seq) => {
+                if index.is_empty() {
+                    return Err(IndexTooShallow);
                 }
-                _ => None,
-            })
+                match seq.get(index[0]) {
+                    Some(b) => match b.get(&index[1..]) {
+                        Ok(x) => Ok(x),
+                        Err(Fail(level)) => Err(Fail(level + 1)),
+                        Err(e) => Err(e),
+                    },
+                    None => Err(Fail(0)),
+                }
+            }
         }
-        Symbol(s) => Ok(match bound_vars.get(&s) {
-            None => Some((template.clone(), false)),
-            Some(Binding::One(x)) => Some((x.clone(), false)),
-            Some(Binding::Sequence(v)) => match v.get(idx) {
-                None => None,
-                Some(Binding::One(x)) => Some((x.clone(), true)),
-                Some(Binding::Sequence(_)) => unimplemented!("nested ellipses"),
-            },
-        }),
-        _ => Ok(Some((template.clone(), false))),
     }
+}
+
+#[derive(Debug)]
+struct MultiIndex {
+    index: Vec<usize>,
+}
+
+impl MultiIndex {
+    pub fn new() -> Self {
+        MultiIndex { index: vec![] }
+    }
+
+    pub fn len(&self) -> usize {
+        self.index.len()
+    }
+
+    pub fn next_level(&self) -> Self {
+        let mut index = self.index.clone();
+        index.push(0);
+        MultiIndex { index }
+    }
+
+    pub fn next(&self) -> Self {
+        let mut index = self.index.clone();
+        *index.last_mut().unwrap() += 1;
+        if *index.last().unwrap() > 3 {
+            panic!()
+        }
+        MultiIndex { index }
+    }
+}
+
+impl AsRef<[usize]> for MultiIndex {
+    fn as_ref(&self) -> &[usize] {
+        self.index.as_slice()
+    }
+}
+
+type MultiIndexResult<T> = std::result::Result<T, MultiIndexError>;
+
+enum MultiIndexError {
+    Fail(usize),
+    IndexTooShallow,
 }

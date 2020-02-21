@@ -31,6 +31,7 @@ pub enum ObjectifyErrorKind {
     UnknownLibrary(PathBuf),
     InvalidLibraryDefinition,
     UndefinedVariable(Symbol),
+    MismatchedEllipses,
 }
 
 #[derive(Debug)]

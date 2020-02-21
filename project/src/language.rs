@@ -936,6 +936,21 @@ pub mod scheme {
                                    (force (syntax-rules () ((_ x) (x)))))
                      (really-force (lambda () 4)))"#,
                  equals, Scm::Int(4));
+
+            compare!(nested_ellipses_empty_match:
+                r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ...))))
+                   (nest)"#,
+                 equals, Scm::Nil);
+
+            compare!(nested_ellipses:
+                r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ...))))
+                   (nest (1 2) (3 4 5))"#,
+                 equals, Scm::list(vec![Scm::list(vec![Scm::Int(1), Scm::Int(2)]), Scm::list(vec![Scm::Int(3), Scm::Int(4), Scm::Int(5)])]));
+
+            assert_error!(nested_ellipses_mismatch:
+                r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ))))
+                   (nest (1 2) (3 4 5))"#,
+                 ObjectifyErrorKind::MismatchedEllipses);
         }
 
         mod libraries {
