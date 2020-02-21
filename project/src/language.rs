@@ -438,9 +438,17 @@ pub mod scheme {
         let bindings = ocar(def)?;
         let body = ocdr(def)?;
 
+        let mut rebound = vec![];
         let mut macros = vec![];
         bindings.scan(|v| -> Result<()> {
-            let name = *v.car()?.as_symbol()?;
+            let name = v.car()?;
+            if let Some(alias) = name.as_alias() {
+                rebound.push((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
+                alias.set_bound(true);
+                alias.rename();
+            }
+
+            let name = *name.as_symbol()?;
             let handler = eval_syntax(v, &trans.env)?;
             let macro_binding = MagicKeyword { name, handler };
             macros.push(macro_binding);
@@ -454,6 +462,11 @@ pub mod scheme {
 
         trans.env.drop_frame(n_macros);
 
+        for (alias, old_name, bound) in rebound {
+            alias.set_bound(bound);
+            alias.set_name(old_name);
+        }
+
         result
     }
 
@@ -462,9 +475,17 @@ pub mod scheme {
         let bindings = ocar(def)?;
         let body = ocdr(def)?;
 
+        let mut rebound = vec![];
         let mut macros = vec![];
         bindings.scan(|v| -> Result<()> {
-            let name = *v.car()?.as_symbol()?;
+            let name = v.car()?;
+            if let Some(alias) = name.as_alias() {
+                rebound.push((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
+                alias.set_bound(true);
+                alias.rename();
+            }
+
+            let name = *name.as_symbol()?;
             let macro_binding = MagicKeyword::new(name, |_, _| unimplemented!());
             trans.env.push_local(macro_binding.clone());
             macros.push(macro_binding);
@@ -486,6 +507,11 @@ pub mod scheme {
         let result = trans.objectify_sequence(body);
 
         trans.env.drop_frame(n_macros);
+
+        for (alias, old_name, bound) in rebound {
+            alias.set_bound(bound);
+            alias.set_name(old_name);
+        }
 
         result
     }
@@ -969,6 +995,16 @@ pub mod scheme {
                    (be-like-begin sequence)
                    (sequence 1 2 3 4)"#,
                  equals, Scm::Int(4));
+
+            compare!(submacro:
+                r#"(define-syntax foo
+                      (syntax-rules ()
+                        ((foo)
+                         (let-syntax ((tmp (syntax-rules ()
+                                             ((tmp) 123))))
+                            (tmp)))))
+                   (foo)"#,
+                 equals, Scm::Int(123));
         }
 
         mod libraries {
