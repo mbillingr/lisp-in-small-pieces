@@ -108,8 +108,9 @@ fn close_template_symbols(
     definition_env: &Env,
 ) -> TrackedSexpr {
     match &template.sexpr {
+        Sexpr::SyntacticClosure(sc) if sc.sexpr().as_symbol().map(|s| unclosed.contains(s)).unwrap_or(false) => template.clone(),
         Sexpr::Symbol(s) if unclosed.contains(s) => template.clone(),
-        Sexpr::Symbol(s) => aliases
+        Sexpr::Symbol(s) /*if definition_env.find_variable(s).is_some()*/ => aliases
             .entry(*s)
             .or_insert_with(|| {
                 Rc::new(SyntacticClosure::new(
@@ -176,7 +177,10 @@ fn apply_syntax_rules(
             )
         }
     } else {
-        Err(Error::at_expr(ObjectifyErrorKind::SyntaxError, expr))
+        Err(Error::at_expr(
+            ObjectifyErrorKind::SyntaxError("no rule matched"),
+            expr,
+        ))
     }
 }
 
@@ -186,9 +190,10 @@ fn match_pattern(
     literals: &TrackedSexpr,
     pattern: &TrackedSexpr,
 ) -> Option<HashMap<Symbol, Binding>> {
-    //println!("matching {} and {}", expr, rule);
+    //println!("matching {} and {}", expr, pattern);
     use Sexpr::*;
     match (&pattern.sexpr, &expr.sexpr) {
+        (SyntacticClosure(sc), _) => match_pattern(expr, ellipsis, literals, sc.sexpr()),
         (lit, x) if literals.contains(lit) => {
             if lit == x {
                 Some(HashMap::new())
@@ -268,13 +273,15 @@ fn pattern_vars(
     use Sexpr::*;
     match &pattern.sexpr {
         lit if literals.contains(lit) => HashSet::new(),
-        Symbol(s) if s == "_" => HashSet::new(),
-        Symbol(s) if *s == ellipsis => HashSet::new(),
-        Symbol(s) => {
-            let mut vars = HashSet::new();
-            vars.insert(*s);
-            vars
-        }
+        _ if pattern.is_identifier() => match pattern.identifier_name().unwrap() {
+            s if &s == "_" => HashSet::new(),
+            s if s == ellipsis => HashSet::new(),
+            s => {
+                let mut vars = HashSet::new();
+                vars.insert(s);
+                vars
+            }
+        },
         Pair(p) => {
             let mut a = pattern_vars(ellipsis, literals, &p.0);
             let b = pattern_vars(ellipsis, literals, &p.1);
@@ -297,7 +304,7 @@ fn realize_template(
         Pair(_) => {
             let car = template.car().unwrap();
             let cdr = template.cdr().unwrap();
-            if car.as_symbol().ok() == Some(&ellipsis) {
+            if car.identifier_name() == Some(ellipsis) {
                 realize_template(
                     idx,
                     cdr.car().unwrap(),
@@ -305,7 +312,7 @@ fn realize_template(
                     crate::symbol::Symbol::uninterned(""),
                 )
             } else {
-                if cdr.car().and_then(|x| x.as_symbol()).ok() == Some(&ellipsis) {
+                if cdr.car().ok().and_then(|x| x.identifier_name()) == Some(ellipsis) {
                     let rep = realize_repeated_template(idx, &car, bound_vars, ellipsis)?;
                     let mut rest = realize_template(idx, cdr.cdr().unwrap(), bound_vars, ellipsis)?;
                     for r in rep.into_iter().rev() {
@@ -321,10 +328,13 @@ fn realize_template(
                 }
             }
         }
-        Symbol(s) => match bound_vars.get(&s) {
-            None => Ok(template.clone()),
-            Some(binding) => binding.get(idx.as_ref()).map(|x| x.clone()),
-        },
+        _ if template.is_identifier() => {
+            let s = template.identifier_name().unwrap();
+            match bound_vars.get(&s) {
+                None => Ok(template.clone()),
+                Some(binding) => binding.get(idx.as_ref()).map(|x| x.clone()),
+            }
+        }
         _ => Ok(template.clone()),
     }
 }

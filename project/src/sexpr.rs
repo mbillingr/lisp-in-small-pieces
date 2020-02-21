@@ -257,6 +257,14 @@ impl TrackedSexpr {
         self.is_symbol() || self.is_alias()
     }
 
+    pub fn identifier_name(&self) -> Option<Symbol> {
+        match &self.sexpr {
+            Sexpr::Symbol(s) => Some(*s),
+            Sexpr::SyntacticClosure(sc) => sc.alias_name(),
+            _ => None,
+        }
+    }
+
     pub fn is_alias(&self) -> bool {
         self.as_alias().is_some()
     }
@@ -361,6 +369,7 @@ impl PartialEq<str> for TrackedSexpr {
             Sexpr::String(s) if other.starts_with('"') && other.ends_with('"') => {
                 **s == other[1..other.len() - 1]
             }
+            Sexpr::SyntacticClosure(sc) => sc.sexpr() == other,
             _ => false,
         }
     }

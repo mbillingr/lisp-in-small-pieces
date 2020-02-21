@@ -315,7 +315,12 @@ pub mod scheme {
         vars.scan(|v| {
             v.at(0)
                 .and_then(|name| v.at(1).map(|form| (name, form)))
-                .map_err(|_| Error::at_expr(ObjectifyErrorKind::SyntaxError, body))
+                .map_err(|_| {
+                    Error::at_expr(
+                        ObjectifyErrorKind::SyntaxError("invalid variable definition in let form"),
+                        body,
+                    )
+                })
                 .map(|(name, form)| {
                     var_names.push(name.clone());
                     var_forms.push(form.clone());
@@ -951,6 +956,19 @@ pub mod scheme {
                 r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ))))
                    (nest (1 2) (3 4 5))"#,
                  ObjectifyErrorKind::MismatchedEllipses);
+
+            compare!(macro_generating_macro:
+                r#"(define-syntax be-like-begin
+                      (syntax-rules ()
+                        ((be-like-begin name)
+                         (define-syntax name
+                           (syntax-rules ()
+                             ((name expr (... ...))
+                              (begin expr (... ...))))))))
+
+                   (be-like-begin sequence)
+                   (sequence 1 2 3 4)"#,
+                 equals, Scm::Int(4));
         }
 
         mod libraries {
