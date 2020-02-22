@@ -922,6 +922,16 @@ pub mod scheme {
                         (add 1 2 3 4 /add))"#,
                  equals, Scm::Int(10));
 
+            compare!(custom_ellipsis:
+                r#"(begin
+                        (define-syntax add
+                            (syntax-rules ** (/add)
+                                ((_ /add) 0)
+                                ((_ a /add) a)
+                                ((_ a b ** /add) (+ a (add b **  /add)))))
+                        (add 1 2 3 4 /add))"#,
+                 equals, Scm::Int(10));
+
             compare!(match_empty_ellipsis:
                 r#"(begin
                         (define-syntax add
