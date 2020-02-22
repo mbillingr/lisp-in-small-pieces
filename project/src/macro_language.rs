@@ -14,12 +14,13 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
     let expr = expr.cdr()?.car()?;
     match expr.at(0) {
         Ok(s) if s == "syntax-rules" => {
-            if let Ok(ellipsis) = expr.at(1).unwrap().as_symbol() {
+            if expr.at(1).unwrap().is_identifier() {
+                let ellipsis = expr.at(1).unwrap();
                 let literals = expr.at(2).unwrap();
                 let rules = expr.cdr().unwrap().cdr().unwrap().cdr().unwrap();
                 eval_syntax_rules(
                     name,
-                    *ellipsis,
+                    ellipsis.clone(),
                     literals.clone(),
                     rules.clone(),
                     env.clone(),
@@ -29,7 +30,7 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
                 let rules = expr.cdr().unwrap().cdr().unwrap();
                 eval_syntax_rules(
                     name,
-                    Symbol::new("..."),
+                    TrackedSexpr::symbol("...", NoSource),
                     literals.clone(),
                     rules.clone(),
                     env.clone(),
@@ -42,18 +43,18 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
 
 pub fn eval_syntax_rules(
     name: Symbol,
-    ellipsis: Symbol,
+    ellipsis: TrackedSexpr,
     literals: TrackedSexpr,
     rules: TrackedSexpr,
     definition_env: Env,
 ) -> Result<MagicKeywordHandler> {
-    let rules = prepare_rules(ellipsis, &literals, &rules, &definition_env)?;
+    let rules = prepare_rules(&ellipsis, &literals, &rules, &definition_env)?;
     Ok(MagicKeywordHandler::new(
         move |trans: &mut Translate, expr: &TrackedSexpr| -> Result<Expression> {
             let sexpr = apply_syntax_rules(
                 name,
                 expr,
-                ellipsis,
+                &ellipsis,
                 &literals,
                 &rules,
                 &trans.env,
@@ -66,7 +67,7 @@ pub fn eval_syntax_rules(
 }
 
 fn prepare_rules(
-    ellipsis: Symbol,
+    ellipsis: &TrackedSexpr,
     literals: &TrackedSexpr,
     rules: &TrackedSexpr,
     definition_env: &Env,
@@ -80,7 +81,7 @@ fn prepare_rules(
     let template = rule.at(1)?;
 
     let mut unclosed = pattern_vars(ellipsis, literals, pattern);
-    unclosed.insert(ellipsis);
+    unclosed.insert(ellipsis.identifier_name().unwrap());
     literals.scan(|lit| {
         lit.as_symbol().and_then(|s| {
             unclosed.insert(*s);
@@ -133,7 +134,7 @@ fn close_template_symbols(
 fn apply_syntax_rules(
     name: Symbol,
     expr: &TrackedSexpr,
-    ellipsis: Symbol,
+    ellipsis: &TrackedSexpr,
     literals: &TrackedSexpr,
     rules: &TrackedSexpr,
     env: &Env,
@@ -178,7 +179,10 @@ fn apply_syntax_rules(
         }
     } else {
         Err(Error::at_expr(
-            ObjectifyErrorKind::SyntaxError("no rule matched"),
+            ObjectifyErrorKind::SyntaxError(Box::leak(Box::new(format!(
+                "no rule matched in {}",
+                expr
+            )))),
             expr,
         ))
     }
@@ -186,7 +190,7 @@ fn apply_syntax_rules(
 
 fn match_pattern(
     expr: &TrackedSexpr,
-    ellipsis: Symbol,
+    ellipsis: &TrackedSexpr,
     literals: &TrackedSexpr,
     pattern: &TrackedSexpr,
 ) -> Option<HashMap<Symbol, Binding>> {
@@ -202,7 +206,6 @@ fn match_pattern(
             }
         }
         (Symbol(s), _) if s == "_" => Some(HashMap::new()),
-        (Symbol(s), _) if *s == ellipsis => unreachable!(),
         (Symbol(s), _) => {
             let mut binding = HashMap::new();
             binding.insert(*s, Binding::One(expr.clone()));
@@ -211,7 +214,11 @@ fn match_pattern(
         (Pair(p), _) => {
             if p.1
                 .car()
-                .map(|next| next.sexpr == Symbol(ellipsis))
+                .map(|next| {
+                    next.is_identifier()
+                        && ellipsis.is_identifier()
+                        && next.identifier_name() == ellipsis.identifier_name()
+                })
                 .unwrap_or(false)
             {
                 let n_after_ellipsis = p.1.cdr().unwrap().list_len();
@@ -266,16 +273,16 @@ fn match_pattern(
 }
 
 fn pattern_vars(
-    ellipsis: Symbol,
+    ellipsis: &TrackedSexpr,
     literals: &TrackedSexpr,
     pattern: &TrackedSexpr,
 ) -> HashSet<Symbol> {
     use Sexpr::*;
     match &pattern.sexpr {
         lit if literals.contains(lit) => HashSet::new(),
+        _ if pattern.identifier_name() == ellipsis.identifier_name() => HashSet::new(),
         _ if pattern.is_identifier() => match pattern.identifier_name().unwrap() {
             s if &s == "_" => HashSet::new(),
-            s if s == ellipsis => HashSet::new(),
             s => {
                 let mut vars = HashSet::new();
                 vars.insert(s);
@@ -297,22 +304,26 @@ fn realize_template(
     idx: &MultiIndex,
     template: &TrackedSexpr,
     bound_vars: &HashMap<Symbol, Binding>,
-    ellipsis: Symbol,
+    ellipsis: &TrackedSexpr,
 ) -> MultiIndexResult<TrackedSexpr> {
     use Sexpr::*;
     match &template.sexpr {
         Pair(_) => {
             let car = template.car().unwrap();
             let cdr = template.cdr().unwrap();
-            if car.identifier_name() == Some(ellipsis) {
+            if car.identifier_name() == ellipsis.identifier_name() {
                 realize_template(
                     idx,
                     cdr.car().unwrap(),
                     bound_vars,
-                    crate::symbol::Symbol::uninterned(""),
+                    &TrackedSexpr::symbol(crate::symbol::Symbol::uninterned(""), NoSource),
                 )
             } else {
-                if cdr.car().ok().and_then(|x| x.identifier_name()) == Some(ellipsis) {
+                if cdr
+                    .car()
+                    .map(|next| next.identifier_name() == ellipsis.identifier_name())
+                    .unwrap_or(false)
+                {
                     let rep = realize_repeated_template(idx, &car, bound_vars, ellipsis)?;
                     let mut rest = realize_template(idx, cdr.cdr().unwrap(), bound_vars, ellipsis)?;
                     for r in rep.into_iter().rev() {
@@ -343,7 +354,7 @@ fn realize_repeated_template(
     idx: &MultiIndex,
     template: &TrackedSexpr,
     bound_vars: &HashMap<Symbol, Binding>,
-    ellipsis: Symbol,
+    ellipsis: &TrackedSexpr,
 ) -> MultiIndexResult<Vec<TrackedSexpr>> {
     use MultiIndexError::*;
     let mut idx = idx.next_level();

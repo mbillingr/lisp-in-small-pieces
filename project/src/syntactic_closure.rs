@@ -17,7 +17,7 @@ pub struct SyntacticClosure {
 
 impl PartialEq for SyntacticClosure {
     fn eq(&self, _other: &Self) -> bool {
-        false
+        unimplemented!()
     }
 }
 
