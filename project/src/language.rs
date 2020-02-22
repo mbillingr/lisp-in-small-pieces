@@ -283,7 +283,7 @@ pub mod scheme {
         let names = ocar(def)?;
 
         let mut rebound = vec![];
-        names.scan(|name| -> Result<()> {
+        names.scan_improper(|name, _is_last_cdr| -> Result<()> {
             if let Some(alias) = name.as_alias() {
                 rebound.push((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
                 alias.set_bound(true);

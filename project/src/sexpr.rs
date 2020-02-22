@@ -311,6 +311,19 @@ impl TrackedSexpr {
         Ok(x)
     }
 
+    pub fn scan_improper<E>(
+        &self,
+        mut f: impl FnMut(&Self, bool) -> std::result::Result<(), E>,
+    ) -> std::result::Result<&Self, E> {
+        let mut x = self;
+        while x.is_pair() {
+            f(x.car().unwrap(), false)?;
+            x = x.cdr().unwrap();
+        }
+        f(x, true)?;
+        Ok(x)
+    }
+
     pub fn contains(&self, x: &Sexpr) -> bool {
         match &self.sexpr {
             Sexpr::Vector(v) => v.iter().find(|item| &item.sexpr == x).is_some(),
