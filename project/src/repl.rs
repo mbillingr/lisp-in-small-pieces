@@ -17,7 +17,7 @@ pub fn repl() {
     context.add_library("sunny/extra", create_scheme_extra_library());
     context.add_library("sunny/ports-core", create_scheme_ports_library());
 
-    context.import_library("sunny/core");
+    context.import_library("scheme/base");
 
     loop {
         match rl.readline(">> ") {
