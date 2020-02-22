@@ -160,6 +160,8 @@ pub mod scheme {
 
             native "vector-ref", =2, Scm::vector_ref;
 
+            native "apply", >=2, |_f: Scm, _a: Scm, _args: &[Scm]| -> () { unimplemented!() };
+
             macro "define-syntax", expand_define_syntax;
             macro "let-syntax", expand_let_syntax;
             macro "letrec-syntax", expand_letrec_syntax;

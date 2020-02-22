@@ -1,6 +1,7 @@
 (define-library (scheme base)
     (export ; ... <= => > >= _
             * + - / < =
+            apply
             begin boolean?
             car cdr caar cadr cdar cddr
             call-with-current-continuation call/cc

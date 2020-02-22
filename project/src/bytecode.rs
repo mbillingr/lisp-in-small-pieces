@@ -9,6 +9,7 @@ use crate::symbol::Symbol;
 use crate::syntax::library::LibraryExportSpec;
 use crate::syntax::Library;
 use std::collections::HashSet;
+use std::convert::TryInto;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -64,8 +65,11 @@ pub enum Op {
 
     Call(usize),
     TailCall(usize),
+    CallN,
+    TailCallN,
     Return,
     Halt,
+    PreApply(usize),
 
     Drop(usize),
 
@@ -347,8 +351,35 @@ impl VirtualMachine {
                     let val = self.val;
                     val.invoke_tail(nargs, self)?;
                 }
+                Op::CallN => {
+                    let nargs = self.pop_value()?.try_into()?;
+                    let val = self.val;
+                    val.invoke(nargs, self)?;
+                }
+                Op::TailCallN => {
+                    let nargs = self.pop_value()?.try_into()?;
+                    let val = self.val;
+                    val.invoke_tail(nargs, self)?;
+                }
                 Op::Return => self.do_return()?,
                 Op::Halt => return Ok(self.val),
+                Op::PreApply(nargs) => {
+                    // value-stack: func a1 a2 a3 ... aa
+                    let n = self.value_stack.len();
+                    let func = self.value_stack[n + 1 - nargs];
+
+                    let mut n_list = 0;
+                    let mut list = self.val;
+                    while list.is_pair() {
+                        n_list += 1;
+                        self.push_value(list.car().unwrap());
+                        list = list.cdr().unwrap();
+                    }
+
+                    let n_args = nargs - 2 + n_list;
+                    self.push_value(n_args.into());
+                    self.val = func;
+                }
                 Op::Drop(n) => self.value_stack.truncate(self.value_stack.len() - n),
                 Op::InitLibrary => {
                     let libname = self.val.as_string().unwrap();
@@ -488,8 +519,11 @@ impl std::fmt::Debug for Op {
             Op::PopEP => write!(f, "(pop/ep)"),
             Op::Call(n_args) => write!(f, "(call {})", n_args),
             Op::TailCall(n_args) => write!(f, "(tail-call {})", n_args),
+            Op::CallN => write!(f, "(call-n)"),
+            Op::TailCallN => write!(f, "(tail-call-n)"),
             Op::Return => write!(f, "(return)"),
             Op::Halt => write!(f, "(halt)"),
+            Op::PreApply(n_args) => write!(f, "(prepare-apply {})", n_args),
             Op::Drop(n) => write!(f, "(drop {})", n),
             Op::InitLibrary => write!(f, "(init-library)"),
             Op::Cons => write!(f, "(cons)"),

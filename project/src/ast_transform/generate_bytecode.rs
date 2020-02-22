@@ -360,7 +360,9 @@ impl<'a> BytecodeGenerator<'a> {
             meaning.push(Op::PushVal);
         }
 
-        if let Some(mi) = self.compile_intrinsic_application(&node.function)? {
+        if let Some(mi) =
+            self.compile_intrinsic_application(&node.function, node.arguments.len(), tail)?
+        {
             if !meaning.is_empty() {
                 meaning.pop(); // don't push last argument
             }
@@ -380,7 +382,12 @@ impl<'a> BytecodeGenerator<'a> {
         Ok(meaning)
     }
 
-    fn compile_intrinsic_application(&mut self, func: &Expression) -> Result<Option<Vec<Op>>> {
+    fn compile_intrinsic_application(
+        &mut self,
+        func: &Expression,
+        n_args: usize,
+        tail: bool,
+    ) -> Result<Option<Vec<Op>>> {
         match func {
             Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
                 match var.value() {
@@ -390,6 +397,10 @@ impl<'a> BytecodeGenerator<'a> {
                         "cdr" => Ok(Some(vec![Op::Cdr])),
                         "call/cc" => Ok(Some(vec![Op::PushCC(1), Op::Call(1)])),
                         "call/ep" => Ok(Some(vec![Op::PushEP(2), Op::Call(1), Op::PopEP])),
+                        "apply" => Ok(Some(vec![
+                            Op::PreApply(n_args),
+                            if tail { Op::TailCallN } else { Op::CallN },
+                        ])),
                         _ => Ok(None),
                     },
                     _ => Ok(None),
@@ -507,7 +518,7 @@ mod tests {
 
         let trans = Translate::new(Env::new());
         let mut gen = BytecodeGenerator::new(vec![], &trans, &mut ga);
-        let code = gen.compile_intrinsic_application(&expr).unwrap();
+        let code = gen.compile_intrinsic_application(&expr, 2, true).unwrap();
         assert_eq!(code, Some(vec![Op::Cons]));
     }
 }
