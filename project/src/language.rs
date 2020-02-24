@@ -149,6 +149,7 @@ pub mod scheme {
             native "eq?", =2, Scm::ptr_eq;
             native "eqv?", =2, Scm::ptr_eq;
             native "equal?", =2, Scm::equals;
+            native "=", =2, Scm::ptr_eq;
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;
@@ -181,6 +182,7 @@ pub mod scheme {
     pub fn create_scheme_ports_library() -> LibraryData {
         build_library! {
             native "eof-object?", =1, Scm::is_eof;
+            native "eof-object", =0, || Scm::Eof;
             native "input-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_input_port) };
             native "output-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_output_port) };
             native "port?", =1, |port: Scm| { port.as_port().is_ok() };
@@ -201,6 +203,7 @@ pub mod scheme {
             native "open-output-bytevector", =0, || -> Result<Scm> { Ok(SchemePort::bytes_output().into()) };
             native "get-output-bytevector", =1, |port: Scm| -> Result<Scm> { Ok(port.as_port()?.clone_data()?.into()) };
 
+            native "read", =1, |port: Scm| -> Result<Scm> { port.as_port()?.read() };
             native "read-char", =1, |port: Scm| -> Result<Scm> { port.as_port()?.read_char() };
             native "peek-char", =1, |port: Scm| -> Result<Scm> { port.as_port()?.peek_char() };
             native "read-line", =1, |port: Scm| -> Result<Scm> { port.as_port()?.read_line() };
@@ -219,6 +222,9 @@ pub mod scheme {
                 port.as_port()?.read_into_bytevector(start, end, buf)
             };
 
+            native "write", =2, |obj: Scm, port: Scm| -> Result<()> { port.as_port()?.write(obj) };
+            native "write-shared", =2, |obj: Scm, port: Scm| -> Result<()> { port.as_port()?.write_shared(obj) };
+            native "write-simple", =2, |obj: Scm, port: Scm| -> Result<()> { port.as_port()?.write_simple(obj) };
             native "display", =2, |obj: Scm, port: Scm| -> Result<()> { port.as_port()?.display(obj) };
             native "newline", =1, |port: Scm| -> Result<()> { port.as_port()?.write_char('\n') };
             native "write-char", =2, |ch: Scm, port: Scm| -> Result<()> { port.as_port()?.write_char(ch.as_char()?) };
@@ -539,7 +545,12 @@ pub mod scheme {
 
     pub fn list_globals(_args: &[Scm], context: &VirtualMachine) {
         for (i, value) in context.globals().iter().enumerate() {
-            println!("{:3} {} = {}", i, context.ga.find_var(i).full_name(), value)
+            println!(
+                "{:3} {} = {}",
+                i,
+                context.ga.find_var(i).full_name().display(),
+                value.display()
+            )
         }
     }
 
@@ -622,7 +633,7 @@ pub mod scheme {
  evaluates to: `{}`,
  but `{}` returned `false`"#,
                             $src,
-                            result,
+                            result.display(),
                             stringify!($cmp)
                         )
                     }
@@ -645,7 +656,9 @@ pub mod scheme {
    expression: `{}`
  evaluates to: `{}`,
  but expected: `{}`"#,
-                            $src, result, $expect
+                            $src,
+                            result.display(),
+                            $expect.display()
                         )
                     }
                 }
@@ -662,7 +675,9 @@ pub mod scheme {
          expression: `{}`
        evaluates to: `{}`,
  but expected error: `{:?}`"#,
-                            $src, r, $expect
+                            $src,
+                            r.display(),
+                            $expect
                         ),
                         Err(e) if e == $expect => {}
                         Err(e) => panic!(

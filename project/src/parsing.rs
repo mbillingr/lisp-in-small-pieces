@@ -153,7 +153,7 @@ pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
     Ok(exprs)
 }
 
-fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
+pub fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
     let (_, src) = opt(parse_intertoken_space)(src)?;
     let (expr, rest) = any((
         any((parse_abbreviation, parse_dot, parse_boolean, parse_symbol)),
@@ -179,8 +179,12 @@ fn parse_invalid<T>(input: Span) -> ParseResult<T> {
 fn parse_comment(src: Span) -> ParseResult<Span> {
     all((
         char(';'),
-        repeat_0_or_more(all((not(char('\n')), any_char))),
+        repeat_0_or_more(all((not(parse_newline), any_char))),
     ))(src)
+}
+
+fn parse_newline(src: Span) -> ParseResult<Span> {
+    (char('\n'))(src)
 }
 
 fn parse_dot(input: Span) -> ParseResult<SpannedSexpr> {

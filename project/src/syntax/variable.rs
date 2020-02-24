@@ -246,7 +246,7 @@ impl std::fmt::Display for VarDef {
         match self {
             VarDef::Unknown => write!(f, "?"),
             VarDef::Undefined => write!(f, "-"),
-            VarDef::Value(x) => write!(f, "{}", x),
+            VarDef::Value(x) => write!(f, "{}", x.display()),
         }
     }
 }

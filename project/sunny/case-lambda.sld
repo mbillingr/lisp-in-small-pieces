@@ -1,6 +1,7 @@
 (define-library (synny case-lambda)
     (export case-lambda)
-    (import (sunny core))
+    (import (sunny core)
+            (sunny lists))
     (begin
       (define-syntax case-lambda
         (syntax-rules ()

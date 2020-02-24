@@ -2,28 +2,41 @@
     (export ; ... <= => > >= _
             * + - / < =
             apply
-            begin boolean?
+            binary-port? begin boolean?
             car cdr caar cadr cdar cddr
-            call-with-current-continuation call/cc
+            call/cc call-with-current-continuation
+            call-with-port
             case case-lambda
+            char-ready?
+            close-port close-input-port close-output-port
             current-error-port current-input-port current-output-port
             cond cons
             define define-syntax
-            display
             dynamic-wind
+            eof-object eof-object?
             eq? equal? eqv?
             error
+            flush-output-port
+            get-output-bytevector get-output-string
             if
+            input-port? input-port-open?
             lambda length list
             let let-syntax
             letrec-syntax
             make-parameter
             member memq memv
             newline null?
-            pair? parameterize
+            open-input-bytevector open-input-string
+            open-output-bytevector open-output-string
+            output-port? output-port-open?
+            pair? parameterize peek-char peek-u8 port?
             quote
+            read read-bytevector read-bytevector! read-char read-line read-string read-u8
             set! set-car! set-cdr!
-            vector vector-ref)
+            textual-port?
+            u8-ready?
+            vector vector-ref
+            write-bytevector write-char write-string write-u8)
     (import (sunny core)
             (sunny case-lambda)
             (sunny conditionals)
@@ -32,5 +45,4 @@
             (sunny parameter)
             (sunny ports))
     (begin
-      (define = eqv?)
       (define call-with-current-continuation call/cc)))

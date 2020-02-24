@@ -3,6 +3,7 @@ use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{Result, TypeError};
 use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
+use crate::scm_write::{ScmDisplay, ScmWriteShared, ScmWriteSimple};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::symbol::Symbol;
 use std::any::Any;
@@ -385,79 +386,27 @@ impl Scm {
     pub fn cddr(&self) -> Result<Scm> {
         self.cdr()?.cdr()
     }
+
+    pub fn display(&self) -> ScmWriteShared<ScmDisplay> {
+        ScmWriteShared::new_cyclic(*self)
+    }
+
+    pub fn write_simple(&self) -> ScmWriteSimple {
+        ScmWriteSimple::new(*self)
+    }
+
+    pub fn write_shared(&self) -> ScmWriteShared<ScmWriteSimple> {
+        ScmWriteShared::new_shared(*self)
+    }
+
+    pub fn write(&self) -> ScmWriteShared<ScmWriteSimple> {
+        ScmWriteShared::new_cyclic(*self)
+    }
 }
 
 impl std::fmt::Debug for Scm {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-
-impl std::fmt::Display for Scm {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Scm::Undefined => write!(f, "*undefined*"),
-            Scm::Uninitialized => write!(f, "*uninitialized*"),
-            Scm::Nil => write!(f, "'()"),
-            Scm::True => write!(f, "#t"),
-            Scm::False => write!(f, "#f"),
-            Scm::Eof => write!(f, "<eof>"),
-            Scm::Int(i) => write!(f, "{}", i),
-            Scm::Float(x) => write!(f, "{}", x),
-            Scm::Char(c) => write!(f, "{}", c),
-            Scm::Symbol(s) => write!(f, "{}", s),
-            Scm::String(s) => write!(f, "{}", s),
-            Scm::Vector(v) => {
-                write!(f, "#(")?;
-                let mut items = v.iter();
-                if let Some(x) = items.next() {
-                    write!(f, "{}", x.get())?;
-
-                    for x in items {
-                        write!(f, " {}", x.get())?;
-                    }
-                }
-                write!(f, ")")
-            }
-            Scm::Bytevector(v) => {
-                write!(f, "#u8(")?;
-                let mut items = v.iter();
-                if let Some(x) = items.next() {
-                    write!(f, "{}", x)?;
-
-                    for x in items {
-                        write!(f, " {}", x)?;
-                    }
-                }
-                write!(f, ")")
-            }
-            Scm::Pair(p) => {
-                //write!(f, "({} . {})", p.0.get(), p.1.get())
-                write!(f, "({}", p.0.get())?;
-                let mut cdr = p.1.get();
-                loop {
-                    match cdr {
-                        Scm::Nil => break,
-                        Scm::Pair(q) => {
-                            write!(f, " {}", q.0.get())?;
-                            cdr = q.1.get();
-                        }
-                        x => {
-                            write!(f, " . {}", x)?;
-                            break;
-                        }
-                    }
-                }
-                write!(f, ")")
-            }
-            Scm::Closure(cls) => write!(f, "<closure {:p}>", *cls),
-            Scm::Primitive(prim) => write!(f, "<primitive {:?}>", prim),
-            Scm::Continuation(cnt) => write!(f, "<continuation {:?}>", cnt),
-            Scm::ExitProc(cnt) => write!(f, "<exit-procedure {:?}>", cnt),
-            Scm::Port(p) => write!(f, "<port {:?}>", p),
-            Scm::Cell(c) => write!(f, "{}", c.get()),
-            Scm::Rust(o) => write!(f, "<rust object {:p}>", **o),
-        }
+        write!(f, "{}", self.display())
     }
 }
 
@@ -550,6 +499,44 @@ impl From<&Sexpr> for Scm {
 impl From<&TrackedSexpr> for Scm {
     fn from(e: &TrackedSexpr) -> Self {
         (&e.sexpr).into()
+    }
+}
+
+impl From<&crate::parsing::Sexpr<'_>> for Scm {
+    fn from(e: &crate::parsing::Sexpr<'_>) -> Self {
+        use crate::parsing::Sexpr::*;
+        match e {
+            Nil => Scm::Nil,
+            True => Scm::True,
+            False => Scm::False,
+            Integer(i) => Scm::Int(*i),
+            Float(f) => Scm::Float(*f),
+            Symbol(s) => Scm::Symbol(crate::symbol::Symbol::from_str(s)),
+            String(s) => Scm::string(s.to_owned()),
+            List(l) => {
+                let mut out_list = Scm::Nil;
+                for x in l.into_iter().rev() {
+                    if let Dot = x.expr {
+                        out_list = out_list.car().unwrap();
+                    } else {
+                        out_list = Scm::cons(x.into(), out_list);
+                    }
+                }
+                out_list
+            }
+            Vector(v) => {
+                let items: Vec<Cell<Scm>> = v.iter().map(|i| Cell::new(i.into())).collect();
+                let items = items.into_boxed_slice();
+                Scm::Vector(Box::leak(items))
+            }
+            Dot => unimplemented!(),
+        }
+    }
+}
+
+impl From<&crate::parsing::SpannedSexpr<'_>> for Scm {
+    fn from(e: &crate::parsing::SpannedSexpr<'_>) -> Self {
+        (&e.expr).into()
     }
 }
 

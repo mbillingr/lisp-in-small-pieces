@@ -1,4 +1,4 @@
-(define-library (synny parameter)
+(define-library (sunny parameter)
     (export make-parameter parameterize)
     (import (sunny core)
             (sunny dynwind)

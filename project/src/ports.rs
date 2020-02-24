@@ -1,4 +1,5 @@
 use crate::error::{Error, Result, RuntimeError};
+use crate::parsing::{parse_sexpr, ParseErrorKind, Span};
 use crate::scm::Scm;
 use std::cell::RefCell;
 use std::fs::File;
@@ -126,6 +127,10 @@ impl SchemePort {
         }
     }
 
+    pub fn read(&self) -> Result<Scm> {
+        self.with_input_port(|p| read_sexpr(p))
+    }
+
     pub fn read_char(&self) -> Result<Scm> {
         self.with_input_port(|p| p.read_char())
             .map(convert_optional_value_to_scm)
@@ -175,6 +180,15 @@ impl SchemePort {
         self.with_output_port(|p| p.flush_output())
     }
 
+    pub fn write(&self, x: Scm) -> Result<()> {
+        self.with_output_port(|p| p.write(x))
+    }
+    pub fn write_shared(&self, x: Scm) -> Result<()> {
+        self.with_output_port(|p| p.write_shared(x))
+    }
+    pub fn write_simple(&self, x: Scm) -> Result<()> {
+        self.with_output_port(|p| p.write_simple(x))
+    }
     pub fn display(&self, x: Scm) -> Result<()> {
         self.with_output_port(|p| p.display(x))
     }
@@ -211,13 +225,15 @@ pub trait InputPort {
 }
 
 pub trait OutputPort {
+    fn write(&mut self, x: Scm) -> Result<()>;
+    fn write_shared(&mut self, x: Scm) -> Result<()>;
+    fn write_simple(&mut self, x: Scm) -> Result<()>;
+    fn display(&mut self, x: Scm) -> Result<()>;
     fn write_char(&mut self, ch: char) -> Result<()>;
     fn write_string(&mut self, s: &str, start: usize, end: usize) -> Result<()>;
     fn write_u8(&mut self, x: u8) -> Result<()>;
     fn write_bytevector(&mut self, v: &[u8]) -> Result<()>;
     fn flush_output(&mut self) -> Result<()>;
-
-    fn display(&mut self, x: Scm) -> Result<()>;
 }
 
 impl<T: BufRead> InputPort for T {
@@ -315,6 +331,22 @@ impl<T: BufRead> InputPort for T {
 }
 
 impl<T: Write> OutputPort for T {
+    fn write(&mut self, x: Scm) -> Result<()> {
+        Ok(write!(self, "{}", x.write())?)
+    }
+
+    fn write_shared(&mut self, x: Scm) -> Result<()> {
+        Ok(write!(self, "{}", x.write_shared())?)
+    }
+
+    fn write_simple(&mut self, x: Scm) -> Result<()> {
+        Ok(write!(self, "{}", x.write_simple())?)
+    }
+
+    fn display(&mut self, x: Scm) -> Result<()> {
+        Ok(write!(self, "{}", x.display())?)
+    }
+
     fn write_char(&mut self, ch: char) -> Result<()> {
         Ok(write!(self, "{}", ch)?)
     }
@@ -347,8 +379,20 @@ impl<T: Write> OutputPort for T {
     fn flush_output(&mut self) -> Result<()> {
         Ok(self.flush()?)
     }
+}
 
-    fn display(&mut self, x: Scm) -> Result<()> {
-        Ok(write!(self, "{}", x)?)
+pub fn read_sexpr(port: &mut dyn InputPort) -> Result<Scm> {
+    let mut buf = String::new();
+    loop {
+        match port.read_line()? {
+            None => return Ok(Scm::Eof),
+            Some(line) => buf += &line,
+        }
+        let span = Span::new(&buf);
+        match parse_sexpr(span) {
+            Ok((x, _)) => return Ok((&x).into()),
+            Err(e) if e.kind == ParseErrorKind::UnclosedSequence => {}
+            Err(e) => return Err(Error::from_parse_error_and_source(e, (&buf).into())),
+        }
     }
 }

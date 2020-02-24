@@ -36,7 +36,7 @@ pub fn repl() {
                 } else {
                     match context.eval_str(&line) {
                         Ok(Scm::Undefined) => {}
-                        Ok(x) => println!("{}", x),
+                        Ok(x) => println!("{}", x.display()),
                         Err(e) => report_error(e),
                     }
                 }

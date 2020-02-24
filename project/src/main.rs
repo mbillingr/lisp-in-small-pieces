@@ -19,6 +19,7 @@ mod primitive;
 mod repl;
 mod scan_out_defines;
 mod scm;
+mod scm_write;
 mod sexpr;
 mod source;
 mod symbol;

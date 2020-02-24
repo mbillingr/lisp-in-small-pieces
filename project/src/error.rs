@@ -57,7 +57,7 @@ impl std::fmt::Debug for RuntimeError {
         match self {
             RuntimeError::ValueStackUnderflow => write!(f, "value-stack underflow"),
             RuntimeError::IncorrectArity => write!(f, "incorrect arity"),
-            RuntimeError::UndefinedGlobal(name) => write!(f, "undefined global {}", name),
+            RuntimeError::UndefinedGlobal(name) => write!(f, "undefined global {}", name.display()),
             RuntimeError::InvalidExitProcedure => write!(f, "invalid exit procedure"),
             RuntimeError::ClosedPort => write!(f, "access to closed port"),
             RuntimeError::WrongPortKind => write!(f, "wrong kind of port (input/output)"),
@@ -171,7 +171,7 @@ impl Error {
 impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ErrorKind::Custom(e) => write!(f, "Error: {}", e),
+            ErrorKind::Custom(e) => write!(f, "Error: {}", e.display()),
             ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
             ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
             ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),
