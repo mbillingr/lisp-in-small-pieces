@@ -6,6 +6,7 @@ use crate::scm::Scm;
 pub struct Continuation {
     pub value_stack: Vec<Scm>,
     pub call_stack: Vec<CallstackItem>,
+    pub exception_handler: Scm,
 }
 
 #[derive(Debug)]
@@ -13,6 +14,7 @@ pub struct ExitProcedure {
     state: CallstackFrame,
     value_stack_height: usize,
     call_stack_height: usize,
+    exception_handler: Scm,
 }
 
 impl Continuation {
@@ -26,6 +28,7 @@ impl Continuation {
         Continuation {
             value_stack,
             call_stack,
+            exception_handler: vm.exception_handler,
         }
     }
 
@@ -38,6 +41,7 @@ impl Continuation {
 
         vm.value_stack = self.value_stack.clone();
         vm.call_stack = self.call_stack.clone();
+        vm.exception_handler = self.exception_handler;
 
         // call/cc pushed the place we need to go to before saving the stack
         vm.pop_state()
@@ -54,6 +58,7 @@ impl ExitProcedure {
             state: vm.current_frame().with_ip_offset(ip_offset),
             value_stack_height: vm.value_stack.len(),
             call_stack_height: vm.call_stack.len(),
+            exception_handler: vm.exception_handler,
         }
     }
 
@@ -75,6 +80,7 @@ impl ExitProcedure {
 
         vm.value_stack.truncate(self.value_stack_height);
         vm.call_stack.truncate(self.call_stack_height);
+        vm.exception_handler = self.exception_handler;
         vm.set_frame(self.state);
 
         Ok(())

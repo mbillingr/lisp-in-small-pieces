@@ -1,8 +1,8 @@
 use crate::ast_transform::generate_bytecode::{compile_library, GlobalAllocator};
 use crate::continuation::{Continuation, ExitProcedure};
-use crate::error::{Result, RuntimeError, TypeError};
+use crate::error::{ErrorKind, Result, RuntimeError, TypeError};
 use crate::objectify::Translate;
-use crate::primitive::Arity;
+use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
@@ -173,6 +173,7 @@ pub struct VirtualMachine {
     cls: &'static Closure,
     frame_offset: usize,
     pub val: Scm,
+    pub exception_handler: Scm,
 }
 
 thread_local! {
@@ -200,6 +201,11 @@ impl VirtualMachine {
             cls: HALT.with(|x| *x),
             frame_offset: 0,
             val: Scm::Undefined,
+            exception_handler: Scm::Primitive(RuntimePrimitive::new(
+                "default-exception-handler",
+                Arity::Exact(1),
+                |args, _| Err(ErrorKind::Unhandled(args[0]).into()),
+            )),
         }
     }
 
@@ -240,6 +246,9 @@ impl VirtualMachine {
         // save old state
         self.push_frame();
 
+        let value_stack_height = self.value_stack.len();
+        let call_stack_height = self.call_stack.len();
+
         // insert intermediate state that halts the VM,
         // so that the we exit rather than continue executing the old state.
         self.ip = 0;
@@ -255,6 +264,9 @@ impl VirtualMachine {
         self.cls = cls;
 
         let result = self.run();
+
+        self.value_stack.truncate(value_stack_height);
+        self.call_stack.truncate(call_stack_height);
 
         // restore old state
         self.pop_state()?;
@@ -273,10 +285,11 @@ impl VirtualMachine {
                 Op::GlobalRef(idx) => {
                     self.val = self.globals[idx];
                     if self.val.is_uninitialized() {
-                        return Err(RuntimeError::UndefinedGlobal(
-                            self.ga.find_var(idx).full_name(),
-                        )
-                        .into());
+                        self.raise(Scm::string(format!(
+                            "Undefined Global: {:?}",
+                            self.ga.find_var(idx).full_name()
+                        )))?;
+                        continue;
                     }
                     if self.val.is_cell() {
                         self.val = self.val.get().unwrap();
@@ -422,6 +435,55 @@ impl VirtualMachine {
         }
     }
 
+    pub fn raise(&mut self, exo: Scm) -> Result<()> {
+        self.push_value(exo);
+        let handler = self.pop_handler();
+        match handler {
+            Scm::Closure(cls) => cls.invoke(1, self),
+            Scm::Continuation(cnt) => cnt.invoke(1, self)?,
+            Scm::ExitProc(cnt) => cnt.invoke(1, self)?,
+            Scm::Primitive(func) => {
+                func.invoke(1, self)?;
+                unimplemented!("exception returned")
+            }
+            _ => unimplemented!("exception handler not callable"),
+        }
+        self.call_stack.push(CallstackItem::Exception);
+        Ok(())
+    }
+
+    pub fn raise_continuable(&mut self, exo: Scm) -> Result<()> {
+        self.push_value(exo);
+        let handler = self.pop_handler();
+        match handler {
+            Scm::Closure(cls) => cls.invoke(1, self),
+            Scm::Continuation(cnt) => cnt.invoke(1, self)?,
+            Scm::ExitProc(cnt) => cnt.invoke(1, self)?,
+            Scm::Primitive(func) => {
+                func.invoke(1, self)?;
+                return Ok(());
+            }
+            _ => unimplemented!("exception handler not callable"),
+        }
+        self.call_stack
+            .push(CallstackItem::ContinuableException(handler));
+        Ok(())
+    }
+
+    pub fn push_handler(&mut self, handler: Scm) {
+        self.exception_handler = Scm::cons(handler, self.exception_handler);
+    }
+
+    pub fn pop_handler(&mut self) -> Scm {
+        match self.exception_handler {
+            Scm::Pair(p) => {
+                self.exception_handler = p.1.get();
+                p.0.get()
+            }
+            handler => handler,
+        }
+    }
+
     fn push_frame(&mut self) {
         self.call_stack
             .push(CallstackItem::Frame(self.current_frame()));
@@ -435,6 +497,11 @@ impl VirtualMachine {
         {
             CallstackItem::Frame(frame) => Ok(self.set_frame(frame)),
             CallstackItem::ExitProc(_) => self.pop_state(),
+            CallstackItem::Exception => self.raise(Scm::string("handler returned")),
+            CallstackItem::ContinuableException(handler) => {
+                self.push_handler(handler);
+                self.pop_state()
+            }
         }
     }
 
@@ -538,6 +605,8 @@ impl std::fmt::Debug for Op {
 pub enum CallstackItem {
     Frame(CallstackFrame),
     ExitProc(&'static ExitProcedure),
+    Exception,
+    ContinuableException(Scm),
 }
 
 #[derive(Debug, Copy, Clone)]

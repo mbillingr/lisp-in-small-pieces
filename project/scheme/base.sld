@@ -15,7 +15,7 @@
             dynamic-wind
             eof-object eof-object?
             eq? equal? eqv?
-            error
+            ;error
             flush-output-port
             get-output-bytevector get-output-string
             if

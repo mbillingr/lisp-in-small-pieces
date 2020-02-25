@@ -34,6 +34,7 @@ pub enum ErrorKind {
     Utf8Error(std::str::Utf8Error),
 
     Chained(Box<Error>, Box<Error>),
+    Unhandled(Scm),
 }
 
 #[derive(Debug, PartialEq)]
@@ -180,6 +181,7 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::IoError(e) => write!(f, "I/O Error: {:?}", e),
             ErrorKind::Utf8Error(e) => write!(f, "Utf8 Error: {:?}", e),
             ErrorKind::Chained(e1, e2) => write!(f, "{} followed by {}", e1.kind, e2.kind),
+            ErrorKind::Unhandled(obj) => write!(f, "Unhandled Exception: {}", obj.write()),
         }
     }
 }

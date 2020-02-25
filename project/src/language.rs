@@ -4,7 +4,7 @@ pub mod scheme {
     use crate::ast_transform::generate_bytecode::compile_program;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
-    use crate::error::{Error, ErrorKind, Result, RuntimeError, TypeError};
+    use crate::error::{Error, Result, RuntimeError, TypeError};
     use crate::library::{LibraryBuilder, LibraryData};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
@@ -157,11 +157,17 @@ pub mod scheme {
             native "-", =2, Scm::sub;
             native "list", >=0, list;
             native "vector", >=0, vector;
-            native "error", =1, raise_error;
 
             native "vector-ref", =2, Scm::vector_ref;
 
             native "apply", >=2, |_f: Scm, _a: Scm, _args: &[Scm]| -> () { unimplemented!() };
+
+            primitive "push-exception-handler", =1, |args: &[Scm], vm: &mut VirtualMachine| vm.push_handler(args[0]);
+            primitive "pop-exception-handler", =0, |_: &[Scm], vm: &mut VirtualMachine| vm.pop_handler();
+            primitive "current-exception-handler", =0, |_: &[Scm], vm: &mut VirtualMachine| vm.exception_handler;
+            primitive "set-current-exception-handler!", =1, |args: &[Scm], vm: &mut VirtualMachine| vm.exception_handler = args[0];
+            primitive "raise", =1, |args: &[Scm], vm: &mut VirtualMachine| vm.raise(args[0]);
+            primitive "raise-continuable", =1, |args: &[Scm], vm: &mut VirtualMachine| vm.raise_continuable(args[0]);
 
             macro "define-syntax", expand_define_syntax;
             macro "let-syntax", expand_let_syntax;
@@ -530,10 +536,6 @@ pub mod scheme {
 
     pub fn vector(args: &[Scm]) -> Scm {
         Scm::vector(args.iter().copied())
-    }
-
-    pub fn raise_error(msg: Scm) -> Result<Scm> {
-        Err(ErrorKind::Custom(msg).into())
     }
 
     pub fn disassemble(obj: Scm) {
