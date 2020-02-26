@@ -246,12 +246,36 @@ impl Scm {
         }
     }
 
+    pub fn is_vector(&self) -> bool {
+        self.as_vector().is_ok()
+    }
+
+    pub fn as_vector(&self) -> Result<&'static [Cell<Scm>]> {
+        match self {
+            Scm::Vector(v) => Ok(*v),
+            _ => Err(TypeError::NoVector.into()),
+        }
+    }
+
     pub fn vector_ref(&self, idx: usize) -> Result<Scm> {
         match self {
             Scm::Vector(v) => v
                 .get(idx)
                 .map(Cell::get)
                 .ok_or(TypeError::OutOfBounds.into()),
+            _ => Err(TypeError::NoVector.into()),
+        }
+    }
+
+    pub fn vector_set(&self, idx: usize, val: Scm) -> Result<()> {
+        match self {
+            Scm::Vector(v) => match v.get(idx) {
+                Some(c) => {
+                    c.set(val);
+                    Ok(())
+                }
+                None => Err(TypeError::OutOfBounds.into()),
+            },
             _ => Err(TypeError::NoVector.into()),
         }
     }

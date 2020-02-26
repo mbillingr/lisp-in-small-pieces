@@ -1,7 +1,7 @@
 (define-library (scheme base)
     (export ; ... <= => > >= _
             * + - / < =
-            apply
+            and apply
             binary-port? begin boolean?
             car cdr caar cadr cdar cddr
             call/cc call-with-current-continuation
@@ -35,7 +35,7 @@
             set! set-car! set-cdr!
             textual-port?
             u8-ready?
-            vector vector-ref
+            vector vector? vector-ref
             write-bytevector write-char write-string write-u8)
     (import (sunny core)
             (sunny case-lambda)

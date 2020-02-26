@@ -140,6 +140,7 @@ pub mod scheme {
             native "boolean?", =1, Scm::is_bool;
             native "null?", =1, Scm::is_nil;
             native "pair?", =1, Scm::is_pair;
+            native "vector?", =1, Scm::is_vector;
 
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
@@ -159,6 +160,7 @@ pub mod scheme {
             native "vector", >=0, vector;
 
             native "vector-ref", =2, Scm::vector_ref;
+            native "vector-set!", =3, Scm::vector_set;
 
             native "apply", >=2, |_f: Scm, _a: Scm, _args: &[Scm]| -> () { unimplemented!() };
 
