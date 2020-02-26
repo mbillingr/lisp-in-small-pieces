@@ -11,7 +11,7 @@
             close-port close-input-port close-output-port
             current-error-port current-input-port current-output-port
             cond cons
-            define define-syntax
+            define define-record-type define-syntax
             dynamic-wind
             eof-object eof-object?
             eq? equal? eqv?
@@ -43,6 +43,7 @@
             (sunny dynwind)
             (sunny lists)
             (sunny parameter)
-            (sunny ports))
+            (sunny ports)
+            (sunny record))
     (begin
       (define call-with-current-continuation call/cc)))
