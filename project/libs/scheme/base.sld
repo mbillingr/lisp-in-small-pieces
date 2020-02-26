@@ -1,7 +1,7 @@
 (define-library (scheme base)
     (export ; ... <= => > >= _
             * + - / < =
-            and apply
+            and append apply
             binary-port? begin boolean?
             car cdr caar cadr cdar cddr
             call/cc call-with-current-continuation
