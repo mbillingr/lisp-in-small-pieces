@@ -23,7 +23,7 @@ pub mod scheme {
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
     use std::convert::TryInto;
-    use std::ops::{Add, Div, Mul, Sub};
+    use std::ops::{Div, Mul, Sub};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
 
@@ -153,7 +153,7 @@ pub mod scheme {
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;
-            native "+", =2, Scm::add;
+            native "+", >=0, add;
             native "-", =2, Scm::sub;
             native "list", >=0, list;
             native "vector", >=0, vector;
@@ -528,6 +528,14 @@ pub mod scheme {
         }
 
         result
+    }
+
+    pub fn add(args: &[Scm]) -> Result<Scm> {
+        let mut total = Scm::Int(0);
+        for &a in args {
+            total = (total + a)?;
+        }
+        Ok(total)
     }
 
     pub fn list(args: &[Scm]) -> Scm {
