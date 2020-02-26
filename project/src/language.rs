@@ -101,7 +101,7 @@ pub mod scheme {
     }
 
     pub fn load_library(trans: &mut Translate, path: &Path) -> Result<Library> {
-        let mut file_path = path.to_owned();
+        let mut file_path = Path::new("libs").join(path);
         file_path.set_extension("sld");
 
         let library_src = Source::from_file(&file_path).map_err(|err| match err.kind() {

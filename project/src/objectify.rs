@@ -671,7 +671,7 @@ impl Translate {
         if self.libs.borrow().contains_key(&library_path) {
             Ok(self.libs.borrow()[&library_path].clone())
         } else {
-            let mut file_path = library_path.clone();
+            let mut file_path = Path::new("libs").join(library_path.clone());
             file_path.set_extension("sld");
 
             let library_code = Source::from_file(&file_path).map_err(|err| match err.kind() {
