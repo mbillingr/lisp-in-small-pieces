@@ -30,7 +30,7 @@
             open-output-bytevector open-output-string
             output-port? output-port-open?
             pair? parameterize peek-char peek-u8 port?
-            quote
+            quasiquote quote
             read read-bytevector read-bytevector! read-char read-line read-string read-u8
             set! set-car! set-cdr!
             textual-port?
@@ -44,6 +44,7 @@
             (sunny lists)
             (sunny parameter)
             (sunny ports)
+            (sunny quasiquote)
             (sunny record))
     (begin
       (define call-with-current-continuation call/cc)))
