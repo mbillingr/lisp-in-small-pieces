@@ -1079,6 +1079,10 @@ pub mod scheme {
                 r#"(import (rename (testing 2) (invoke call))) (call (lambda () 8))"#,
                  equals, Scm::Int(8));
 
+            compare!(import_renamed_macro_from_lib:
+                r#"(import (rename (testing macro) (mul mul_many))) (mul_many 2 3 4)"#,
+                 equals, Scm::Int(24));
+
             compare!(import_nested_sets:
                 r#"(import (rename (rename (testing 1) (a c)) (c x)))
                    x"#,
@@ -1095,6 +1099,10 @@ pub mod scheme {
             compare!(import_user_macro:
                 r#"(import (testing macro)) (force (delay 42))"#,
                  equals, Scm::Int(42));
+
+            compare!(import_renamed_macro_export:
+                r#"(import (testing macro)) (add_many 2 3 4)"#,
+                 equals, Scm::Int(9));
 
             compare!(reexport:
                 r#"(import (testing reexport)) (cons (foo 7) (kons 5 '()))"#,

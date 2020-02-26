@@ -80,7 +80,7 @@ fn prepare_rules(
     let pattern = rule.at(0)?;
     let template = rule.at(1)?;
 
-    let mut unclosed = pattern_vars(ellipsis, literals, pattern);
+    let mut unclosed = pattern_vars(ellipsis, literals, pattern.cdr()?);
     unclosed.insert(ellipsis.identifier_name().unwrap());
     literals.scan(|lit| {
         lit.as_symbol().and_then(|s| {
@@ -108,6 +108,7 @@ fn close_template_symbols(
     aliases: &mut HashMap<Symbol, Rc<SyntacticClosure>>,
     definition_env: &Env,
 ) -> TrackedSexpr {
+    //println!("{} ?", template);
     match &template.sexpr {
         Sexpr::SyntacticClosure(sc) if sc.sexpr().as_symbol().map(|s| unclosed.contains(s)).unwrap_or(false) => template.clone(),
         Sexpr::Symbol(s) if unclosed.contains(s) => template.clone(),
@@ -261,12 +262,6 @@ fn match_pattern(
             }
         }
         (Vector(_), Vector(_)) => unimplemented!(),
-        /*(Pair(r), Pair(x)) => {
-            let rv = vec![&r.0];
-            let xv = vec![&x.0];
-            match_sequence(&xv, Some(&x.1), ellipsis, literals, &rv, Some(&r.1))
-        }
-        (Vector(v), Vector(x)) => match_sequence(x, None, ellipsis, literals, v, None),*/
         _ if pattern == expr => Some(HashMap::new()),
         _ => None,
     }
@@ -307,6 +302,7 @@ fn realize_template(
     ellipsis: &TrackedSexpr,
 ) -> MultiIndexResult<TrackedSexpr> {
     use Sexpr::*;
+    //println!("realizing {}", template);
     match &template.sexpr {
         Pair(_) => {
             let car = template.car().unwrap();
