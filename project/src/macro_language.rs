@@ -290,7 +290,13 @@ fn pattern_vars(
             a.extend(b);
             a
         }
-        Vector(_) => unimplemented!(),
+        Vector(v) => {
+            let mut vars = HashSet::new();
+            for x in v {
+                vars.extend(pattern_vars(ellipsis, literals, x))
+            }
+            vars
+        }
         _ => HashSet::new(),
     }
 }
