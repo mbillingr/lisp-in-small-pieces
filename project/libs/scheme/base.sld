@@ -39,7 +39,8 @@
             u8-ready?
             vector vector? vector-ref
             with-exception-handler
-            write-bytevector write-char write-string write-u8)
+            write-bytevector write-char write-string write-u8
+            zero?)
     (import (sunny core)
             (sunny case-lambda)
             (sunny conditionals)
@@ -51,4 +52,7 @@
             (sunny quasiquote)
             (sunny record))
     (begin
-      (define call-with-current-continuation call/cc)))
+      (define call-with-current-continuation call/cc)
+
+      (define (zero? x)
+        (= x 0))))
