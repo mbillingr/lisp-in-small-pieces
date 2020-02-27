@@ -15,7 +15,7 @@
             dynamic-wind
             eof-object eof-object?
             eq? equal? eqv?
-            ;error
+            error error-object? error-object-message error-object-irritants
             flush-output-port
             get-output-bytevector get-output-string
             if
@@ -31,16 +31,19 @@
             output-port? output-port-open?
             pair? parameterize peek-char peek-u8 port?
             quasiquote quote
+            raise raise-continuable
             read read-bytevector read-bytevector! read-char read-line read-string read-u8
             set! set-car! set-cdr!
             textual-port?
             u8-ready?
             vector vector? vector-ref
+            with-exception-handler
             write-bytevector write-char write-string write-u8)
     (import (sunny core)
             (sunny case-lambda)
             (sunny conditionals)
             (sunny dynwind)
+            (sunny exception)
             (sunny lists)
             (sunny parameter)
             (sunny ports)
