@@ -144,6 +144,14 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
                     }
                     match cdr {
                         Scm::Nil => break,
+                        Scm::Pair(q)
+                            if [Some("quasiquote"), Some("unquote")]
+                                .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
+                        {
+                            write!(f, " . ")?;
+                            self.write(cdr, labels, f)?;
+                            break;
+                        }
                         Scm::Pair(q) => {
                             write!(f, " ")?;
                             self.write(q.0.get(), labels, f)?;
@@ -263,6 +271,13 @@ impl Display for ScmDisplay {
                 loop {
                     match cdr {
                         Scm::Nil => break,
+                        Scm::Pair(q)
+                            if [Some("quasiquote"), Some("unquote")]
+                                .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
+                        {
+                            write!(f, " . {}", cdr.display())?;
+                            break;
+                        }
                         Scm::Pair(q) => {
                             write!(f, " {}", q.0.get().display())?;
                             cdr = q.1.get();
@@ -338,6 +353,13 @@ impl Display for ScmWriteSimple {
                 loop {
                     match cdr {
                         Scm::Nil => break,
+                        Scm::Pair(q)
+                            if [Some("quasiquote"), Some("unquote")]
+                                .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
+                        {
+                            write!(f, " . {}", cdr.write_simple())?;
+                            break;
+                        }
                         Scm::Pair(q) => {
                             write!(f, " {}", q.0.get().write_simple())?;
                             cdr = q.1.get();
