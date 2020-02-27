@@ -18,7 +18,6 @@ pub mod scheme {
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
     use crate::symbol::Symbol;
-    use crate::syntactic_closure::SyntacticClosure;
     use crate::syntax::{
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
@@ -179,7 +178,6 @@ pub mod scheme {
             macro "if", expand_alternative;
             macro "lambda", expand_lambda;
             macro "let", expand_let;
-            macro "or", expand_or;
             macro "quote", expand_quote;
             macro "set!", expand_assign;
             macro "let/cc", expand_letcc;
@@ -268,7 +266,8 @@ pub mod scheme {
         }
     }
 
-    pub fn expand_or(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    // I'll leave this in, commented out, as an example how to use Syntactic closures natively.
+    /*pub fn expand_or(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let exp1 = ocar(ocdr(expr)?)?.clone();
         let exp2 = ocar(ocdr(ocdr(expr)?)?)?.clone();
 
@@ -292,7 +291,7 @@ pub mod scheme {
         let x = SyntacticClosure::new(x, trans.base_env.clone()).into();
 
         trans.objectify(&x)
-    }
+    }*/
 
     pub fn expand_lambda(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = &ocdr(expr)?;

@@ -28,6 +28,7 @@
             newline null?
             open-input-bytevector open-input-string
             open-output-bytevector open-output-string
+            or
             output-port? output-port-open?
             pair? parameterize peek-char peek-u8 port?
             quasiquote quote
