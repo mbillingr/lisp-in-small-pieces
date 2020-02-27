@@ -116,6 +116,22 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
                 }
                 write!(f, ")")
             }
+            Scm::Pair(p)
+                if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
+            {
+                write!(f, "`")?;
+                self.write(p.1.get().car().unwrap(), labels, f)
+            }
+            Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote") => {
+                write!(f, ",")?;
+                self.write(p.1.get().car().unwrap(), labels, f)
+            }
+            Scm::Pair(p)
+                if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote-splicing") =>
+            {
+                write!(f, ",@")?;
+                self.write(p.1.get().car().unwrap(), labels, f)
+            }
             Scm::Pair(p) => {
                 write!(f, "(")?;
                 self.write(p.0.get(), labels, f)?;
@@ -228,6 +244,19 @@ impl Display for ScmDisplay {
                 }
                 write!(f, ")")
             }
+            Scm::Pair(p)
+                if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
+            {
+                write!(f, "`{}", p.1.get().car().unwrap().display())
+            }
+            Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote") => {
+                write!(f, ",{}", p.1.get().car().unwrap().display())
+            }
+            Scm::Pair(p)
+                if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote-splicing") =>
+            {
+                write!(f, ",@{}", p.1.get().car().unwrap().display())
+            }
             Scm::Pair(p) => {
                 write!(f, "({}", p.0.get().display())?;
                 let mut cdr = p.1.get();
@@ -289,6 +318,19 @@ impl Display for ScmWriteSimple {
                     }
                 }
                 write!(f, ")")
+            }
+            Scm::Pair(p)
+                if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
+            {
+                write!(f, "`{}", p.1.get().car().unwrap().write_simple())
+            }
+            Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote") => {
+                write!(f, ",{}", p.1.get().car().unwrap().write_simple())
+            }
+            Scm::Pair(p)
+                if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote-splicing") =>
+            {
+                write!(f, ",@{}", p.1.get().car().unwrap().write_simple())
             }
             Scm::Pair(p) => {
                 write!(f, "({}", p.0.get().write_simple())?;
