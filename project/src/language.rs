@@ -140,6 +140,7 @@ pub mod scheme {
             native "null?", =1, Scm::is_nil;
             native "pair?", =1, Scm::is_pair;
             native "vector?", =1, Scm::is_vector;
+            native "procedure?", =1, Scm::is_procedure;
 
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;

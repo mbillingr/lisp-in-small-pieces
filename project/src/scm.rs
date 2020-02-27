@@ -147,7 +147,7 @@ impl Scm {
 
     pub fn is_procedure(&self) -> bool {
         match self {
-            Scm::Closure(_) | Scm::Primitive(_) => true,
+            Scm::Closure(_) | Scm::Primitive(_) | Scm::Continuation(_) | Scm::ExitProc(_) => true,
             _ => false,
         }
     }
