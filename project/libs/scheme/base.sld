@@ -21,7 +21,7 @@
             if
             input-port? input-port-open?
             lambda length list
-            let let-syntax
+            let let* let-syntax
             letrec-syntax
             make-parameter map
             member memq memv
@@ -43,6 +43,7 @@
             write-bytevector write-char write-string write-u8
             zero?)
     (import (sunny core)
+            (sunny binding)
             (sunny case-lambda)
             (sunny conditionals)
             (sunny dynwind)
