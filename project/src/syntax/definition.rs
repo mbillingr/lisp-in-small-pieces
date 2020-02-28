@@ -1,8 +1,8 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::syntax::{GlobalVariable, Reify};
-use crate::scm::Scm;
 use crate::utils::Named;
 
 #[derive(Debug, Clone)]
@@ -35,6 +35,10 @@ impl GlobalDefine {
 
 impl Reify for GlobalDefine {
     fn reify(&self) -> Scm {
-        Scm::list(vec![Scm::symbol("define$"), Scm::Symbol(self.variable.name()), self.form.reify()])
+        Scm::list(vec![
+            Scm::symbol("define$"),
+            Scm::Symbol(self.variable.name()),
+            self.form.reify(),
+        ])
     }
 }

@@ -116,6 +116,10 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
                 }
                 write!(f, ")")
             }
+            Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quote") => {
+                write!(f, "'")?;
+                self.write(p.1.get().car().unwrap(), labels, f)
+            }
             Scm::Pair(p)
                 if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
             {
@@ -145,7 +149,7 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
                     match cdr {
                         Scm::Nil => break,
                         Scm::Pair(q)
-                            if [Some("quasiquote"), Some("unquote")]
+                            if [Some("quote"), Some("quasiquote"), Some("unquote")]
                                 .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
                         {
                             write!(f, " . ")?;
@@ -252,6 +256,9 @@ impl Display for ScmDisplay {
                 }
                 write!(f, ")")
             }
+            Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quote") => {
+                write!(f, "'{}", p.1.get().car().unwrap().display())
+            }
             Scm::Pair(p)
                 if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
             {
@@ -272,7 +279,7 @@ impl Display for ScmDisplay {
                     match cdr {
                         Scm::Nil => break,
                         Scm::Pair(q)
-                            if [Some("quasiquote"), Some("unquote")]
+                            if [Some("quote"), Some("quasiquote"), Some("unquote")]
                                 .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
                         {
                             write!(f, " . {}", cdr.display())?;
@@ -334,6 +341,9 @@ impl Display for ScmWriteSimple {
                 }
                 write!(f, ")")
             }
+            Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quote") => {
+                write!(f, "'{}", p.1.get().car().unwrap().write_simple())
+            }
             Scm::Pair(p)
                 if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
             {
@@ -354,7 +364,7 @@ impl Display for ScmWriteSimple {
                     match cdr {
                         Scm::Nil => break,
                         Scm::Pair(q)
-                            if [Some("quasiquote"), Some("unquote")]
+                            if [Some("quote"), Some("quasiquote"), Some("unquote")]
                                 .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
                         {
                             write!(f, " . {}", cdr.write_simple())?;

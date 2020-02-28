@@ -44,8 +44,8 @@ impl Reify for Constant {
     fn reify(&self) -> Scm {
         let x: Scm = (&self.value).into();
         match x {
-            Scm::Symbol(s) => Scm::list(vec![Scm::symbol("quote"), x]),
-            _ => x
+            Scm::Symbol(_) => Scm::list(vec![Scm::symbol("quote"), x]),
+            _ => x,
         }
     }
 }

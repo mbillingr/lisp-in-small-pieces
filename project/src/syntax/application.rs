@@ -1,8 +1,8 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
-use crate::scm::Scm;
 
 #[derive(Debug, Clone)]
 pub struct Application {

@@ -482,10 +482,10 @@
           (let ((a (run* q (== q 'pea)))
                 (b (run* q (== q 'pea))))
             (display (equal? (dbg a) (dbg b)))
-            (newline))
+            (newline))))
 
-          (assert that the value of
-            (run* q (== q 'pea))
-            is (run* q (== q 'pea)))))
+          ;(assert that the value of
+          ;  (run* q (== q 'pea))
+          ;  is (run* q (== q 'pea)))))
 
       (run-tests)))

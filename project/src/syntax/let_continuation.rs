@@ -1,9 +1,9 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
-use crate::scm::Scm;
 use crate::utils::Named;
 
 #[derive(Debug, Copy, Clone)]
@@ -66,6 +66,10 @@ impl Reify for LetContinuation {
             LetContKind::IndefiniteContinuation => "let/cc",
         });
 
-        Scm::list(vec![name, Scm::Symbol(self.variable.name()), self.body.reify()])
+        Scm::list(vec![
+            name,
+            Scm::Symbol(self.variable.name()),
+            self.body.reify(),
+        ])
     }
 }
