@@ -448,16 +448,44 @@
             (run* q (== q 'pea))
             is '(pea))
 
-          (assert that the value of
-            (run* q (== q 'pea))
-            is (run* q (== q 'pea)))
+          ;(assert that the value of
+          ;  (run* q (== q 'pea))
+          ;  is (run* q (== q 'pea)))
 
           ; TODO: What is going on here?
 
-          (display (equal? (run* q (== q 'pea))
-                           (run* p (== p 'pea))))
+          (define (dbg x)
+            (display "dbg: ")
+            (display x)
+            (newline)
+            x)
+
+          ; Looks like that the results of run* are swallowed if they are passed
+          ; as the second (or further) argument to one of the following:
+          ;  - primitives that take any number of arguments
+          ;  - primitives that take two arguments
+          ;  - lambdas that take any number of arguments
+          ; but not if the lambda takes two arguments...
+
+          (display (list (run* q (== q 'pea))
+                         (run* p (== p 'pea))))
+          (newline)
+          (display ((lambda x x) (run* q (== q 'pea))
+                                 (run* p (== p 'pea))))
+          (newline)
+          (display (cons (run* q (== q 'pea))
+                         (run* p (== p 'pea))))
+          (newline)
+          (display ((lambda (a b) (list a b)) (run* q (== q 'pea))
+                                              (run* p (== p 'pea))))
+          (newline)
           (let ((a (run* q (== q 'pea)))
                 (b (run* q (== q 'pea))))
-            (display (equal? a b)))))
+            (display (equal? (dbg a) (dbg b)))
+            (newline))
+
+          (assert that the value of
+            (run* q (== q 'pea))
+            is (run* q (== q 'pea)))))
 
       (run-tests)))
