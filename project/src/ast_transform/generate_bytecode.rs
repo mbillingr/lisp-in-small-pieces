@@ -354,10 +354,13 @@ impl<'a> BytecodeGenerator<'a> {
         // todo: does Scheme require that the function is evaluated first?
         let mut meaning = vec![];
 
+        let n = self.env.len();
+
         for a in &node.arguments {
             let m = self.compile(a, false)?;
             meaning.extend(m);
             meaning.push(Op::PushVal);
+            self.env.push(Symbol::uninterned("_")); // add dummy variable to env, so that other variables are indexed correctly
         }
 
         if let Some(mi) =
@@ -378,6 +381,8 @@ impl<'a> BytecodeGenerator<'a> {
                 false => meaning.push(Op::Call(arity)),
             }
         }
+
+        self.env.truncate(n);
 
         Ok(meaning)
     }

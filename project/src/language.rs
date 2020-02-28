@@ -19,7 +19,7 @@ pub mod scheme {
     use crate::source::SourceLocation::NoSource;
     use crate::symbol::Symbol;
     use crate::syntax::{
-        Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp, Reify,
+        Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
     use std::collections::VecDeque;
     use std::convert::TryInto;
@@ -1220,6 +1220,15 @@ pub mod scheme {
                                        (lambda () (set! order (cons 3 order))))
                          order)"#,
                 equals, Scm::list(vec![Scm::Int(4), Scm::Int(3), Scm::Int(2), Scm::Int(1)]));
+        }
+
+        mod bugs {
+            use super::*;
+
+            compare!(let_in_args:
+                r#"(list (let ((x 1)) x)
+                         (let ((y 2)) y))"#,
+                equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
         }
     }
 }
