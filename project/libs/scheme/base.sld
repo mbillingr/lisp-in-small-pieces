@@ -23,7 +23,7 @@
             lambda length list
             let let-syntax
             letrec-syntax
-            make-parameter
+            make-parameter map
             member memq memv
             newline null? number->string
             open-input-bytevector open-input-string
@@ -56,4 +56,11 @@
       (define call-with-current-continuation call/cc)
 
       (define (zero? x)
-        (= x 0))))
+        (= x 0))
+
+      ; simplistic definition of map, that takes only one list
+      (define (map proc list)
+        (if (null? list)
+            '()
+            (cons (proc (car list))
+                  (map proc (cdr list)))))))
