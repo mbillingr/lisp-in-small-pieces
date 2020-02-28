@@ -36,3 +36,9 @@ pub use program::Program;
 pub use reference::{FreeReference, GlobalReference, LocalReference, Reference};
 pub use sequence::Sequence;
 pub use variable::{FreeVariable, GlobalVariable, LocalVariable, Variable};
+
+use crate::scm::Scm;
+
+pub trait Reify {
+    fn reify(&self) -> Scm;
+}

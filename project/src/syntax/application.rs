@@ -1,6 +1,8 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::syntax::Reify;
+use crate::scm::Scm;
 
 #[derive(Debug, Clone)]
 pub struct Application {
@@ -32,5 +34,12 @@ impl Application {
             .map(|a| a.transform(visitor))
             .collect();
         self
+    }
+}
+
+impl Reify for Application {
+    fn reify(&self) -> Scm {
+        let args = Scm::list(self.arguments.iter().map(Reify::reify));
+        Scm::cons(self.function.reify(), args)
     }
 }

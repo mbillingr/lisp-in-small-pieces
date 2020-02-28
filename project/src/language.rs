@@ -19,7 +19,7 @@ pub mod scheme {
     use crate::source::SourceLocation::NoSource;
     use crate::symbol::Symbol;
     use crate::syntax::{
-        Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
+        Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp, Reify,
     };
     use std::collections::VecDeque;
     use std::convert::TryInto;
@@ -59,6 +59,7 @@ pub mod scheme {
             //println!("{:?} =>", sexprs);
             //println!("{:?}", self.trans);
             let ast = self.trans().objectify_toplevel(sexprs)?;
+            //println!("{:?}", ast.reify());
             let ast = ast.transform(&mut Boxify);
             let ast = ast.transform(&mut Flatten::new());
 

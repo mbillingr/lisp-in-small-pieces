@@ -1,8 +1,9 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
-use crate::syntax::NoOp;
+use crate::syntax::{NoOp, Reify};
 
 #[derive(Debug, Clone)]
 pub struct Sequence {
@@ -47,5 +48,18 @@ impl Sequence {
                 );
             }
         }
+    }
+}
+
+impl Reify for Sequence {
+    fn reify(&self) -> Scm {
+        let mut items = vec![Scm::symbol("begin"), self.first.reify()];
+        let mut current = &*self.next;
+        while let Expression::Sequence(s) = current {
+            items.push(s.first.reify());
+            current = &*s.next;
+        }
+        items.push(current.reify());
+        Scm::list(items)
     }
 }

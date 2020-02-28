@@ -2,8 +2,10 @@ use super::expression::Expression;
 use super::reference::LocalReference;
 use super::variable::GlobalVariable;
 use crate::ast_transform::Transformer;
+use crate::scm::Scm;
 use crate::source::SourceLocation;
-use crate::utils::Sourced;
+use crate::syntax::Reify;
+use crate::utils::{Named, Sourced};
 
 sum_type! {
     #[derive(Debug, Clone)]
@@ -83,5 +85,21 @@ impl GlobalAssignment {
     pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
         *self.form = self.form.transform(visitor);
         self
+    }
+}
+
+impl Reify for Assignment {
+    fn reify(&self) -> Scm {
+        let var = match self {
+            Assignment::LocalAssignment(a) => Scm::Symbol(a.reference.var.name()),
+            Assignment::GlobalAssignment(a) => Scm::Symbol(a.variable.name()),
+        };
+
+        let val = match self {
+            Assignment::LocalAssignment(a) => a.form.reify(),
+            Assignment::GlobalAssignment(a) => a.form.reify(),
+        };
+
+        Scm::list(vec![Scm::symbol("set!"), var, val])
     }
 }

@@ -14,8 +14,10 @@ use super::reference::Reference;
 use super::sequence::Sequence;
 
 use crate::ast_transform::{Transformer, Visited};
+use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
+use crate::syntax::Reify;
 use crate::utils::Sourced;
 
 sum_types! {
@@ -101,6 +103,28 @@ impl Sourced for Expression {
             GlobalDefine(x) => x.source(),
             NoOp(x) => x.source(),
             LetContinuation(x) => x.source(),
+        }
+    }
+}
+
+impl Reify for Expression {
+    fn reify(&self) -> Scm {
+        use Expression::*;
+        match self {
+            MagicKeyword(mkw) => Scm::Symbol(mkw.name),
+            Reference(ast) => ast.reify(),
+            Assignment(ast) => ast.reify(),
+            Constant(ast) => ast.reify(),
+            Sequence(ast) => ast.reify(),
+            Alternative(ast) => ast.reify(),
+            Application(ast) => ast.reify(),
+            Function(ast) => ast.reify(),
+            FixLet(ast) => ast.reify(),
+            BoxRead(_) | BoxWrite(_) | BoxCreate(_) => unimplemented!(),
+            FlatClosure(_) => unimplemented!(),
+            GlobalDefine(ast) => ast.reify(),
+            NoOp(_) => Scm::Undefined,
+            LetContinuation(ast) => ast.reify(),
         }
     }
 }

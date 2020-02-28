@@ -3,7 +3,8 @@ use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::symbol::Symbol;
-use crate::syntax::Variable;
+use crate::syntax::{Reify, Variable};
+use crate::utils::Named;
 use std::iter::FromIterator;
 use std::path::PathBuf;
 
@@ -108,3 +109,30 @@ impl Eq for ImportItem {}
         self.import_var.hash(state);
     }
 }*/
+
+impl Reify for Import {
+    fn reify(&self) -> Scm {
+        let imports = self.import_sets.iter().map(Reify::reify);
+        Scm::vector(imports)
+    }
+}
+
+impl Reify for ImportSet {
+    fn reify(&self) -> Scm {
+        let items = self.items.iter().map(|item| {
+            if item.export_var == item.import_var {
+                Scm::Symbol(item.export_var.name())
+            } else {
+                Scm::list(vec![
+                    Scm::Symbol(item.export_var.name()),
+                    Scm::Symbol(item.import_var.name()),
+                ])
+            }
+        });
+        Scm::list(vec![
+            Scm::symbol("import"),
+            self.library_name,
+            Scm::list(items),
+        ])
+    }
+}

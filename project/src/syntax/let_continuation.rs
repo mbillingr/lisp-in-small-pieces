@@ -2,6 +2,9 @@ use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::source::SourceLocation;
+use crate::syntax::Reify;
+use crate::scm::Scm;
+use crate::utils::Named;
 
 #[derive(Debug, Copy, Clone)]
 pub enum LetContKind {
@@ -53,5 +56,16 @@ impl LetContinuation {
     pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
         *self.body = self.body.transform(visitor);
         self
+    }
+}
+
+impl Reify for LetContinuation {
+    fn reify(&self) -> Scm {
+        let name = Scm::symbol(match self.kind {
+            LetContKind::ExitProcedure => "let/ep",
+            LetContKind::IndefiniteContinuation => "let/cc",
+        });
+
+        Scm::list(vec![name, Scm::Symbol(self.variable.name()), self.body.reify()])
     }
 }
