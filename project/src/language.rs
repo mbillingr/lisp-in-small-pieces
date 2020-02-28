@@ -21,6 +21,7 @@ pub mod scheme {
     use crate::syntax::{
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
+    use std::collections::VecDeque;
     use std::convert::TryInto;
     use std::ops::{Div, Mul, Sub};
     use std::path::{Path, PathBuf};
@@ -158,6 +159,26 @@ pub mod scheme {
             native "-", =2, Scm::sub;
             native "list", >=0, list;
             native "vector", >=0, vector;
+
+            native "number->string", >=1, |z: Scm, args: &[Scm]| -> Result<Scm> {
+                // quick and dirty implementation that only works for integers and panics uncontrollably...
+                let radix = args.get(0).unwrap_or(&Scm::Int(10)).as_int()? as u32;
+                let mut z = z.as_int()? as u32;
+                let mut chars = VecDeque::new();
+                loop {
+                    let remainder = z % radix;
+                    z /= radix;
+                    chars.push_front(std::char::from_digit(remainder, radix).unwrap());
+                    if z == 0 {
+                        break
+                    }
+                }
+                Ok(Scm::string(chars.into_iter().collect::<String>()))
+            };
+
+            native "string->symbol", =1, |s: Scm| s.as_string().map(|s| Scm::Symbol(Symbol::new(s)));
+
+            native "string-append", >=0, |args: &[Scm]| args.iter().map(Scm::as_string).collect::<Result<String>>().map(Scm::string);
 
             native "vector-ref", =2, Scm::vector_ref;
             native "vector-set!", =3, Scm::vector_set;
