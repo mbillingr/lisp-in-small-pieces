@@ -274,6 +274,10 @@
                                      (newline)
                                      (error "ASSERTION FAILED")))))))))
 
+          ;; Testing the test suite
+
+          (assert that the value of (+ 1 2) is 3)
+
           ;; Unit Tests (Chapter 10)
 
           (define u (var 'u)) (define v (var 'v)) (define w (var 'w))
@@ -436,6 +440,8 @@
 
           ;; Integration Tests (Chapters 1-9)
 
+          ; Chapter 1
+
           (assert that the value of
             (run* q fail)
             is '())
@@ -450,6 +456,248 @@
 
           (assert that the value of
             (run* q (== q 'pea))
-            is (run* q (== 'pea q)))))
+            is (run* q (== 'pea q)))
+
+          (assert that the value of
+            (run* q succeed)
+            is '(_0))
+
+          (assert that the value of
+            (run* q
+              (fresh (x)
+                (== `(,x) q)))
+            is '((_0)))
+
+          (assert that the value of
+            (run* q
+              (fresh (x)
+                (== 'pea q)))
+            is '(pea))
+
+          (assert that the value of
+            (run* q
+              (fresh (x)
+                (== 'pea x)))
+            is '(_0))
+
+          (assert that the value of
+            (run* q
+              (fresh (x)
+                (== (cons x '()) q)))
+            is '((_0)))
+
+          (assert that the value of
+            (run* q (== '(((pea)) pod) '(((pea)) pod)))
+            is '(_0))
+
+          (assert that the value of
+            (run* q (== '(((pea)) pod) `(((pea)) ,q)))
+            is '(pod))
+
+          (assert that the value of
+            (run* q (== `(((,q)) pod) '(((pea)) pod)))
+            is '(pea))
+
+          (assert that the value of
+            (run* q (fresh (x)
+                      (== `(((,q)) ,x) `(((,x)) pod))))
+            is '(pod))
+
+          (assert that the value of
+            (run* q (fresh (x) (== `(,x ,x) q)))
+            is '((_0 _0)))
+
+          (assert that the value of
+            (run* q (fresh (x) (fresh (y) (== `(,q ,y) `((,x ,y) ,x)))))
+            is '((_0 _0)))
+
+          (assert that the value of
+            (run* q (fresh (x) (fresh (y)) (== `(,x ,y) q)))
+            is '((_0 _1)))
+
+          (assert that the value of
+            (run* q (fresh (x) (fresh (y) (== `(,x ,y ,x) q))))
+            is '((_0 _1 _0)))
+
+          (assert that the value of
+            (run* q (conj2 succeed succeed))
+            is '(_0))
+
+          (assert that the value of
+            (run* q (conj2 succeed (== 'corn q)))
+            is '(corn))
+
+          (assert that the value of
+            (run* q (conj2 fail (== 'corn q)))
+            is '())
+
+          (assert that the value of
+            (run* q (conj2 (== 'corn q) (== 'meal q)))
+            is '())
+
+          (assert that the value of
+            (run* q (conj2 (== 'corn q) (== 'corn q)))
+            is '(corn))
+
+          (assert that the value of
+            (run* q (disj2 fail fail))
+            is '())
+
+          (assert that the value of
+            (run* q (disj2 (== 'olive q) fail))
+            is '(olive))
+
+          (assert that the value of
+            (run* q (disj2 fail (== 'oil q)))
+            is '(oil))
+
+          (assert that the value of
+            (run* q (disj2 (== 'olive q) (== 'oil q)))
+            is '(olive oil))
+
+          (assert that the value of
+            (run* q
+              (fresh (x)
+                (fresh (y)
+                  (disj2 (== `(,x ,y) q)
+                         (== `(,y ,x) q)))))
+            is '((_0 _1) (_0 _1)))
+
+          (assert that the value of
+            (run* x (disj2 (conj2 (== 'olive x) fail)
+                           (== 'oil x)))
+            is '(oil))
+
+          (assert that the value of
+            (run* x (disj2 (conj2 (== 'olive x) succeed)
+                           (== 'oil x)))
+            is '(olive oil))
+
+          (assert that the value of
+            (run* x (disj2 (== 'oil x)
+                           (conj2 (== 'olive x) succeed)))
+            is '(oil olive))
+
+          (assert that the value of
+            (run* x
+              (disj2 (conj2 (== 'virgin x) fail)
+                     (disj2 (== 'olive x)
+                            (disj2 succeed
+                                   (== 'oil x)))))
+            is '(olive _0 oil))
+
+          (assert that the value of
+            (run* r
+              (fresh (x)
+                (fresh (y)
+                  (conj2 (== 'split x)
+                         (conj2 (== 'pea y)
+                                (== `(,x ,y) r))))))
+            is '((split pea)))
+
+          (assert that the value of
+            (run* r
+              (fresh (x y)
+                (conj2 (== 'split x)
+                       (conj2 (== 'pea y)
+                              (== `(,x ,y) r)))))
+            is '((split pea)))
+
+          (assert that the value of
+            (run* (x y) (conj2 (== 'pea y) (== 'split x)))
+            is '((split pea)))
+
+          (assert that the value of
+            (run* (x y)
+              (disj2 (conj2 (== 'split x) (== 'pea y))
+                     (conj2 (== 'red x) (== 'bean y))))
+            is '((split pea) (red bean)))
+
+          (assert that the value of
+            (run* r
+              (fresh (x y)
+                (conj2 (disj2 (conj2 (== 'split x) (== 'pea y))
+                              (conj2 (== 'red x) (== 'bean y)))
+                       (== `(,x ,y soup) r))))
+            is '((split pea soup) (red bean soup)))
+
+          (assert that the value of
+            (run* r
+              (fresh (x y)
+                (disj2 (conj2 (== 'split x) (== 'pea y))
+                       (conj2 (== 'red x) (== 'bean y)))
+                (== `(,x ,y soup) r)))
+            is '((split pea soup) (red bean soup)))
+
+          (assert that the value of
+            (run* (x y z)
+              (disj2 (conj2 (== 'split x) (== 'pea y))
+                     (conj2 (== 'red x) (== 'bean y)))
+              (== 'soup z))
+            is '((split pea soup) (red bean soup)))
+
+          (defrel (teacupo t)
+            (disj2 (== 'tea t) (== 'cup t)))
+
+          (assert that the value of
+            (run* x (teacupo x))
+            is '(tea cup))
+
+          (assert that the value of
+            (run* (x y)
+              (disj2 (conj2 (teacupo x) (== #t y))
+                     (conj2 (== #f x) (== #t y))))
+            is '((#f #t) (tea #t) (cup #t)))
+
+          (assert that the value of
+            (run* (x y)
+              (teacupo x)
+              (teacupo y))
+            is '((tea tea) (tea cup) (cup tea) (cup cup)))
+
+          (assert that the value of
+            (run* (x y)
+              (teacupo x)
+              (teacupo x))
+            is '((tea _0) (cup _0)))
+
+          (assert that the value of
+            (run* (x y)
+              (disj2 (conj2 (teacupo x) (teacupo x))
+                     (conj2 (== #f x) (teacupo y))))
+            is '((#f tea) (#f cup) (tea _0) (cup _0)))
+
+          (assert that the value of
+            (run* (x y)
+              (conde ((== 'split x) (== 'pea y))
+                     ((== 'red x) (== 'bean y))))
+            is
+            (run* (x y)
+              (disj2 (conj2 (== 'split x) (== 'pea y))
+                     (conj2 (== 'red x) (== 'bean y)))))
+
+          (assert that the value of
+            (run* x
+              (disj2 (conj2 (== 'olive x) fail)
+                     (== 'oil x)))
+            is
+            (run* x
+              (conde ((== 'olive x) fail)
+                     ((== 'oil x)))))
+
+          (assert that the value of
+            (run* (x y)
+              (conde ((fresh (z) (== 'lentil z)))
+                     ((== x y))))
+            is '((_0 _1) (_0 _0)))
+
+          (assert that the value of
+            (run* (x y)
+              (conde ((== 'split x) (== 'pea y))
+                     ((== 'red x) (== 'bean y))
+                     ((== 'green x) (== 'lentil y))))
+            is '((split pea) (red bean) (green lentil)))))
+
+          ; Chapter 2
 
       (run-tests)))
