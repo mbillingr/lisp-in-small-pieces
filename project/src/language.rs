@@ -1066,6 +1066,31 @@ pub mod scheme {
                             (tmp)))))
                    (foo)"#,
                  equals, Scm::Int(123));
+
+            compare!(unquote_in_macro:
+                r#"(import (sunny quasiquote))
+                   (define-syntax foo
+                      (syntax-rules ()
+                        ((foo x)
+                         `(x ,x))
+                      ))
+                   (let ((y 'zzz))
+                     (foo y))"#,
+                 equals, Scm::list(vec![Scm::symbol("y"), Scm::symbol("zzz")]));
+
+            compare!(macro_expand_to_macro:
+                r#"(define-syntax mylet
+                      (syntax-rules ()
+                        ((mylet x . body)
+                         ((lambda (x) . body) 0))
+                      ))
+                   (define-syntax foo
+                      (syntax-rules ()
+                        ((foo)
+                         (mylet z z))
+                      ))
+                   (foo)"#,
+                 equals, Scm::Int(0));
         }
 
         mod libraries {

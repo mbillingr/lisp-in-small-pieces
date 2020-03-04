@@ -110,9 +110,17 @@ fn close_template_symbols(
 ) -> TrackedSexpr {
     //println!("{} ?", template);
     match &template.sexpr {
-        Sexpr::SyntacticClosure(sc) if sc.sexpr().as_symbol().map(|s| unclosed.contains(s)).unwrap_or(false) => template.clone(),
+        Sexpr::SyntacticClosure(sc)
+            if sc
+                .sexpr()
+                .as_symbol()
+                .map(|s| unclosed.contains(s))
+                .unwrap_or(false) =>
+        {
+            template.clone()
+        }
         Sexpr::Symbol(s) if unclosed.contains(s) => template.clone(),
-        Sexpr::Symbol(s) /*if definition_env.find_variable(s).is_some()*/ => aliases
+        Sexpr::Symbol(s) => aliases
             .entry(*s)
             .or_insert_with(|| {
                 Rc::new(SyntacticClosure::new(
@@ -199,8 +207,8 @@ fn match_pattern(
     use Sexpr::*;
     match (&pattern.sexpr, &expr.sexpr) {
         (SyntacticClosure(sc), _) => match_pattern(expr, ellipsis, literals, sc.sexpr()),
-        (lit, x) if literals.contains(lit) => {
-            if lit == x {
+        (lit, _) if literals.contains(lit) => {
+            if pattern.is_identifier() && pattern.identifier_name() == expr.identifier_name() {
                 Some(HashMap::new())
             } else {
                 None
