@@ -515,7 +515,9 @@ impl From<&Sexpr> for Scm {
                 let items = items.into_boxed_slice();
                 Scm::Vector(Box::leak(items))
             }
-            Sexpr::SyntacticClosure(_) => unimplemented!(),
+            Sexpr::SyntacticClosure(sc) => {
+                unimplemented!("convert syntactic closure to Scm: <{}>", sc.sexpr())
+            }
         }
     }
 }

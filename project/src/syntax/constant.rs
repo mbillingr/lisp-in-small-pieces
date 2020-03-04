@@ -4,7 +4,7 @@ use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Constant {
     pub value: Sexpr,
     pub span: SourceLocation,
@@ -19,6 +19,15 @@ impl Constant {
 
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
         self
+    }
+}
+
+impl std::fmt::Debug for Constant {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self.value {
+            Sexpr::SyntacticClosure(sc) => write!(f, "Constant(<{}>)", sc.sexpr().sexpr),
+            x => write!(f, "Constant({})", x),
+        }
     }
 }
 

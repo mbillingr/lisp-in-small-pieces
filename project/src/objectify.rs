@@ -8,10 +8,10 @@ use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
-    Alternative, Application, Expression, FixLet, Function, GlobalAssignment, GlobalReference,
-    GlobalVariable, Import, ImportItem, ImportSet, Library, LibraryDeclaration, LibraryExport,
-    LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, Program, Reference,
-    Sequence, Variable,
+    Alternative, Application, Constant, Expression, FixLet, Function, GlobalAssignment,
+    GlobalReference, GlobalVariable, Import, ImportItem, ImportSet, Library, LibraryDeclaration,
+    LibraryExport, LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, Program,
+    Reference, Sequence, Variable,
 };
 use crate::utils::{Named, Sourced};
 use std::cell::RefCell;
@@ -115,7 +115,11 @@ impl Translate {
     }
 
     pub fn objectify_quotation(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
-        Ok(Expression::Constant(expr.clone().into()))
+        let c: Constant = match &expr.sexpr {
+            Sexpr::SyntacticClosure(sc) => sc.sexpr().clone().into(),
+            _ => expr.clone().into(),
+        };
+        Ok(Expression::Constant(c))
     }
 
     pub fn objectify_alternative(
