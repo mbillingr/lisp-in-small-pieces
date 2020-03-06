@@ -696,8 +696,140 @@
               (conde ((== 'split x) (== 'pea y))
                      ((== 'red x) (== 'bean y))
                      ((== 'green x) (== 'lentil y))))
-            is '((split pea) (red bean) (green lentil)))))
+            is '((split pea) (red bean) (green lentil)))
 
           ; Chapter 2
+
+          (defrel (caro p a)
+            (fresh (d)
+              (== (cons a d) p)))
+
+          (assert that the value of
+            (run* q (caro '(a c o r n) q))
+            is '(a))
+
+          (assert that the value of
+            (run* r (fresh (x y)
+                      (caro `(,r ,y) x)
+                      (== 'pear x)))
+            is '(pear))
+
+          (assert that the value of
+            (run* r
+              (fresh (x y)
+                (caro '(grape raisin pear) x)
+                (caro '((a) (b) (c)) y)
+                (== (cons x y) r)))
+            is '((grape a)))
+
+          (defrel (cdro p d)
+            (fresh (a)
+              (== (cons a d) p)))
+
+          (assert that the value of
+            (run* r
+              (fresh (v)
+                (cdro '(a c o r n) v)
+                (fresh (w)
+                  (cdro v w)
+                  (caro w r))))
+            is `(,(car (cdr (cdr '(a c o r n))))))
+
+          (assert that the value of
+            (run* q (cdro '(a c o r n) '(c o r n)))
+            is '(_0))
+
+          (assert that the value of
+            (run* x (cdro '(c o r n) `(,x r n)))
+            is '(o))
+
+          (assert that the value of
+            (run* l
+              (fresh (x)
+                (cdro l '(c o r n))
+                (caro l x)
+                (== 'a x)))
+            is '((a c o r n)))
+
+          (defrel (conso a d p)
+            (== `(,a . ,d) p))
+
+          (assert that the value of
+            (run* l (conso '(a b c) '(d e) l))
+            is '(((a b c) d e)))
+
+          (assert that the value of
+            (run* x (conso x '(a b c) '(d a b c)))
+            is '(d))
+
+          (assert that the value of
+            (run* r
+              (fresh (x y z)
+                (== `(e a d ,x) r)
+                (conso y `(a ,z c) r)))
+            is '((e a d c)))
+
+          (assert that the value of
+            (run* x (conso x `(a ,x c) `(d a ,x c)))
+            is '(d))
+
+          (assert that the value of
+            (run* l
+              (fresh (x)
+                (== `(d a ,x c) l)
+                (conso x `(a ,x c) l)))
+            is '((d a d c)))
+
+          (assert that the value of
+            (run* x (conso x `(a ,x c) `(d a ,x c)))
+            is '(d))
+
+          (defrel (nullo x)
+            (== '() x))
+
+          (assert that the value of
+            (run* q (nullo '(grape raisin pear)))
+            is '())
+
+          (assert that the value of
+            (run* q (nullo '()))
+            is '(_0))
+
+          (assert that the value of
+            (run* x (nullo x))
+            is '(()))
+
+          (defrel (pairo p)
+            (fresh (a d)
+              (conso a d p)))
+
+          (assert that the value of
+            (run* q (pairo (cons q q)))
+            is '(_0))
+
+          (assert that the value of
+            (run* q (pairo '()))
+            is '())
+
+          (assert that the value of
+            (run* q (pairo 'pair))
+            is '())
+
+          (assert that the value of
+            (run* x (pairo x))
+            is '((_0 . _1)))
+
+          (assert that the value of
+            (run* r (pairo (cons r '())))
+            is '(_0))
+
+          (defrel (singletono l)
+            (fresh (d)
+              (cdro l d)
+              (nullo d)))
+
+          (assert that the value of
+            (run* x (singletono x))
+            is '((_0)))))
 
       (run-tests)))
