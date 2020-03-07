@@ -999,7 +999,153 @@
                   (tofu _0 _1 _2 _3 _4 _5)
                   (_0 tofu _1 _2)
                   (tofu _0 _1 _2 _3 _4 _5 _6)
-                  (_0 _1 tofu)))))
+                  (_0 _1 tofu)))
 
+           ; Chapter 4
+
+           (defrel (appendo l t out)
+             (conde
+               ((nullo l) (== t out))
+               ((fresh (a d res)
+                  (conso a d l)
+                  (appendo d t res)
+                  (conso a res out)))))
+
+           (assert that the value of
+             (run 6 x
+               (fresh (y z)
+                 (appendo x y z)))
+             is '(() (_0) (_0 _1) (_0 _1 _2) (_0 _1 _2 _3) (_0 _1 _2 _3 _4)))
+
+           (assert that the value of
+             (run 3 y
+               (fresh (x z)
+                 (appendo x y z)))
+             is '(_0 _0 _0))
+
+           (assert that the value of
+             (run 5 z
+               (fresh (x y)
+                 (appendo x y z)))
+             is '(_0 (_0 . _1) (_0 _1 . _2) (_0 _1 _2 . _3) (_0 _1 _2 _3 . _4)))
+
+           (assert that the value of
+             (run* x (appendo '(cake) '(tastes yummy) x))
+             is '((cake tastes yummy)))
+
+           (assert that the value of
+             (run* x (fresh (y) (appendo `(cake & ice ,y) '(tastes yummy) x)))
+             is '((cake & ice _0 tastes yummy)))
+
+           (assert that the value of
+             (run* x (fresh (y) (appendo `(cake & ice cream) y x)))
+             is '((cake & ice cream . _0)))
+
+           (assert that the value of
+             (run 1 x (fresh (y) (appendo `(cake & ice . ,y) '(d t) x)))
+             is '((cake & ice d t)))
+
+           (assert that the value of
+             (run 5 x (fresh (y) (appendo `(cake & ice . ,y) '(d t) x)))
+             is '((cake & ice d t)
+                  (cake & ice _0 d t)
+                  (cake & ice _0 _1 d t)
+                  (cake & ice _0 _1 _2 d t)
+                  (cake & ice _0 _1 _2 _3 d t)))
+
+           (assert that the value of
+             (run 5 y (fresh (x) (appendo `(cake & ice . ,y) '(d t) x)))
+             is '(()
+                  (_0)
+                  (_0 _1)
+                  (_0 _1 _2)
+                  (_0 _1 _2 _3)))
+
+           (assert that the value of
+             (run 5 x (fresh (y) (appendo `(cake & ice . ,y) `(d t . ,y) x)))
+             is '((cake & ice d t)
+                  (cake & ice _0 d t _0)
+                  (cake & ice _0 _1 d t _0 _1)
+                  (cake & ice _0 _1 _2 d t _0 _1 _2)
+                  (cake & ice _0 _1 _2 _3 d t _0 _1 _2 _3)))
+
+           (assert that the value of
+             (run* x (fresh (z) (appendo `(cake & ice cream) `(d t . ,z) x)))
+             is '((cake & ice cream d t . _0)))
+
+           (assert that the value of
+             (run 6 x (fresh (y) (appendo x y '(cake & ice d t))))
+             is '(() (cake) (cake &) (cake & ice) (cake & ice d) (cake & ice d t)))
+
+           (assert that the value of
+             (run 6 y (fresh (x) (appendo x y '(cake & ice d t))))
+             is '((cake & ice d t)
+                  (& ice d t)
+                  (ice d t)
+                  (d t)
+                  (t)
+                  ()))
+
+           (assert that the value of
+             (run 6 (x y) (appendo x y '(cake & ice d t)))
+             is '((() (cake & ice d t))
+                  ((cake) (& ice d t))
+                  ((cake &) (ice d t))
+                  ((cake & ice) (d t))
+                  ((cake & ice d) (t))
+                  ((cake & ice d t) ())))
+
+           (defrel (appendo l t out)
+             (conde
+               ((nullo l) (== t out))
+               ((fresh (a d res)
+                  (conso a d l)
+                  (conso a res out)
+                  (appendo d t res)))))
+
+           (assert that the value of
+             (run* (x y) (appendo x y '(cake & ice d t)))
+             is '((() (cake & ice d t))
+                  ((cake) (& ice d t))
+                  ((cake &) (ice d t))
+                  ((cake & ice) (d t))
+                  ((cake & ice d) (t))
+                  ((cake & ice d t) ())))
+
+           (defrel (unwrapo x out)
+             (conde
+               ((fresh (a)
+                  (caro x a)
+                  (unwrapo a out)))
+               ((== x out))))
+
+           (assert that the value of
+             (run* x (unwrapo '(((pizza))) x))
+             is '((((pizza)))
+                  ((pizza))
+                  (pizza)
+                  pizza))
+
+           (assert that the value of
+             (run 1 x (unwrapo 'pizza x))
+             is '(pizza))
+
+           (assert that the value of
+             (run 1 x (unwrapo `((,x)) 'pizza))
+             is '(pizza))
+
+           (assert that the value of
+             (run 4 x (unwrapo `((,x)) 'pizza))
+             is '(pizza
+                  (pizza . _0)
+                  ((pizza . _0) . _1)
+                  (((pizza . _0) . _1) . _2)))
+
+           (assert that the value of
+             (run 4 x (unwrapo x '((pizza))))
+             is '(((pizza))
+                  (((pizza)) . _0)
+                  ((((pizza)) . _0) . _1)
+                  (((((pizza)) . _0) . _1) . _2)))))
 
        (run-tests)))
