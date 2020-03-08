@@ -1242,7 +1242,84 @@
              is '((_0 _0 _1 _1)
                   (_0 _1 () (_1))
                   (_0 _1 (_0 . _2) (_1 . _2))
-                  (_0 _1 (_2) (_1 _2))))))
+                  (_0 _1 (_2) (_1 _2))))
+
+           ; Chapter 6
+
+           (defrel (alwayso)
+             (conde (succeed)
+                    ((alwayso))))
+
+           (assert that the value of
+             (run 1 q (alwayso))
+             is '(_0))
+
+           (assert that the value of
+             (run 1 q (conde (succeed) ((alwayso))))
+             is '(_0))
+
+           (assert that the value of
+             (run 2 q (alwayso))
+             is '(_0 _0))
+
+           (assert that the value of
+             (run 2 q succeed)
+             is '(_0))
+
+           (assert that the value of
+             (run 5 q (== 'onion q) (alwayso))
+             is '(onion onion onion onion onion))
+
+           (assert that the value of
+             (run 1 q
+               (== 'garlic q)
+               succeed
+               (== 'onion q))
+             is '())
+
+           (assert that the value of
+             (run 1 q
+               (conde
+                 ((== 'garlic q) (alwayso))
+                 ((== 'onion q)))
+               (== 'onion q))
+             is '(onion))
+
+           (assert that the value of
+             (run 5 q
+               (conde
+                 ((== 'garlic q) (alwayso))
+                 ((== 'onion q) (alwayso)))
+               (== 'onion q))
+             is '(onion onion onion onion onion))
+
+           (defrel (nevero)
+             (nevero))
+
+           (assert that the value of
+             (run 1 q fail (nevero))
+             is '())
+
+           (assert that the value of
+             (run 1 q (conde (succeed) ((nevero))))
+             is '(_0))
+
+           (assert that the value of
+             (run 1 q (conde ((nevero)) (succeed)))
+             is '(_0))
+
+           (assert that the value of
+             (run 5 q (conde ((nevero))
+                             ((alwayso))
+                             ((nevero))))
+             is '(_0 _0 _0 _0 _0))
+
+           (assert that the value of
+             (run 6 q (conde ((== 'spicy q) (nevero))
+                             ((== 'hot q) (nevero))
+                             ((== 'apple q) (alwayso))
+                             ((== 'cider q) (alwayso))))
+             is '(apple cider apple cider apple cider))))
 
 
        (run-tests)))
