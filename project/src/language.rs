@@ -152,7 +152,7 @@ pub mod scheme {
             native "eq?", =2, Scm::ptr_eq;
             native "eqv?", =2, Scm::ptr_eq;
             native "equal?", =2, Scm::equals;
-            native "=", =2, Scm::ptr_eq;
+            native "=", =2, Scm::num_eq;
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;

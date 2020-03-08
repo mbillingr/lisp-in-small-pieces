@@ -348,6 +348,19 @@ impl Scm {
         }
     }
 
+    pub fn num_eq(&self, other: &Self) -> bool {
+        use Scm::*;
+        match (self, other) {
+            (True, True) => true,
+            (False, False) => true,
+            (Int(a), Int(b)) => a == b,
+            (Float(a), Float(b)) => a == b,
+            (Int(a), Float(b)) => *a as f64 == *b,
+            (Float(a), Int(b)) => *a == *b as f64,
+            _ => false,
+        }
+    }
+
     pub fn num_less(&self, other: &Self) -> Result<bool> {
         use Scm::*;
         match (*self, *other) {
