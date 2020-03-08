@@ -16,6 +16,7 @@
             eof-object eof-object?
             eq? equal? eqv?
             error error-object? error-object-message error-object-irritants
+            even?
             flush-output-port
             get-output-bytevector get-output-string
             if
@@ -25,7 +26,8 @@
             letrec-syntax
             make-parameter map
             member memq memv
-            newline null? number->string
+            newline not null? number->string
+            odd?
             open-input-bytevector open-input-string
             open-output-bytevector open-output-string
             or
@@ -34,6 +36,7 @@
             quasiquote quote
             raise raise-continuable
             read read-bytevector read-bytevector! read-char read-line read-string read-u8
+            remainder
             set! set-car! set-cdr!
             string->symbol string-append
             textual-port?
@@ -58,6 +61,17 @@
 
       (define (zero? x)
         (= x 0))
+
+      (define remainder %)
+
+      (define (even? x)
+        (zero? (remainder x 2)))
+
+      (define (odd? x)
+        (= 1 (remainder x 2)))
+
+      (define (not b)
+        (eq? b #f))
 
       ; simplistic definition of map, that takes only one list
       (define (map proc list)

@@ -607,6 +607,20 @@ impl std::ops::Div for Scm {
     }
 }
 
+impl std::ops::Rem for Scm {
+    type Output = Result<Scm>;
+    fn rem(self, other: Self) -> Self::Output {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Float(a as f64 % b as f64)),
+            (Int(a), Float(b)) => Ok(Float(a as f64 % b)),
+            (Float(a), Int(b)) => Ok(Float(a % b as f64)),
+            (Float(a), Float(b)) => Ok(Float(a % b)),
+            _ => Err(TypeError::WrongType.into()),
+        }
+    }
+}
+
 impl std::ops::Add for Scm {
     type Output = Result<Scm>;
     fn add(self, other: Self) -> Self::Output {

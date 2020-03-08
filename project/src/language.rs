@@ -23,7 +23,7 @@ pub mod scheme {
     };
     use std::collections::VecDeque;
     use std::convert::TryInto;
-    use std::ops::{Div, Mul, Sub};
+    use std::ops::{Div, Mul, Rem, Sub};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
 
@@ -156,6 +156,7 @@ pub mod scheme {
             native "<", =2, Scm::num_less;
             native "*", =2, Scm::mul;
             native "/", =2, Scm::div;
+            native "%", =2, Scm::rem;
             native "+", >=0, add;
             native "-", =2, Scm::sub;
             native "list", >=0, list;
