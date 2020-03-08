@@ -1146,6 +1146,103 @@
              is '(((pizza))
                   (((pizza)) . _0)
                   ((((pizza)) . _0) . _1)
-                  (((((pizza)) . _0) . _1) . _2)))))
+                  (((((pizza)) . _0) . _1) . _2)))
+
+           ; Chapter 5
+
+           (defrel (memo x l out)
+             (conde
+               ((caro l x) (== l out))
+               ((fresh (d)
+                  (cdro l d)
+                  (memo x d out)))))
+
+           (assert that the value of
+             (run* q (memo 'fig '(pea) '(pea)))
+             is '())
+
+           (assert that the value of
+             (run* out (memo 'fig '(fig) out))
+             is '((fig)))
+
+           (assert that the value of
+             (run* out (memo 'fig '(fig pea) out))
+             is '((fig pea)))
+
+           (assert that the value of
+             (run* r (memo r '(roll okra fig beet fig pea)
+                             '(fig beet fig pea)))
+             is '(fig))
+
+           (assert that the value of
+             (run* x (memo 'fig '(fig pea) `(pea ,x)))
+             is '())
+
+           (assert that the value of
+             (run* x (memo 'fig '(fig pea) `(,x pea)))
+             is '(fig))
+
+           (assert that the value of
+             (run* out (memo 'fig '(beet fig pea) out))
+             is '((fig pea)))
+
+           (assert that the value of
+             (run 1 out (memo 'fig '(fig fig pea) out))
+             is '((fig fig pea)))
+
+           (assert that the value of
+             (run* out (memo 'fig '(fig fig pea) out))
+             is '((fig fig pea) (fig pea)))
+
+           (assert that the value of
+             (run* out (fresh (x) (memo 'fig `(a ,x c fig e) out)))
+             is '((fig c fig e) (fig e)))
+
+           (assert that the value of
+             (run 5 (x y) (memo 'fig `(fig d fig e . ,y) x))
+             is '(((fig d fig e . _0) _0)
+                  ((fig e . _0) _0)
+                  ((fig . _0) (fig . _0))
+                  ((fig . _0) (_1 fig . _0))
+                  ((fig . _0) (_1 _2 fig . _0))))
+
+           (defrel (rembero x l out)
+             (conde
+              ((nullo l) (== out '()))
+              ((conso x out l))
+              ((fresh (a d res)
+                 (conso a d l)
+                 (conso a res out)
+                 (rembero x d res)))))
+
+           (assert that the value of
+             (run* out (rembero 'pea '(pea) out))
+             is '(() (pea)))
+
+           (assert that the value of
+             (run* out (rembero 'pea '(pea pea) out))
+             is '((pea) (pea) (pea pea)))
+
+           (assert that the value of
+             (run* out (fresh (y z) (rembero y `(a b ,y d ,z e) out)))
+             is '((b a d _0 e)
+                  (a b d _0 e)
+                  (a b d _0 e)
+                  (a b d _0 e)
+                  (a b _0 d e)
+                  (a b e d _0)
+                  (a b _0 d _1 e)))
+
+           (assert that the value of
+             (run* (y z) (rembero y `(,y d ,z e) `(,y d e)))
+             is '((d d) (d d) (_0 _0) (e e)))
+
+           (assert that the value of
+             (run 4 (y z w out) (rembero y `(,z . ,w) out))
+             is '((_0 _0 _1 _1)
+                  (_0 _1 () (_1))
+                  (_0 _1 (_0 . _2) (_1 . _2))
+                  (_0 _1 (_2) (_1 _2))))))
+
 
        (run-tests)))
