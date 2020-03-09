@@ -1319,7 +1319,208 @@
                              ((== 'hot q) (nevero))
                              ((== 'apple q) (alwayso))
                              ((== 'cider q) (alwayso))))
-             is '(apple cider apple cider apple cider))))
+             is '(apple cider apple cider apple cider))
+
+           ; Chapter 7
+
+           (defrel (bit-xoro x y r)
+             (conde ((== 0 x) (== 0 y) (== 0 r))
+                    ((== 0 x) (== 1 y) (== 1 r))
+                    ((== 1 x) (== 0 y) (== 1 r))
+                    ((== 1 x) (== 1 y) (== 0 r))))
+
+           (assert that the value of
+             (run* (x y) (bit-xoro x y 0))
+             is '((0 0) (1 1)))
+
+           (assert that the value of
+             (run* (x y) (bit-xoro x y 1))
+             is '((0 1) (1 0)))
+
+           (assert that the value of
+             (run* (x y z) (bit-xoro x y z))
+             is '((0 0 0) (0 1 1) (1 0 1) (1 1 0)))
+
+           (defrel (bit-ando x y r)
+             (conde ((== 0 x) (== 0 y) (== 0 r))
+                    ((== 0 x) (== 1 y) (== 0 r))
+                    ((== 1 x) (== 0 y) (== 0 r))
+                    ((== 1 x) (== 1 y) (== 1 r))))
+
+           (assert that the value of
+             (run* (x y) (bit-ando x y 1))
+             is '((1 1)))
+
+           (defrel (half-addero x y r c)
+             (bit-xoro x y r)
+             (bit-ando x y c))
+
+           (assert that the value of
+             (run* r (half-addero 1 1 r 1))
+             is '(0))
+
+           (assert that the value of
+             (run* (x y r c) (half-addero x y r c))
+             is '((0 0 0 0) (0 1 1 0) (1 0 1 0) (1 1 0 1)))
+
+           (defrel (full-addero b x y r c)
+             (fresh (w xy wz)
+               (half-addero x y w xy)
+               (half-addero w b r wz)
+               (bit-xoro xy wz c)))
+
+           (assert that the value of
+             (run* (r c) (full-addero 0 1 1 r c))
+             is '((0 1)))
+
+           (assert that the value of
+             (run* (r c) (full-addero 1 1 1 r c))
+             is '((1 1)))
+
+           (assert that the value of
+             (run* (b x y r c) (full-addero b x y r c))
+             is '((0 0 0 0 0)
+                  (1 0 0 1 0)
+                  (0 0 1 1 0)
+                  (1 0 1 0 1)
+                  (0 1 0 1 0)
+                  (1 1 0 0 1)
+                  (0 1 1 0 1)
+                  (1 1 1 1 1)))
+
+           (define (build-num n)
+             (cond ((odd? n) (cons 1 (build-num (/ (- n 1) 2))))
+                   ((and (not (zero? n)) (even? n))
+                    (cons 0 (build-num (/ n 2))))
+                   ((zero? n) '())))
+
+           (assert that the value of
+             (build-num 0) is '())
+
+           (assert that the value of
+             (build-num 36) is '(0 0 1 0 0 1))
+
+           (assert that the value of
+             (build-num 19) is '(1 1 0 0 1))
+
+           (defrel (poso n)
+             (fresh (a d)
+              (== `(,a . ,d) n)))
+
+           (defrel (>1o n)
+             (fresh (a ad dd)
+               (== `(,a ,ad . ,dd) n)))
+
+           (defrel (addero b n m r)
+             (conde
+               ((== 0 b) (== '() m) (== n r))
+               ((== 0 b) (== '() n) (== m r) (poso m))
+               ((== 1 b) (== '() m) (addero 0 n '(1) r))
+               ((== 1 b) (== '() n) (poso m) (addero 0 '(1) m r))
+               ((== '(1) n) (== '(1) m)
+                (fresh (a c)
+                  (== `(,a ,c) r)
+                  (full-addero b 1 1 a c)))
+               ((== '(1) n) (gen-addero b n m r))
+               ((== '(1) m) (>1o n) (>1o r) (addero b '(1) n r))
+               ((>1o n) (gen-addero b n m r))))
+
+           (defrel (gen-addero b n m r)
+             (fresh (a c d e x y z)
+               (== `(,a . ,x) n)
+               (== `(,d . ,y) m) (poso y)
+               (== `(,c . ,z) r) (poso z)
+               (full-addero b a d c e)
+               (addero e x y z)))
+
+           (assert that the value of
+             (run 3 (x y r) (addero 0 x y r))
+             is '((_0 () _0)
+                  (() (_0 . _1) (_0 . _1))
+                  ((1) (1) (0 1))))
+
+           ; the order of results seems to be different than in the book
+           (assert that the value of
+             (run 20 (x y r) (addero 0 x y r))
+             is '((_0 () _0)
+                  (() (_0 . _1) (_0 . _1))
+                  ((1) (1) (0 1))
+                  ((1) (0 _0 . _1) (1 _0 . _1))
+                  ((1) (1 1) (0 0 1))
+
+                  ((0 _0 . _1) (1) (1 _0 . _1))
+                  ((1) (1 0 _0 . _1) (0 1 _0 . _1))
+                  ((1) (1 1 1) (0 0 0 1))
+                  ((1 1) (1) (0 0 1))
+                  ((1) (1 1 0 _0 . _1) (0 0 1 _0 . _1))
+
+                  ((0 1) (0 1) (0 0 1))
+                  ((1) (1 1 1 1) (0 0 0 0 1))
+                  ((1 0 _0 . _1) (1) (0 1 _0 . _1))
+                  ((1) (1 1 1 0 _0 . _1) (0 0 0 1 _0 . _1))
+                  ((1) (1 1 1 1 1) (0 0 0 0 0 1))
+
+                  ((1 1 1) (1) (0 0 0 1))
+                  ((1) (1 1 1 1 0 _0 . _1) (0 0 0 0 1 _0 . _1))
+                  ((1) (1 1 1 1 1 1) (0 0 0 0 0 0 1))
+                  ((1 1 0 _0 . _1) (1) (0 0 1 _0 . _1))
+                  ((0 1) (1 1) (1 0 1))))
+
+           (assert that the value of
+             (run* s (gen-addero 1 '(0 1 1) '(1 1) s))
+             is '((0 1 0 1)))
+
+           ; the order of the last two results are swapped in the book
+           (assert that the value of
+             (run* (x y) (addero 0 x y '(1 0 1)))
+             is '(((1 0 1) ())
+                  (() (1 0 1))
+                  ((1) (0 0 1))
+                  ((0 0 1) (1))
+                  ((0 1) (1 1))
+                  ((1 1) (0 1))))
+
+           (defrel (+o n m k)
+             (addero 0 n m k))
+
+           (defrel (-o n m k)
+             (+o m k n))
+
+           (assert that the value of
+             (run* q (-o '(0 0 0 1) '(1 0 1) q))
+             is '((1 1)))
+
+           (assert that the value of
+             (run* q (-o '(0 1 1) '(0 1 1) q))
+             is '(()))
+
+           (assert that the value of
+             (run* q (-o '(0 1 1) '(0 0 0 1) q))
+             is '())
+
+           (defrel (lengtho l n)
+             (conde
+               ((nullo l) (== '() n))
+               ((fresh (d res)
+                  (cdro l d)
+                  (+o '(1) res n)
+                  (lengtho d res)))))
+
+           (assert that the value of
+             (run 1 n (lengtho '(jicama rhubarb guava) n))
+             is '((1 1)))
+
+           (assert that the value of
+             (run* ls (lengtho ls '(1 0 1)))
+             is '((_0 _1 _2 _3 _4)))
+
+           (assert that the value of
+             (run* q (lengtho '(1 0 1) 3))
+             is '())
+
+           (assert that the value of
+             (run 3 q (lengtho q q))
+             is '(() (1) (0 1)))))
 
 
        (run-tests)))
