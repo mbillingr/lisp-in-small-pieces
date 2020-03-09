@@ -308,7 +308,6 @@ fn parse_symbol_subsequent(input: Span) -> ParseResult<Span> {
 
 fn parse_peculiar_identifier(input: Span) -> ParseResult<Span> {
     any((
-        parse_explicit_sign,
         all((
             parse_explicit_sign,
             parse_sign_subsequent,
@@ -325,6 +324,7 @@ fn parse_peculiar_identifier(input: Span) -> ParseResult<Span> {
             parse_dot_subsequent,
             repeat_0_or_more(parse_symbol_subsequent),
         )),
+        parse_explicit_sign,
     ))(input)
 }
 
@@ -757,6 +757,7 @@ mod tests {
         compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x(y)")));
         compare!(Sexpr::Symbol("x"), _, parse_symbol(Span::new("x y")));
         compare!(Sexpr::Symbol("..."), _, parse_symbol(Span::new("...")));
+        compare!(Sexpr::Symbol("-x"), _, parse_symbol(Span::new("-x")));
     }
 
     #[test]
