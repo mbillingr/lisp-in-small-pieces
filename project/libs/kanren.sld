@@ -1520,7 +1520,389 @@
 
            (assert that the value of
              (run 3 q (lengtho q q))
-             is '(() (1) (0 1)))))
+             is '(() (1) (0 1)))
 
+           ; Chapter 8
+
+           (defrel (*o n m p)
+             (conde
+               ((== '() n) (== '() p))
+               ((poso n) (== '() m) (== '() p))
+               ((== '(1) n) (poso m) (== m p))
+               ((>1o n) (== '(1) m) (== n p))
+               ((fresh (x z)
+                  (== `(0 . ,x) n) (poso x)
+                  (== `(0 . ,z) p) (poso z)
+                  (>1o m)
+                  (*o x m z)))
+               ((fresh (x y)
+                  (== `(1 . ,x) n) (poso x)
+                  (== `(0 . ,y) m) (poso y)
+                  (*o m n p)))
+               ((fresh (x y)
+                  (== `(1 . ,x) n) (poso x)
+                  (== `(1 . ,y) m) (poso y)
+                  (odd-*o x n m p)))))
+
+           (defrel (odd-*o x n m p)
+             (fresh (q)
+               (bound-*o q p n m)
+               (*o x m q)
+               (+o `(0 . ,q) m p)))
+
+           (defrel (bound-*o q p n m)
+             (conde
+               ((== '() q) (poso p))
+               ((fresh (a0 a1 a2 a3 x y z)
+                  (== `(,a0 . ,x) q)
+                  (== `(,a1 . ,y) p)
+                  (conde
+                    ((== '() n)
+                     (== `(,a2 . ,z) m)
+                     (bound-*o x y z '()))
+                    ((== `(,a3 . ,z) n)
+                     (bound-*o x y z m)))))))
+
+           (assert that the value of
+             (run 10 (x y r) (*o x y r))
+             is '((() _0 ())
+                  ((_0 . _1) () ())
+                  ((1) (_0 . _1) (_0 . _1))
+                  ((_0 _1 . _2) (1) (_0 _1 . _2))
+                  ((0 1) (_0 _1 . _2) (0 _0 _1 . _2))
+                  ((0 0 1) (_0 _1 . _2) (0 0 _0 _1 . _2))
+                  ((1 _0 . _1) (0 1) (0 1 _0 . _1))
+                  ((0 0 0 1) (_0 _1 . _2) (0 0 0 _0 _1 . _2))
+                  ((1 _0 . _1) (0 0 1) (0 0 1 _0 . _1))
+                  ((0 1 _0 . _1) (0 1) (0 0 1 _0 . _1))))
+
+           (assert that the value of
+             (run* (x y r)
+               (== `(,x ,y ,r) '((1 1) (1 1) (1 0 0 1)))
+               (*o x y r))
+             is '(((1 1) (1 1) (1 0 0 1))))
+
+           (assert that the value of
+             (run 1 (n m) (*o n m '(1)))
+             is '(((1) (1))))
+
+           (assert that the value of
+             (run 1 (n m)
+               (>1o n)
+               (>1o m)
+               (*o n m '(1 1)))
+             is '())
+
+           (assert that the value of
+             (run* p (*o '(1 1 1) '(1 1 1 1 1 1) p))
+             is '((1 0 0 1 1 1 0 1 1)))
+
+           (defrel (=lo n m)
+             (conde
+               ((== '() n) (== '() m))
+               ((== '(1) n) (== '(1) m))
+               ((fresh (a x b y)
+                  (== `(,a . ,x) n) (poso x)
+                  (== `(,b . ,y) m) (poso y)
+                  (=lo x y)))))
+
+           (assert that the value of
+             (run* (w x y) (=lo `(1 ,w ,x . ,y) '(0 1 1 0 1)))
+             is '((_0 _1 (_2 1))))
+
+           (assert that the value of
+             (run* b (=lo '(1) `(,b)))
+             is '(1))
+
+           (assert that the value of
+             (run* n (=lo `(1 0 1 . ,n) '(0 1 1 0 1)))
+             is '((_0 1)))
+
+           (assert that the value of
+             (run 5 (y z) (=lo `(1 . ,y) `(1 . ,z)))
+             is '((() ())
+                  ((1) (1))
+                  ((_0 1) (_1 1))
+                  ((_0 _1 1) (_2 _3 1))
+                  ((_0 _1 _2 1) (_3 _4 _5 1))))
+
+           (defrel (<lo n m)
+             (conde
+               ((== '() n) (poso m))
+               ((== '(1) n) (>1o m))
+               ((fresh (a x b y)
+                  (== `(,a . ,x) n) (poso x)
+                  (== `(,b . ,y) m) (poso y)
+                  (<lo x y)))))
+
+           (assert that the value of
+             (run 7 (y z) (<lo `(1 . ,y) `(0 1 1 0 1 . ,z)))
+             is '((() _0)
+                  ((1) _0)
+                  ((_0 1) _1)
+                  ((_0 _1 1) _2)
+                  ((_0 _1 _2 1) (_3 . _4))
+                  ((_0 _1 _2 _3 1) (_4 _5 . _6))
+                  ((_0 _1 _2 _3 _4 1) (_5 _6 _7 . _8))))
+
+           (defrel (<=lo n m)
+             (conde
+               ((=lo n m))
+               ((<lo n m))))
+
+           (assert that the value of
+             (run 7 (n m) (<=lo n m))
+             is '((() ())
+                  ((1) (1))
+                  (() (_0 . _1))
+                  ((_0 1) (_1 1))
+                  ((1) (_0 _1 . _2))
+                  ((_0 _1 1) (_2 _3 1))
+                  ((_0 1) (_1 _2 _3 . _4))))
+
+           (assert that the value of
+             (run 5 (n m)
+               (<=lo n m)
+               (*o n '(0 1) m))
+             is '((() ())
+                  ((1) (0 1))
+                  ((0 1) (0 0 1))
+                  ((1 1) (0 1 1))
+                  ((1 _0 1) (0 1 _0 1))))
+
+           (defrel (<o n m)
+             (conde
+               ((<lo n m))
+               ((=lo n m)
+                (fresh (x)
+                  (poso x)
+                  (+o n x m)))))
+
+           (defrel (<=o n m)
+             (conde
+               ((== n m))
+               ((<o n m))))
+
+           (assert that the value of
+             (run* q (<o '(1 0 1) '(1 1 1)))
+             is '(_0))
+
+           (assert that the value of
+             (run* q (<o '(1 1 1) '(1 0 1)))
+             is '())
+
+           (assert that the value of
+             (run* q (<o '(1 0 1) '(1 0 1)))
+             is '())
+
+           (assert that the value of
+             (run* q (<=o '(1 0 1) '(1 0 1)))
+             is '(_0))
+
+           (assert that the value of
+             (run* n (<o n '(1 0 1)))
+             is '(() (1) (_0 1) (0 0 1)))
+
+           (assert that the value of
+             (run* m (<o '(1 0 1) m))
+             is '((_0 _1 _2 _3 . _4) (0 1 1) (1 1 1)))
+
+           (defrel (/o n m q r)
+             (conde
+               ((== '() q) (== n r) (<o n m))
+               ((== '(1) q) (== '() r) (== n m) (<o r m))
+               ((<o m n) (<o r m)
+                (fresh (mq)
+                  (<=lo mq n)
+                  (*o m q mq)
+                  (+o mq r n)))))
+
+           (assert that the value of
+             (run 4 (n m q r) (/o n m q r))
+             is '((() (_0 . _1) () ())
+                  ((1) (_0 _1 . _2) () (1))
+                  ((_0 . _1) (_0 . _1) (1) ())
+                  ((_0 1) (_1 _2 _3 . _4) () (_0 1))))
+
+           (assert that the value of
+             (run* m (fresh (r) (/o '(1 0 1) m '(1 1 1) r)))
+             is '())
+
+           (defrel (splito n r l h)
+             (conde
+               ((== '() n) (== '() h) (== '() l))
+               ((fresh (b ^n)
+                  (== `(0 ,b . ,^n) n) (== '() r)
+                  (== `(,b . ,^n) h) (== '() l)))
+               ((fresh (^n)
+                  (== `(1 . ,^n) n) (== '() r)
+                  (== ^n h) (== '(1) l)))
+               ((fresh (b ^n a ^r)
+                  (== `(0 ,b . ,^n) n)
+                  (== `(,a . ,^r) r) (== '() l)
+                  (splito `(,b . ,^n) ^r '() h)))
+               ((fresh (^n a ^r)
+                  (== `(1 . ,^n) n)
+                  (== `(,a . ,^r) r) (== '(1) l)
+                  (splito ^n ^r '() h)))
+               ((fresh (b ^n a ^r ^l)
+                  (== `(,b . ,^n) n)
+                  (== `(,a . ,^r) r)
+                  (== `(,b . ,^l) l)
+                  (poso ^l)
+                  (splito ^n ^r ^l h)))))
+
+           (assert that the value of
+             (run* (l h) (splito '(0 0 1 0 1) '() l h))
+             is '((() (0 1 0 1))))
+
+           (assert that the value of
+             (run* (l h) (splito '(0 0 1 0 1) '(1) l h))
+             is '((() (1 0 1))))
+
+           (assert that the value of
+             (run* (l h) (splito '(0 0 1 0 1) '(0 1) l h))
+             is '(((0 0 1) (0 1))))
+
+           (assert that the value of
+             (run* (l h) (splito '(0 0 1 0 1) '(1 1) l h))
+             is '(((0 0 1) (0 1))))
+
+           (assert that the value of
+             (run* (r l h) (splito '(0 0 1 0 1) r l h))
+             is '((() () (0 1 0 1))
+                  ((_0) () (1 0 1))
+                  ((_0 _1) (0 0 1) (0 1))
+                  ((_0 _1 _2) (0 0 1) (1))
+                  ((_0 _1 _2 _3) (0 0 1 0 1) ())
+                  ((_0 _1 _2 _3 _4 . _5) (0 0 1 0 1) ())))
+
+           (defrel (/o n m q r)
+             (conde
+               ((== '() q) (== r n) (<o n m))
+               ((== '(1) q) (=lo m n) (+o r m n) (<o r m))
+               ((poso q) (<lo m n) (<o r m)
+                (n-wider-than-mo n m q r))))
+
+           (defrel (n-wider-than-mo n m q r)
+             (fresh (n_high n_low q_high q_low)
+               (fresh (mq_low mrq_low rr r_high)
+                 (splito n r n_low n_high)
+                 (splito q r q_low q_high)
+                 (conde
+                   ((== '() n_high)
+                    (== '() q_high)
+                    (-o n_low r mq_low)
+                    (*o m q_low mq_low))
+                   ((poso n_high)
+                    (*o m q_low mq_low)
+                    (+o r mq_low mrq_low)
+                    (-o mrq_low n_low rr)
+                    (splito rr r '() r_high)
+                    (/o n_high m q_high r_high))))))
+
+           (assert that the value of
+             (run 1 (y z) (/o `(1 0 . ,y) '(0 1) z '()))
+             is '())
+
+           (defrel (logo n b q r)
+             (conde
+               ((== '() q) (<=o n b) (+o r '(1) n))
+               ((== '(1) q) (>1o b) (=lo n b) (+o r b n))
+               ((== '(1) b) (poso q) (+o r '(1) n))
+               ((== '() b) (poso q) (== r n))
+               ((== '(0 1) b)
+                (fresh (a ad dd)
+                  (poso dd)
+                  (== `(,a ,ad . ,dd) n)
+                  (exp2o n '() q)
+                  (fresh (s)
+                    (splito n dd r s))))
+               ((<=o '(1 1) b) (<lo b n)
+                (base-three-or-moreo n b q r))))
+
+           (defrel (exp2o n b q)
+             (conde
+               ((== '(1) n) (== '() q))
+               ((>1o n) (== '(1) q)
+                (fresh (s)
+                  (splito n b s '(1))))
+               ((fresh (q1 b2)
+                  (== `(0 . ,q1) q) (poso q1)
+                  (<lo b n)
+                  (appendo b `(1 . ,b) b2)
+                  (exp2o n b2 q1)))
+               ((fresh (q1 n_high b2 s)
+                  (== `(1 . ,q1) q) (poso q1)
+                  (poso n_high)
+                  (splito n b s n_high)
+                  (appendo b `(1 . ,b) b2)
+                  (exp2o n_high b2 q1)))))
+
+           (defrel (base-three-or-moreo n b q r)
+             (fresh (bw1 bw nw nw1 q_low1 q_low s)
+                (exp2o b '() bw1)
+                (+o bw1 '(1) bw)
+                (<lo q n)
+                (fresh (q1 bwq1)
+                  (+o q '(1) q1)
+                  (*o bw q1 bwq1)
+                  (<o nw1 bwq1))
+                (exp2o n '() nw1)
+                (+o nw1 '(1) nw)
+                (/o nw bw q_low1 s)
+                (+o q_low '(1) q_low1)
+                (<=lo q_low q)
+                (fresh (bq_low q_high s qd_high qd)
+                  (repeated-mulo b q_low bq_low)
+                  (/o nw bw1 q_high s)
+                  (+o q_low qd_high q_high)
+                  (+o q_low qd q)
+                  (<=o qd qd_high)
+                  (fresh (bqd bq1 bq)
+                    (repeated-mulo b qd bqd)
+                    (*o bq_low bqd bq)
+                    (*o b bq bq1)
+                    (+o bq r n)
+                    (<o n bq1)))))
+
+           (defrel (repeated-mulo n q nq)
+             (conde
+               ((poso n) (== '() q) (== '(1) nq))
+               ((== '(1) q) (== n nq))
+               ((>1o q)
+                (fresh (q1 nq1)
+                  (+o q1 '(1) q)
+                  (repeated-mulo n q1 nq1)
+                  (*o nq1 n nq)))))
+
+           (assert that the value of
+             (run* r (logo '(0 1 1 1) '(0 1) '(1 1) r))
+             is '((0 1 1)))
+
+           '(let ()
+             (display "This may take a while...") (newline)
+              (assert that the value of
+                (run 9 (b q r)
+                  (logo '(0 0 1 0 0 0 1) b q r)
+                  (>1o q))
+                is '((() (_0 _1 . _2) (0 0 1 0 0 0 1)) ; 68 = 0^n + 68, where n > 1
+                     ((1) (_0 _1 . _2) (1 1 0 0 0 0 1)); 68 = 1^n + 67, where n > 1
+                     ((0 1) (0 1 1) (0 0 1))           ; 68 = 2^6 + 4
+                     ((1 1) (1 1) (1 0 0 1 0 1))       ; 68 = 3^3 + 41
+                     ((0 0 1) (1 1) (0 0 1))           ; 68 = 4^3 + 4
+                     ((0 0 0 1) (0 1) (0 0 1))         ; 68 = 8^2 + 4
+                     ((1 0 1) (0 1) (1 1 0 1 0 1))     ; 68 = 5^2 + 43
+                     ((0 1 1) (0 1) (0 0 0 0 0 1))     ; 68 = 6^2 + 32
+                     ((1 1 1) (0 1) (1 1 0 0 1)))))     ; 68 = 7^2 + 19
+
+           (defrel (expo b q n)
+             (logo n b q '()))
+
+           '(let ()
+              (display "This may take a while...") (newline)
+              (assert that the value of
+                (run* t (expo '(1 1) '(1 0 1) t))
+                is `(,(build-num 243))))))
 
        (run-tests)))
