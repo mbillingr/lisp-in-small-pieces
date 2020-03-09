@@ -1717,6 +1717,7 @@
                   (*o m q mq)
                   (+o mq r n)))))
 
+           ; Interestingly, this produces different results on chibi scheme
            (assert that the value of
              (run 4 (n m q r) (/o n m q r))
              is '((() (_0 . _1) () ())
