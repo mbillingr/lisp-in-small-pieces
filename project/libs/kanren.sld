@@ -1903,6 +1903,226 @@
               (display "This may take a while...") (newline)
               (assert that the value of
                 (run* t (expo '(1 1) '(1 0 1) t))
-                is `(,(build-num 243))))))
+                is `(,(build-num 243))))
+
+           ; Chapter 9
+
+           (assert that the value of
+             (run* q (conda (fail succeed) (succeed fail)))
+             is '())
+
+           (assert that the value of
+             (run* q (conda (fail succeed) (succeed succeed)))
+             is '(_0))
+
+           (assert that the value of
+             (run* q (conda (succeed succeed) (succeed fail)))
+             is '(_0))
+
+           (assert that the value of
+             (run* x (conda ((== 'olive x) succeed)
+                            (succeed (== 'oil x))))
+             is '(olive))
+
+           (assert that the value of
+             (run* x (conda ((== 'virgin x) fail)
+                            ((== 'olive x) succeed)
+                            (succeed (== 'oil x))))
+             is '())
+
+           (assert that the value of
+             (run* q
+               (fresh (x y)
+                 (== 'split x)
+                 (== 'pea y)
+                 (conda
+                   ((== 'split x) (== x y))
+                   (succeed succeed))))
+             is '())
+
+           (assert that the value of
+             (run* q
+               (fresh (x y)
+                 (== 'split x)
+                 (== 'pea y)
+                 (conda
+                   ((== x y) (== 'split x))
+                   (succeed succeed))))
+             is '(_0))
+
+           (defrel (not-pastao x)
+             (conda
+               ((== 'pasta x) fail)
+               (succeed succeed)))
+
+           (assert that the value of
+             (run* x (conda ((not-pastao x) fail)
+                            ((== 'spaghetti x) succeed)))
+             is '(spaghetti))
+
+           (assert that the value of
+             (run* x
+               (== 'spaghetti x)
+               (conda ((not-pastao x) fail)
+                      ((== 'spaghetti x) succeed)))
+             is '())
+
+           (assert that the value of
+             (run* q (condu ((alwayso) succeed) (succeed fail)))
+             is '(_0))
+
+           (assert that the value of
+             (run* q
+               (condu ((alwayso) succeed)
+                      (succeed fail))
+               fail)
+             is '())
+
+           (defrel (teacupo t)
+             (conde ((== 'tea t))
+                    ((== 'cup t))))
+
+           (defrel (onceo g)
+             (condu (g succeed)
+                    (succeed fail)))
+
+           (assert that the value of
+             (run* x (onceo (teacupo x)))
+             is '(tea))
+
+           (assert that the value of
+             (run* r (conde ((teacupo r) succeed)
+                            ((== #f r) succeed)))
+             is '(#f tea cup))
+
+           (assert that the value of
+             (run* r (conda ((teacupo r) succeed)
+                            ((== #f r) succeed)))
+             is '(tea cup))
+
+           (assert that the value of
+             (run* r
+               (== #f r)
+               (conda ((teacupo r) succeed)
+                      ((== #f r) succeed)))
+             is '(#f))
+
+           (assert that the value of
+             (run* r
+               (== #f r)
+               (condu ((teacupo r) succeed)
+                      ((== #f r) succeed)
+                      (succeed fail)))
+             is '(#f))
+
+           (defrel (bumpo n x)
+             (conde
+               ((== n x))
+               ((fresh (m)
+                  (-o n '(1) m)
+                  (bumpo m x)))))
+
+           (assert that the value of
+             (run* x (bumpo '(1 1 1) x))
+             is '((1 1 1)
+                  (0 1 1)
+                  (1 0 1)
+                  (0 0 1)
+                  (1 1)
+                  (0 1)
+                  (1)
+                  ()))
+
+           (defrel (gen&test+o i j k)
+             (onceo
+               (fresh (x y z)
+                 (+o x y z)
+                 (== i x)
+                 (== j y)
+                 (== k z))))
+
+           (assert that the value of
+             (run* q (gen&test+o '(0 0 1) '(1 1) '(1 1 1)))
+             is '(_0))
+
+           (defrel (enumerate+o r n)
+             (fresh (i j k)
+               (bumpo n i)
+               (bumpo n j)
+               (+o i j k)
+               (gen&test+o i j k)
+               (== `(,i ,j ,k) r)))
+
+           ; The order of results is different in the book
+           (assert that the value of
+             (run* s (enumerate+o s '(1 1)))
+             is '((() (1 1) (1 1))
+                  ((1 1) () (1 1))
+                  (() (0 1) (0 1))
+                  (() (1) (1))
+                  (() () ())
+                  ((0 1) () (0 1))
+                  ((1) (1 1) (0 0 1))
+                  ((1) () (1))
+                  ((1) (0 1) (1 1))
+                  ((1) (1) (0 1))
+                  ((1 1) (1) (0 0 1))
+                  ((0 1) (1 1) (1 0 1))
+                  ((0 1) (1) (1 1))
+                  ((0 1) (0 1) (0 0 1))
+                  ((1 1) (1 1) (0 1 1))
+                  ((1 1) (0 1) (1 0 1))))
+
+           (defrel (enumerate+o r n)
+             (fresh (i j k)
+               (bumpo n i)
+               (bumpo n j)
+               (+o i j k)
+               (onceo
+                 (fresh (x y z)
+                   (+o x y z)
+                   (== i x)
+                   (== j y)
+                   (== k z)))
+               (== `(,i ,j ,k) r)))
+
+           (assert that the value of
+             (run* s (enumerate+o s '(1 1)))
+             is '((() (1 1) (1 1))
+                  ((1 1) () (1 1))
+                  (() (0 1) (0 1))
+                  (() (1) (1))
+                  (() () ())
+                  ((0 1) () (0 1))
+                  ((1) (1 1) (0 0 1))
+                  ((1) () (1))
+                  ((1) (0 1) (1 1))
+                  ((1) (1) (0 1))
+                  ((1 1) (1) (0 0 1))
+                  ((0 1) (1 1) (1 0 1))
+                  ((0 1) (1) (1 1))
+                  ((0 1) (0 1) (0 0 1))
+                  ((1 1) (1 1) (0 1 1))
+                  ((1 1) (0 1) (1 0 1))))
+
+           (defrel (enumerateo op r n)
+             (fresh (i j k)
+               (bumpo n i)
+               (bumpo n j)
+               (op i j k)
+               (onceo
+                 (fresh (x y z)
+                   (op x y z)
+                   (== i x)
+                   (== j y)
+                   (== k z)))
+               (== `(,i ,j ,k) r)))
+
+           (assert that the value of
+             (run* s (enumerateo *o s '(1)))
+             is '(((1) (1) (1))
+                  (() (1) ())
+                  ((1) () ())
+                  (() () ())))))
 
        (run-tests)))
