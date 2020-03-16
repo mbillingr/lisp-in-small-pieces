@@ -1,4 +1,4 @@
-use crate::scm::Scm;
+use crate::scm::{Scm, ScmValue};
 use crate::symbol::Symbol;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{GlobalVariable, LocalVariable, Variable};
@@ -132,7 +132,7 @@ impl Env {
             })
             .enumerate()
             .filter_map(|(idx, var)| match var {
-                Variable::GlobalVariable(gv) => Some((idx, Scm::Symbol(gv.name()))),
+                Variable::GlobalVariable(gv) => Some((idx, Scm::symbol(gv.name()))),
                 _ => None,
             })
     }
@@ -175,9 +175,9 @@ impl Env {
     pub fn update_global_values(&self, values: impl Iterator<Item = (Scm, Symbol)>) {
         for (gv, (value, name)) in self.globals().zip(values) {
             assert_eq!(gv.name(), name);
-            match value {
-                Scm::Undefined | Scm::Uninitialized => gv.ensure_value(VarDef::Unknown),
-                val => gv.ensure_value(VarDef::Value(val)),
+            match value.value {
+                ScmValue::Undefined | ScmValue::Uninitialized => gv.ensure_value(VarDef::Unknown),
+                _ => gv.ensure_value(VarDef::Value(value)),
             }
         }
     }

@@ -125,7 +125,7 @@ macro_rules! build_library {
         build_library!(
             @|builder: LibraryBuilder| $build(builder).add_value(
                 $name,
-                Scm::Primitive(make_primitive!($name, $arity_test$arity, $func)));
+                Scm::primitive(make_primitive!($name, $arity_test$arity, $func)));
             $($rest)*)
     };
 
@@ -133,7 +133,7 @@ macro_rules! build_library {
         build_library!(
             @|builder: LibraryBuilder| $build(builder).add_value(
                 $name,
-                Scm::Primitive(make_primitive!(native $name, $arity_test$arity, $func)));
+                Scm::primitive(make_primitive!(native $name, $arity_test$arity, $func)));
             $($rest)*)
     };
 

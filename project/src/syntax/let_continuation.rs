@@ -68,7 +68,7 @@ impl Reify for LetContinuation {
 
         Scm::list(vec![
             name,
-            Scm::Symbol(self.variable.name()),
+            Scm::symbol(self.variable.name()),
             self.body.reify(),
         ])
     }

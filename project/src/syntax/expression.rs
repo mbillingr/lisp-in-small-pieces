@@ -111,7 +111,7 @@ impl Reify for Expression {
     fn reify(&self) -> Scm {
         use Expression::*;
         match self {
-            MagicKeyword(mkw) => Scm::Symbol(mkw.name),
+            MagicKeyword(mkw) => Scm::symbol(mkw.name),
             Reference(ast) => ast.reify(),
             Assignment(ast) => ast.reify(),
             Constant(ast) => ast.reify(),
@@ -123,7 +123,7 @@ impl Reify for Expression {
             BoxRead(_) | BoxWrite(_) | BoxCreate(_) => unimplemented!(),
             FlatClosure(_) => unimplemented!(),
             GlobalDefine(ast) => ast.reify(),
-            NoOp(_) => Scm::Undefined,
+            NoOp(_) => Scm::undefined(),
             LetContinuation(ast) => ast.reify(),
         }
     }

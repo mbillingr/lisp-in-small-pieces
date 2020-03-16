@@ -3,7 +3,7 @@ use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{ErrorKind, Result, RuntimeError, TypeError};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
-use crate::scm::Scm;
+use crate::scm::{Scm, ScmValue};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::library::LibraryExportSpec;
@@ -200,8 +200,8 @@ impl VirtualMachine {
             ip: 0,
             cls: HALT.with(|x| *x),
             frame_offset: 0,
-            val: Scm::Undefined,
-            exception_handler: Scm::Primitive(RuntimePrimitive::new(
+            val: Scm::undefined(),
+            exception_handler: Scm::primitive(RuntimePrimitive::new(
                 "default-exception-handler",
                 Arity::Exact(1),
                 |args, _| Err(ErrorKind::Unhandled(args[0]).into()),
@@ -214,7 +214,7 @@ impl VirtualMachine {
     }
 
     pub fn synchronize_globals(&mut self) {
-        self.globals.resize(self.ga.n_vars(), Scm::Uninitialized);
+        self.globals.resize(self.ga.n_vars(), Scm::uninitialized());
     }
 
     pub fn add_library(&mut self, name: &'static str, library: &Library) {
@@ -228,17 +228,17 @@ impl VirtualMachine {
 
     pub fn set_global(&mut self, idx: usize, value: Scm) {
         if idx >= self.globals.len() {
-            self.globals.resize(idx + 8, Scm::Uninitialized);
+            self.globals.resize(idx + 8, Scm::uninitialized());
         }
         self.globals[idx] = value;
     }
 
     pub fn invoke(&mut self, func: Scm, args: &[Scm]) -> Result<Scm> {
-        match func {
-            Scm::Closure(cls) => self.eval(cls, args),
-            Scm::Primitive(pri) => (pri.func())(args, self),
-            Scm::Continuation(_) => unimplemented!(),
-            f => Err(TypeError::NotCallable(f).into()),
+        match func.value {
+            ScmValue::Closure(cls) => self.eval(cls, args),
+            ScmValue::Primitive(pri) => (pri.func())(args, self),
+            ScmValue::Continuation(_) => unimplemented!(),
+            _ => Err(TypeError::NotCallable(func).into()),
         }
     }
 
@@ -259,7 +259,7 @@ impl VirtualMachine {
         self.value_stack.extend_from_slice(args);
 
         self.frame_offset = self.value_stack.len() - self.convert_args(cls.code.arity, args.len());
-        self.val = Scm::Undefined;
+        self.val = Scm::undefined();
         self.ip = 0;
         self.cls = cls;
 
@@ -311,7 +311,7 @@ impl VirtualMachine {
                 }
                 Op::GlobalDef(idx) => {
                     self.globals[idx] = self.val;
-                    self.val = Scm::Undefined;
+                    self.val = Scm::undefined();
                 }
                 Op::Boxify(idx) => {
                     let x = self.ref_value(idx + self.frame_offset)?;
@@ -339,12 +339,12 @@ impl VirtualMachine {
                 Op::PushCC(offset) => {
                     let cc = Continuation::new(offset, self);
                     let cc = Box::leak(Box::new(cc));
-                    self.value_stack.push(Scm::Continuation(cc));
+                    self.value_stack.push(Scm::continuation(cc));
                 }
                 Op::PushEP(offset) => {
                     let ep = ExitProcedure::new(offset, self);
                     let ep = Box::leak(Box::new(ep));
-                    self.value_stack.push(Scm::ExitProc(ep));
+                    self.value_stack.push(Scm::exit_proc(ep));
 
                     // the exit procedure is valid until this marker is popped from the stack
                     self.call_stack.push(CallstackItem::ExitProc(ep));
@@ -396,7 +396,7 @@ impl VirtualMachine {
                 Op::InitLibrary => {
                     let libname = self.val.as_string().unwrap();
                     self.init_library(libname)?;
-                    self.val = Scm::Undefined;
+                    self.val = Scm::undefined();
                 }
                 Op::Cons => {
                     let car = self.pop_value()?;
@@ -437,11 +437,11 @@ impl VirtualMachine {
     pub fn raise(&mut self, exo: Scm) -> Result<()> {
         self.push_value(exo);
         let handler = self.pop_handler();
-        match handler {
-            Scm::Closure(cls) => cls.invoke(1, self),
-            Scm::Continuation(cnt) => cnt.invoke(1, self)?,
-            Scm::ExitProc(cnt) => cnt.invoke(1, self)?,
-            Scm::Primitive(func) => {
+        match handler.value {
+            ScmValue::Closure(cls) => cls.invoke(1, self),
+            ScmValue::Continuation(cnt) => cnt.invoke(1, self)?,
+            ScmValue::ExitProc(cnt) => cnt.invoke(1, self)?,
+            ScmValue::Primitive(func) => {
                 func.invoke(1, self)?;
                 unimplemented!("exception returned")
             }
@@ -454,11 +454,11 @@ impl VirtualMachine {
     pub fn raise_continuable(&mut self, exo: Scm) -> Result<()> {
         self.push_value(exo);
         let handler = self.pop_handler();
-        match handler {
-            Scm::Closure(cls) => cls.invoke(1, self),
-            Scm::Continuation(cnt) => cnt.invoke(1, self)?,
-            Scm::ExitProc(cnt) => cnt.invoke(1, self)?,
-            Scm::Primitive(func) => {
+        match handler.value {
+            ScmValue::Closure(cls) => cls.invoke(1, self),
+            ScmValue::Continuation(cnt) => cnt.invoke(1, self)?,
+            ScmValue::ExitProc(cnt) => cnt.invoke(1, self)?,
+            ScmValue::Primitive(func) => {
                 func.invoke(1, self)?;
                 return Ok(());
             }
@@ -474,12 +474,12 @@ impl VirtualMachine {
     }
 
     pub fn pop_handler(&mut self) -> Scm {
-        match self.exception_handler {
-            Scm::Pair(p) => {
+        match self.exception_handler.value {
+            ScmValue::Pair(p) => {
                 self.exception_handler = p.1.get();
                 p.0.get()
             }
-            handler => handler,
+            _ => self.exception_handler,
         }
     }
 

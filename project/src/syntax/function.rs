@@ -54,7 +54,7 @@ impl Reify for Function {
     fn reify(&self) -> Scm {
         let mut vars = Scm::nil();
         for v in self.variables.iter().rev() {
-            let name = Scm::Symbol(v.name());
+            let name = Scm::symbol(v.name());
             if v.is_dotted() {
                 vars = name;
             } else {

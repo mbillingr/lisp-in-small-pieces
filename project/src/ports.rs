@@ -196,7 +196,7 @@ impl SchemePort {
 
 fn convert_optional_value_to_scm<T: Into<Scm>>(value: Option<T>) -> Scm {
     match value {
-        None => Scm::Eof,
+        None => Scm::eof(),
         Some(x) => x.into(),
     }
 }
@@ -385,7 +385,7 @@ pub fn read_sexpr(port: &mut dyn InputPort) -> Result<Scm> {
     let mut buf = String::new();
     loop {
         match port.read_line()? {
-            None => return Ok(Scm::Eof),
+            None => return Ok(Scm::eof()),
             Some(line) => buf += &line,
         }
         let span = Span::new(&buf);

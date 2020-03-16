@@ -129,9 +129,9 @@ impl FreeReference {
 impl Reify for Reference {
     fn reify(&self) -> Scm {
         match self {
-            Reference::LocalReference(r) => Scm::Symbol(r.var.name()),
-            Reference::GlobalReference(r) => Scm::Symbol(r.var.name()),
-            Reference::FreeReference(r) => Scm::Symbol(r.var.name()),
+            Reference::LocalReference(r) => Scm::symbol(r.var.name()),
+            Reference::GlobalReference(r) => Scm::symbol(r.var.name()),
+            Reference::FreeReference(r) => Scm::symbol(r.var.name()),
         }
     }
 }

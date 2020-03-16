@@ -2,7 +2,7 @@ use crate::bytecode::{CodeObject, LibraryObject, Op};
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
-use crate::scm::Scm;
+use crate::scm::{Scm, ScmValue};
 use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
@@ -396,7 +396,10 @@ impl<'a> BytecodeGenerator<'a> {
         match func {
             Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
                 match var.value() {
-                    VarDef::Value(Scm::Primitive(RuntimePrimitive { name, .. })) => match name {
+                    VarDef::Value(Scm {
+                        value: ScmValue::Primitive(RuntimePrimitive { name, .. }),
+                        ..
+                    }) => match name {
                         "cons" => Ok(Some(vec![Op::Cons])),
                         "car" => Ok(Some(vec![Op::Car])),
                         "cdr" => Ok(Some(vec![Op::Cdr])),
@@ -510,7 +513,7 @@ mod tests {
             GlobalVariable::defined(
                 Symbol::new(""),
                 "no-matter",
-                Scm::Primitive(RuntimePrimitive::new(
+                Scm::primitive(RuntimePrimitive::new(
                     "cons",
                     Arity::Exact(2),
                     |_: &[Scm], _: &mut VirtualMachine| unimplemented!(),

@@ -121,11 +121,11 @@ impl Reify for ImportSet {
     fn reify(&self) -> Scm {
         let items = self.items.iter().map(|item| {
             if item.export_var == item.import_var {
-                Scm::Symbol(item.export_var.name())
+                Scm::symbol(item.export_var.name())
             } else {
                 Scm::list(vec![
-                    Scm::Symbol(item.export_var.name()),
-                    Scm::Symbol(item.import_var.name()),
+                    Scm::symbol(item.export_var.name()),
+                    Scm::symbol(item.import_var.name()),
                 ])
             }
         });

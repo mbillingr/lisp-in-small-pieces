@@ -37,7 +37,7 @@ impl Reify for GlobalDefine {
     fn reify(&self) -> Scm {
         Scm::list(vec![
             Scm::symbol("define$"),
-            Scm::Symbol(self.variable.name()),
+            Scm::symbol(self.variable.name()),
             self.form.reify(),
         ])
     }

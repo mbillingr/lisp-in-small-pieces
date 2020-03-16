@@ -164,7 +164,7 @@ impl GlobalVariable {
     }
 
     pub fn full_name(&self) -> Scm {
-        Scm::cons(Scm::Symbol(self.module()), Scm::Symbol(self.name()))
+        Scm::cons(Scm::symbol(self.module()), Scm::symbol(self.name()))
     }
 }
 
@@ -266,8 +266,8 @@ impl PartialEq for VarDef {
 impl VarDef {
     pub fn as_scm(&self) -> Scm {
         match self {
-            VarDef::Unknown => Scm::Undefined,
-            VarDef::Undefined => Scm::Uninitialized,
+            VarDef::Unknown => Scm::undefined(),
+            VarDef::Undefined => Scm::uninitialized(),
             VarDef::Value(x) => *x,
         }
     }

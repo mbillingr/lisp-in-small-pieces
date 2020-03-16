@@ -13,7 +13,7 @@ pub mod scheme {
     use crate::scan_out_defines::{
         definition_value, definition_variable, make_function, scan_out_defines,
     };
-    use crate::scm::{ResultWrap, Scm};
+    use crate::scm::{ResultWrap, Scm, ScmValue};
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
@@ -164,7 +164,7 @@ pub mod scheme {
 
             native "number->string", >=1, |z: Scm, args: &[Scm]| -> Result<Scm> {
                 // quick and dirty implementation that only works for integers and panics uncontrollably...
-                let radix = args.get(0).unwrap_or(&Scm::Int(10)).as_int()? as u32;
+                let radix = args.get(0).unwrap_or(&Scm::int(10)).as_int()? as u32;
                 let mut z = z.as_int()? as u32;
                 let mut chars = VecDeque::new();
                 loop {
@@ -178,7 +178,7 @@ pub mod scheme {
                 Ok(Scm::string(chars.into_iter().collect::<String>()))
             };
 
-            native "string->symbol", =1, |s: Scm| s.as_string().map(|s| Scm::Symbol(Symbol::new(s)));
+            native "string->symbol", =1, |s: Scm| s.as_string().map(|s| Scm::symbol(s));
 
             native "string-append", >=0, |args: &[Scm]| args.iter().map(Scm::as_string).collect::<Result<String>>().map(Scm::string);
 
@@ -212,7 +212,7 @@ pub mod scheme {
     pub fn create_scheme_ports_library() -> LibraryData {
         build_library! {
             native "eof-object?", =1, Scm::is_eof;
-            native "eof-object", =0, || Scm::Eof;
+            native "eof-object", =0, || Scm::eof();
             native "input-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_input_port) };
             native "output-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_output_port) };
             native "port?", =1, |port: Scm| { port.as_port().is_ok() };
@@ -556,7 +556,7 @@ pub mod scheme {
     }
 
     pub fn add(args: &[Scm]) -> Result<Scm> {
-        let mut total = Scm::Int(0);
+        let mut total = Scm::int(0);
         for &a in args {
             total = (total + a)?;
         }
@@ -572,7 +572,7 @@ pub mod scheme {
     }
 
     pub fn disassemble(obj: Scm) {
-        if let Scm::Closure(cls) = obj {
+        if let ScmValue::Closure(cls) = obj.value {
             println!("free variables: {:?}", cls.free_vars);
             println!("{:#?}", cls.code);
         }
@@ -592,7 +592,7 @@ pub mod scheme {
     pub fn timeit(args: &[Scm], context: &mut VirtualMachine) -> Result<Scm> {
         let start = Instant::now();
         context.invoke(args[0], &[])?;
-        Ok(Scm::Int(start.elapsed().as_millis() as i64))
+        Ok(Scm::int(start.elapsed().as_millis() as i64))
     }
 
     #[cfg(test)]
@@ -616,7 +616,7 @@ pub mod scheme {
                     .add_value("b", 2)
                     .add_value(
                         "kons",
-                        Scm::Primitive(RuntimePrimitive::new(
+                        Scm::primitive(RuntimePrimitive::new(
                             "cons",
                             Arity::Exact(2),
                             |args: &[Scm], _ctx| match &args[..] {
@@ -627,7 +627,7 @@ pub mod scheme {
                     )
                     .add_value(
                         "kar",
-                        Scm::Primitive(RuntimePrimitive::new(
+                        Scm::primitive(RuntimePrimitive::new(
                             "car",
                             Arity::Exact(1),
                             |args: &[Scm], _ctx| match &args[..] {
@@ -733,77 +733,76 @@ pub mod scheme {
 
         mod self_evaluating {
             use super::*;
-            use crate::symbol::Symbol;
 
-            compare!(boolean_true: "#t", equals, Scm::True);
-            compare!(boolean_false: "#f", equals, Scm::False);
-            compare!(nil: "'()", equals, Scm::Nil);
-            compare!(integer: "42", equals, Scm::Int(42));
-            compare!(negative_integer: "-42", equals, Scm::Int(-42));
-            compare!(float: "3.1415", equals, Scm::Float(3.1415));
-            compare!(symbol: "'foobar", ptr_eq, Scm::Symbol(Symbol::new("foobar")));
-            compare!(string: "\"text\"", equals, Scm::String("text"));
+            compare!(boolean_true: "#t", equals, Scm::bool(true));
+            compare!(boolean_false: "#f", equals, Scm::bool(false));
+            compare!(nil: "'()", equals, Scm::nil());
+            compare!(integer: "42", equals, Scm::int(42));
+            compare!(negative_integer: "-42", equals, Scm::int(-42));
+            compare!(float: "3.1415", equals, Scm::float(3.1415));
+            compare!(symbol: "'foobar", ptr_eq, Scm::symbol("foobar"));
+            compare!(string: "\"text\"", equals, Scm::string("text"));
             compare!(vector: "#(1 2 3)",
-                     equals, Scm::vector(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+                     equals, Scm::vector(vec![Scm::int(1), Scm::int(2), Scm::int(3)]));
             compare!(quoted_pair: "(quote (1 . 2))",
-                     equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                     equals, Scm::cons(Scm::int(1), Scm::int(2)));
             compare!(quoted_list: "(quote (1 2 3))",
-                     equals, Scm::list(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
+                     equals, Scm::list(vec![Scm::int(1), Scm::int(2), Scm::int(3)]));
             compare!(quote_abbreviation: "(quote 'x)",
-                     equals, Scm::list(vec![Scm::Symbol(Symbol::new("quote")),
-                                            Scm::Symbol(Symbol::new("x"))]));
+                     equals, Scm::list(vec![Scm::symbol("quote"),
+                                            Scm::symbol("x")]));
         }
 
         mod compound {
             use super::*;
 
             assert_error!(empty_sequence: "(begin)", ObjectifyErrorKind::ExpectedList);
-            compare!(unary_sequence: "(begin 1)", equals, Scm::Int(1));
-            compare!(binary_sequence: "(begin 1 2)", equals, Scm::Int(2));
-            compare!(ternary_sequence: "(begin 1 2 3)", equals, Scm::Int(3));
+            compare!(unary_sequence: "(begin 1)", equals, Scm::int(1));
+            compare!(binary_sequence: "(begin 1 2)", equals, Scm::int(2));
+            compare!(ternary_sequence: "(begin 1 2 3)", equals, Scm::int(3));
             compare!(sequence_evaluates_sideeffects:
-                     "((lambda (x) (begin (set! x 42) 2 x)) 0)", equals, Scm::Int(42));
+                     "((lambda (x) (begin (set! x 42) 2 x)) 0)", equals, Scm::int(42));
 
-            compare!(true_branch: "(if #t 1 2)", equals, Scm::Int(1));
-            compare!(false_branch: "(if #f 1 2)", equals, Scm::Int(2));
-            compare!(one_branch: "(if #t 1)", equals, Scm::Int(1));
+            compare!(true_branch: "(if #t 1 2)", equals, Scm::int(1));
+            compare!(false_branch: "(if #f 1 2)", equals, Scm::int(2));
+            compare!(one_branch: "(if #t 1)", equals, Scm::int(1));
             check!(no_else_branch_is_undefined: "(if #f 1)", Scm::is_undefined);
             compare!(if_does_not_evaluate_first_branch:
-                     "((lambda (x) (if #f (set! x 99) 'f) x) 0)", equals, Scm::Int(0));
+                     "((lambda (x) (if #f (set! x 99) 'f) x) 0)", equals, Scm::int(0));
             compare!(if_does_not_evaluate_second_branch:
-                     "((lambda (x) (if #t 't (set! x 99)) x) 0)", equals, Scm::Int(0));
+                     "((lambda (x) (if #t 't (set! x 99)) x) 0)", equals, Scm::int(0));
         }
 
         mod abstraction {
             use super::*;
 
-            compare!(fix_lambda: "((lambda () 123))", equals, Scm::Int(123));
+            compare!(fix_lambda: "((lambda () 123))", equals, Scm::int(123));
             compare!(fix_lambda_with_args: "((lambda (x y) (cons x (cons y '()))) 7 5)",
-                     equals, Scm::list(vec![Scm::Int(7), Scm::Int(5)]));
+                     equals, Scm::list(vec![Scm::int(7), Scm::int(5)]));
             compare!(fix_lambda_with_var_args: "((lambda (x y . z) (cons (cons x y) z)) 1 2 3 4)",
                      equals,
-                     Scm::list(vec![Scm::cons(Scm::Int(1), Scm::Int(2)), Scm::Int(3), Scm::Int(4)]));
+                     Scm::list(vec![Scm::cons(Scm::int(1), Scm::int(2)), Scm::int(3), Scm::int(4)]));
             compare!(lambda_as_arg: "((lambda (func) (func)) (lambda () 42))",
-                     equals, Scm::Int(42));
+                     equals, Scm::int(42));
             compare!(assign_lambda: "((lambda (func) (set! func (lambda () 753)) (func)) '*uninit*)",
-                     equals, Scm::Int(753));
+                     equals, Scm::int(753));
             compare!(assign_lambda_with_args:
                      "((lambda (func) (set! func (lambda (x y) (+ x y))) (func 5 2)) '*uninit*)",
-                     equals, Scm::Int(7));
+                     equals, Scm::int(7));
             compare!(assign_lambda_with_var_args:
                      "((lambda (func) (set! func (lambda abc abc)) (func 5 2)) '*uninit*)",
-                     equals, Scm::list(vec![Scm::Int(5), Scm::Int(2)]));
+                     equals, Scm::list(vec![Scm::int(5), Scm::int(2)]));
             compare!(lambda_finds_free_variable_in_outer_scope:
-                     "((lambda (outer) ((lambda () outer))) 42)", equals, Scm::Int(42));
+                     "((lambda (outer) ((lambda () outer))) 42)", equals, Scm::int(42));
             compare!(escaping_lambda_keeps_free_variable_from_outer_scope:
-                     "(((lambda (outer) (lambda () outer)) 42))", equals, Scm::Int(42));
+                     "(((lambda (outer) (lambda () outer)) 42))", equals, Scm::int(42));
             compare!(lambda_can_modify_variable_in_outer_scope:
-                     "((lambda (outer) ((lambda () (set! outer 12))) outer) 42)", equals, Scm::Int(12));
+                     "((lambda (outer) ((lambda () (set! outer 12))) outer) 42)", equals, Scm::int(12));
             compare!(escaping_lambda_can_modify_free_variable_from_outer_scope:
                      "((lambda (f init) (set! f (init 0)) (f) (f)) '*uninit* (lambda (n) (lambda () (set! n (+ n 1)) n)))",
-                     equals, Scm::Int(2));
-            compare!(shadowed_global_is_restored: "(begin (define foo 123) ((lambda (foo) foo) 42) foo)", equals, Scm::Int(123));
-            compare!(shadowed_local_is_restored: "((lambda (x) ((lambda (x) x) 42) x) 123)", equals, Scm::Int(123));
+                     equals, Scm::int(2));
+            compare!(shadowed_global_is_restored: "(begin (define foo 123) ((lambda (foo) foo) 42) foo)", equals, Scm::int(123));
+            compare!(shadowed_local_is_restored: "((lambda (x) ((lambda (x) x) 42) x) 123)", equals, Scm::int(123));
         }
 
         mod variables {
@@ -815,72 +814,72 @@ pub mod scheme {
             assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("flummox"))));
             assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("foo"))));
             check!(new_global: "(define the-answer 42)", Scm::is_undefined);
-            compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
-            compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
+            compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::int(42));
+            compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::int(666));
 
-            compare!(return_local: "((lambda (x) x) 42)", equals, Scm::Int(42));
-            compare!(local_shadows_predef: "((lambda (cons) cons) 42)", equals, Scm::Int(42));
-            compare!(local_shadows_global: "(begin (define foo 123) ((lambda (foo) foo) 42))", equals, Scm::Int(42));
-            compare!(local_shadows_local: "((lambda (foo) ((lambda (foo) foo) 123)) 42)", equals, Scm::Int(123));
+            compare!(return_local: "((lambda (x) x) 42)", equals, Scm::int(42));
+            compare!(local_shadows_predef: "((lambda (cons) cons) 42)", equals, Scm::int(42));
+            compare!(local_shadows_global: "(begin (define foo 123) ((lambda (foo) foo) 42))", equals, Scm::int(42));
+            compare!(local_shadows_local: "((lambda (foo) ((lambda (foo) foo) 123)) 42)", equals, Scm::int(123));
 
-            compare!(modify_local: "((lambda (x) (set! x 789) x) 42)", equals, Scm::Int(789));
+            compare!(modify_local: "((lambda (x) (set! x 789) x) 42)", equals, Scm::int(789));
 
-            compare!(modify_free: "(((lambda (x) (lambda () (set! x 21) (+ x x))) 0))", equals, Scm::Int(42));
-            compare!(access_free_while_setting: "(((lambda (x) (lambda () (set! x x) x)) 0))", equals, Scm::Int(0));
+            compare!(modify_free: "(((lambda (x) (lambda () (set! x 21) (+ x x))) 0))", equals, Scm::int(42));
+            compare!(access_free_while_setting: "(((lambda (x) (lambda () (set! x x) x)) 0))", equals, Scm::int(0));
 
-            compare!(immutable_redefinition: "(begin (define cons #f) cons)", equals, Scm::False);
+            compare!(immutable_redefinition: "(begin (define cons #f) cons)", equals, Scm::bool(false));
             compare!(capture_free_variable_in_closure:
                 r#"(begin
                     (define (outer x)
                         (lambda ()
                             (lambda () x)))
                     (((outer 42))))"#,
-                 equals, Scm::Int(42));
+                 equals, Scm::int(42));
         }
 
         mod application {
             use super::*;
 
-            compare!(primitive: "(cons 1 2)", equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+            compare!(primitive: "(cons 1 2)", equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
-            compare!(fixed_nullary: "((lambda () 10))", equals, Scm::Int(10));
-            compare!(fixed_unary: "((lambda (x) x) 20)", equals, Scm::Int(20));
+            compare!(fixed_nullary: "((lambda () 10))", equals, Scm::int(10));
+            compare!(fixed_unary: "((lambda (x) x) 20)", equals, Scm::int(20));
             compare!(fixed_binary: "((lambda (x y) (cons x y)) 30 40)",
-                     equals, Scm::cons(Scm::Int(30), Scm::Int(40)));
+                     equals, Scm::cons(Scm::int(30), Scm::int(40)));
             compare!(fixed_ternary: "((lambda (x y z) (+ x (+ y z))) 10 20 30)",
-                     equals, Scm::Int(60));
-            compare!(fixed_nullary_vararg0: "((lambda x x))", equals, Scm::Nil);
+                     equals, Scm::int(60));
+            compare!(fixed_nullary_vararg0: "((lambda x x))", equals, Scm::nil());
             compare!(fixed_nullary_vararg1: "((lambda x x) 1)",
-                     equals, Scm::list(vec![Scm::Int(1)]));
+                     equals, Scm::list(vec![Scm::int(1)]));
             compare!(fixed_nullary_vararg2: "((lambda x x) 1 2)",
-                     equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+                     equals, Scm::list(vec![Scm::int(1), Scm::int(2)]));
             compare!(fixed_unary_vararg0: "((lambda (y . x) (cons x y)) 1)",
-                     equals, Scm::cons(Scm::Nil, Scm::Int(1)));
+                     equals, Scm::cons(Scm::nil(), Scm::int(1)));
             compare!(fixed_unary_vararg1: "((lambda (y . x) (cons x y)) 1 2)",
-                     equals, Scm::cons(Scm::list(vec![Scm::Int(2)]), Scm::Int(1)));
+                     equals, Scm::cons(Scm::list(vec![Scm::int(2)]), Scm::int(1)));
             compare!(fixed_binary_vararg0: "((lambda (z y . x) (cons x (+ y z))) 1 2)",
-                     equals, Scm::cons(Scm::Nil, Scm::Int(3)));
+                     equals, Scm::cons(Scm::nil(), Scm::int(3)));
             compare!(fixed_binary_vararg1: "((lambda (z y . x) (cons x (+ y z))) 1 2 3)",
-                     equals, Scm::cons(Scm::list(vec![Scm::Int(3)]), Scm::Int(3)));
+                     equals, Scm::cons(Scm::list(vec![Scm::int(3)]), Scm::int(3)));
 
             compare!(lambda_nullary: "(begin (define func (lambda () 10)) (func))",
-                     equals, Scm::Int(10));
+                     equals, Scm::int(10));
             compare!(lambda_unary: "(begin (define func (lambda (x) x)) (func 20))",
-                     equals, Scm::Int(20));
+                     equals, Scm::int(20));
             compare!(lambda_binary: "(begin (define func (lambda (x y) (+ x y))) (func 5 25))",
-                     equals, Scm::Int(30));
+                     equals, Scm::int(30));
             compare!(lambda_nullary_vararg0: "(begin (define func (lambda x x)) (func))",
-                     equals, Scm::Nil);
+                     equals, Scm::nil());
             compare!(lambda_nullary_vararg1: "(begin (define func (lambda x x)) (func 1))",
-                     equals, Scm::list(vec![Scm::Int(1)]));
+                     equals, Scm::list(vec![Scm::int(1)]));
             compare!(lambda_unary_vararg1: "(begin (define func (lambda (x . y) (cons x y))) (func 1 2))",
-                     equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+                     equals, Scm::list(vec![Scm::int(1), Scm::int(2)]));
         }
 
         mod extra_syntax {
             use super::*;
 
-            compare!(primitive: "(let ((x 42) (y 8)) (+ x y))", equals, Scm::Int(50));
+            compare!(primitive: "(let ((x 42) (y 8)) (+ x y))", equals, Scm::int(50));
         }
 
         mod syntactic_closure {
@@ -889,7 +888,7 @@ pub mod scheme {
                 r#"(begin
                         (define temp 42)
                         (or #f temp))"#,
-                equals, Scm::Int(42));
+                equals, Scm::int(42));
         }
 
         mod macros {
@@ -900,7 +899,7 @@ pub mod scheme {
                 r#"(begin
                         (define-syntax force (syntax-rules () ((force x) (x))))
                         (force (lambda () 3)))"#,
-                 equals, Scm::Int(3));
+                 equals, Scm::int(3));
 
             assert_error!(hygiene_new_binding_undefined:
                 r#"(begin
@@ -913,14 +912,14 @@ pub mod scheme {
                         (define x 123)
                         (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) (cons x body)))))
                         (foo x))"#,
-                 equals, Scm::cons(Scm::Int(42), Scm::Int(123)));
+                 equals, Scm::cons(Scm::int(42), Scm::int(123)));
 
             compare!(hygiene_new_binding_defined_with_lambda:
                 r#"(begin
                         (define x 123)
                         (define-syntax foo (syntax-rules () ((foo body) ((lambda (x) (cons x body)) 42))))
                         (foo x))"#,
-                 equals, Scm::cons(Scm::Int(42), Scm::Int(123)));
+                 equals, Scm::cons(Scm::int(42), Scm::int(123)));
 
             compare!(hygiene_preserve_definition_environment:
                 r#"(begin
@@ -928,7 +927,7 @@ pub mod scheme {
                         (define-syntax bar (syntax-rules () ((bar) foo)))
                         (let ((foo 0))
                              (bar)))"#,
-                 equals, Scm::Int(42));
+                 equals, Scm::int(42));
 
             compare!(bind_global_variable_not_value:
                 r#"(begin
@@ -936,7 +935,7 @@ pub mod scheme {
                         (define-syntax bar (syntax-rules () ((bar) foo)))
                         (define foo 42)
                         (bar))"#,
-                 equals, Scm::Int(42));
+                 equals, Scm::int(42));
 
             compare!(conflicting_identifiers:
                 // this macro invocation should expand to (cons x x), where both x are different bindings.
@@ -945,19 +944,19 @@ pub mod scheme {
                         (define-syntax foo (syntax-rules () ((foo y) (cons x y))))
                         (let ((x 2))
                              (foo x)))"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
             compare!(literals:
                 r#"(begin
                         (define-syntax foo (syntax-rules (bar) ((foo bar) #t) ((foo _) #f)))
                         (cons (foo bar) (foo foo)))"#,
-                 equals, Scm::cons(Scm::True, Scm::False));
+                 equals, Scm::cons(Scm::bool(true), Scm::bool(false)));
 
             compare!(syntax_alternatives:
                 r#"(begin
                         (define-syntax count (syntax-rules () ((_ a) 1) ((count a b) 2)))
                         (cons (count x) (count 7 8)))"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
             compare!(rebind_identifier:
                 r#"(begin
@@ -966,7 +965,7 @@ pub mod scheme {
                                 ((_ name value form)
                                  ((lambda (name) form) value))))
                         (simple-let x 4 (+ x x)))"#,
-                 equals, Scm::Int(8));
+                 equals, Scm::int(8));
 
             compare!(ellipsis_simple:
                 r#"(begin
@@ -976,7 +975,7 @@ pub mod scheme {
                                 ((_ a /add) a)
                                 ((_ a b ... /add) (+ a (add b ... /add)))))
                         (add 1 2 3 4 /add))"#,
-                 equals, Scm::Int(10));
+                 equals, Scm::int(10));
 
             compare!(custom_ellipsis:
                 r#"(begin
@@ -986,7 +985,7 @@ pub mod scheme {
                                 ((_ a /add) a)
                                 ((_ a b ** /add) (+ a (add b **  /add)))))
                         (add 1 2 3 4 /add))"#,
-                 equals, Scm::Int(10));
+                 equals, Scm::int(10));
 
             compare!(match_empty_ellipsis:
                 r#"(begin
@@ -995,7 +994,7 @@ pub mod scheme {
                                 ((_) 0)
                                 ((_ a b ...) (+ a (add b ...)))))
                         (add 1 2 3 4))"#,
-                 equals, Scm::Int(10));
+                 equals, Scm::int(10));
 
             compare!(ellipsis_distribute_vars:
                 r#"(begin
@@ -1005,44 +1004,44 @@ pub mod scheme {
                                  ((lambda (name ...) body1 body2 ...) val ...))))
                         (letme ((x 4) (y 6))
                                (+ x y)))"#,
-                 equals, Scm::Int(10));
+                 equals, Scm::int(10));
 
             compare!(let_syntax_allows_macro_in_body:
                 r#"(define (force _) #f)
                    (let-syntax ((force (syntax-rules () ((force x) (x)))))
                      (force (lambda () 4)))"#,
-                 equals, Scm::Int(4));
+                 equals, Scm::int(4));
 
             compare!(let_syntax_limited_to_scope:
                 r#"(define (force _) #f)
                    (let-syntax ((force (syntax-rules () ((force x) (x)))))
                      0)
                    (force (lambda () 4))"#,
-                 equals, Scm::False);
+                 equals, Scm::bool(false));
 
             compare!(let_syntax_not_recursive:
                 r#"(define (force _) #f)
                    (let-syntax ((force (syntax-rules () ((_ x) (x))))
                                 (really-force (syntax-rules () ((_ x) (force x)))))
                      (really-force (lambda () 4)))"#,
-                 equals, Scm::False);
+                 equals, Scm::bool(false));
 
             compare!(letrec_syntax_allow_recursive:
                 r#"(define (force _) #f)
                    (letrec-syntax ((really-force (syntax-rules () ((_ x) (force x))))
                                    (force (syntax-rules () ((_ x) (x)))))
                      (really-force (lambda () 4)))"#,
-                 equals, Scm::Int(4));
+                 equals, Scm::int(4));
 
             compare!(nested_ellipses_empty_match:
                 r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ...))))
                    (nest)"#,
-                 equals, Scm::Nil);
+                 equals, Scm::nil());
 
             compare!(nested_ellipses:
                 r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ...))))
                    (nest (1 2) (3 4 5))"#,
-                 equals, Scm::list(vec![Scm::list(vec![Scm::Int(1), Scm::Int(2)]), Scm::list(vec![Scm::Int(3), Scm::Int(4), Scm::Int(5)])]));
+                 equals, Scm::list(vec![Scm::list(vec![Scm::int(1), Scm::int(2)]), Scm::list(vec![Scm::int(3), Scm::int(4), Scm::int(5)])]));
 
             assert_error!(nested_ellipses_mismatch:
                 r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ))))
@@ -1060,7 +1059,7 @@ pub mod scheme {
 
                    (be-like-begin sequence)
                    (sequence 1 2 3 4)"#,
-                 equals, Scm::Int(4));
+                 equals, Scm::int(4));
 
             compare!(submacro:
                 r#"(define-syntax foo
@@ -1070,7 +1069,7 @@ pub mod scheme {
                                              ((tmp) 123))))
                             (tmp)))))
                    (foo)"#,
-                 equals, Scm::Int(123));
+                 equals, Scm::int(123));
 
             compare!(unquote_in_macro:
                 r#"(import (sunny quasiquote))
@@ -1095,7 +1094,7 @@ pub mod scheme {
                          (mylet z z))
                       ))
                    (foo)"#,
-                 equals, Scm::Int(0));
+                 equals, Scm::int(0));
         }
 
         mod libraries {
@@ -1107,19 +1106,19 @@ pub mod scheme {
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
-                 equals, Scm::False);
+                 equals, Scm::bool(false));
 
             compare!(import_twice_and_do_nothing:
                 r#"(import (testing 1)) (import (testing 1)) #f"#,
-                 equals, Scm::False);
+                 equals, Scm::bool(false));
 
             compare!(import_values:
                 r#"(import (testing 1)) (cons a b)"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
             compare!(import_macros:
                 r#"(import (testing 2)) (invoke (lambda () 0))"#,
-                 equals, Scm::Int(0));
+                 equals, Scm::int(0));
 
             assert_error!(import_only:
                 r#"(import (only (testing 1) a)) a b"#,
@@ -1131,44 +1130,44 @@ pub mod scheme {
 
             compare!(import_prefixed_values:
                 r#"(import (prefix (testing 1) foo-)) (cons foo-a foo-b)"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
             compare!(import_renamed_value:
                 r#"(import (rename (testing 1) (b c))) (cons a c)"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
             compare!(import_renamed_macro:
                 r#"(import (rename (testing 2) (invoke call))) (call (lambda () 8))"#,
-                 equals, Scm::Int(8));
+                 equals, Scm::int(8));
 
             compare!(import_renamed_macro_from_lib:
                 r#"(import (rename (testing macro) (mul mul_many))) (mul_many 2 3 4)"#,
-                 equals, Scm::Int(24));
+                 equals, Scm::int(24));
 
             compare!(import_nested_sets:
                 r#"(import (rename (rename (testing 1) (a c)) (c x)))
                    x"#,
-                 equals, Scm::Int(1));
+                 equals, Scm::int(1));
 
             compare!(import_primitive:
                 r#"(import (testing 1)) (kons 1 2)"#,
-                 equals, Scm::cons(Scm::Int(1), Scm::Int(2)));
+                 equals, Scm::cons(Scm::int(1), Scm::int(2)));
 
             compare!(import_user:
                 r#"(import (testing lib)) (foo 42)"#,
-                 equals, Scm::Int(42));
+                 equals, Scm::int(42));
 
             compare!(import_user_macro:
                 r#"(import (testing macro)) (force (delay 42))"#,
-                 equals, Scm::Int(42));
+                 equals, Scm::int(42));
 
             compare!(import_renamed_macro_export:
                 r#"(import (testing macro)) (add_many 2 3 4)"#,
-                 equals, Scm::Int(9));
+                 equals, Scm::int(9));
 
             compare!(reexport:
                 r#"(import (testing reexport)) (cons (foo 7) (kons 5 '()))"#,
-                 equals, Scm::list(vec![Scm::Int(7), Scm::Int(5)]));
+                 equals, Scm::list(vec![Scm::int(7), Scm::int(5)]));
         }
 
         mod definition {
@@ -1178,7 +1177,7 @@ pub mod scheme {
             fn global_definition() {
                 let mut ctx = create_testing_context();
                 ctx.eval_str("(define x 42)").unwrap();
-                assert_eq!(ctx.vm.globals().last(), Some(&(Scm::Int(42))));
+                assert_eq!(ctx.vm.globals().last(), Some(&(Scm::int(42))));
             }
 
             #[test]
@@ -1186,16 +1185,16 @@ pub mod scheme {
                 let mut ctx = create_testing_context();
                 assert_eq!(
                     ctx.eval_str("((lambda () (define x 42) x))").unwrap(),
-                    Scm::Int(42)
+                    Scm::int(42)
                 );
-                assert_ne!(ctx.vm.globals().last().unwrap(), &(Scm::Int(42)));
+                assert_ne!(ctx.vm.globals().last().unwrap(), &(Scm::int(42)));
             }
 
             #[test]
             fn define_syntax() {
                 let mut ctx = create_testing_context();
                 ctx.eval_str("(define (foo) 42)").unwrap();
-                assert_eq!(ctx.eval_str("(foo)").unwrap(), Scm::Int(42));
+                assert_eq!(ctx.eval_str("(foo)").unwrap(), Scm::int(42));
             }
 
             #[test]
@@ -1203,7 +1202,7 @@ pub mod scheme {
                 let mut ctx = create_testing_context();
                 ctx.eval_str("(define (foo) (define (bar x) (* x 2)))")
                     .unwrap();
-                assert_eq!(ctx.eval_str("((foo) 21)").unwrap(), Scm::Int(42));
+                assert_eq!(ctx.eval_str("((foo) 21)").unwrap(), Scm::int(42));
             }
         }
 
@@ -1229,11 +1228,11 @@ pub mod scheme {
                     (if (< bar 3)
                         (cc))
                     result"#,
-                equals, Scm::list(vec![Scm::Int(3), Scm::Int(2), Scm::Int(1), Scm::Int(0)]));
+                equals, Scm::list(vec![Scm::int(3), Scm::int(2), Scm::int(1), Scm::int(0)]));
 
             compare!(let_ep:
                 r#" (let/ep exit (exit 2) 3)"#,
-                equals, Scm::Int(2));
+                equals, Scm::int(2));
 
             assert_error!(call_ep_invalid:
                 r#" (define cnt #f)
@@ -1249,7 +1248,7 @@ pub mod scheme {
                                        (lambda () (set! order (cons 2 order)) 4)
                                        (lambda () (set! order (cons 3 order))))
                          order)"#,
-                equals, Scm::list(vec![Scm::Int(4), Scm::Int(3), Scm::Int(2), Scm::Int(1)]));
+                equals, Scm::list(vec![Scm::int(4), Scm::int(3), Scm::int(2), Scm::int(1)]));
         }
 
         mod bugs {
@@ -1258,7 +1257,7 @@ pub mod scheme {
             compare!(let_in_args:
                 r#"(list (let ((x 1)) x)
                          (let ((y 2)) y))"#,
-                equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+                equals, Scm::list(vec![Scm::int(1), Scm::int(2)]));
         }
     }
 }

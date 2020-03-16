@@ -91,8 +91,8 @@ impl GlobalAssignment {
 impl Reify for Assignment {
     fn reify(&self) -> Scm {
         let var = match self {
-            Assignment::LocalAssignment(a) => Scm::Symbol(a.reference.var.name()),
-            Assignment::GlobalAssignment(a) => Scm::Symbol(a.variable.name()),
+            Assignment::LocalAssignment(a) => Scm::symbol(a.reference.var.name()),
+            Assignment::GlobalAssignment(a) => Scm::symbol(a.variable.name()),
         };
 
         let val = match self {

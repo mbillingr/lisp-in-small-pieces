@@ -1,4 +1,4 @@
-use crate::scm::Scm;
+use crate::scm::ScmValue as Scm;
 use std::cell::Cell;
 use std::fmt::Display;
 use std::marker::PhantomData;
@@ -108,57 +108,62 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
                 write!(f, "#(")?;
                 let mut items = v.iter();
                 if let Some(x) = items.next() {
-                    self.write(x.get(), labels, f)?;
+                    self.write(x.get().value, labels, f)?;
                     for x in items {
                         write!(f, " ")?;
-                        self.write(x.get(), labels, f)?;
+                        self.write(x.get().value, labels, f)?;
                     }
                 }
                 write!(f, ")")
             }
             Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quote") => {
                 write!(f, "'")?;
-                self.write(p.1.get().car().unwrap(), labels, f)
+                self.write(p.1.get().car().unwrap().value, labels, f)
             }
             Scm::Pair(p)
                 if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("quasiquote") =>
             {
                 write!(f, "`")?;
-                self.write(p.1.get().car().unwrap(), labels, f)
+                self.write(p.1.get().car().unwrap().value, labels, f)
             }
             Scm::Pair(p) if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote") => {
                 write!(f, ",")?;
-                self.write(p.1.get().car().unwrap(), labels, f)
+                self.write(p.1.get().car().unwrap().value, labels, f)
             }
             Scm::Pair(p)
                 if p.0.get().as_symbol().map(|s| s.as_str()).ok() == Some("unquote-splicing") =>
             {
                 write!(f, ",@")?;
-                self.write(p.1.get().car().unwrap(), labels, f)
+                self.write(p.1.get().car().unwrap().value, labels, f)
             }
             Scm::Pair(p) => {
                 write!(f, "(")?;
-                self.write(p.0.get(), labels, f)?;
+                self.write(p.0.get().value, labels, f)?;
                 let mut cdr = p.1.get();
                 loop {
-                    if self.shared.iter().find(|obj| obj.ptr_eq(&cdr)).is_some() {
+                    if self
+                        .shared
+                        .iter()
+                        .find(|obj| obj.ptr_eq(&cdr.value))
+                        .is_some()
+                    {
                         write!(f, " . ")?;
-                        self.write(cdr, labels, f)?;
+                        self.write(cdr.value, labels, f)?;
                         break;
                     }
-                    match cdr {
+                    match cdr.value {
                         Scm::Nil => break,
                         Scm::Pair(q)
                             if [Some("quote"), Some("quasiquote"), Some("unquote")]
                                 .contains(&q.0.get().as_symbol().map(|s| s.as_str()).ok()) =>
                         {
                             write!(f, " . ")?;
-                            self.write(cdr, labels, f)?;
+                            self.write(cdr.value, labels, f)?;
                             break;
                         }
                         Scm::Pair(q) => {
                             write!(f, " ")?;
-                            self.write(q.0.get(), labels, f)?;
+                            self.write(q.0.get().value, labels, f)?;
                             cdr = q.1.get();
                         }
                         x => {
@@ -182,12 +187,12 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
 
                     match scm {
                         Scm::Pair(p) => {
-                            Self::walk_data(p.0.get(), seen);
-                            Self::walk_data(p.1.get(), seen);
+                            Self::walk_data(p.0.get().value, seen);
+                            Self::walk_data(p.1.get().value, seen);
                         }
                         Scm::Vector(v) => {
                             for x in v {
-                                Self::walk_data(x.get(), seen);
+                                Self::walk_data(x.get().value, seen);
                             }
                         }
                         _ => unreachable!(),
@@ -211,12 +216,12 @@ impl<T: Display + From<Scm>> ScmWriteShared<T> {
 
                     match scm {
                         Scm::Pair(p) => {
-                            Self::walk_cycles(p.0.get(), ancestors, seen);
-                            Self::walk_cycles(p.1.get(), ancestors, seen);
+                            Self::walk_cycles(p.0.get().value, ancestors, seen);
+                            Self::walk_cycles(p.1.get().value, ancestors, seen);
                         }
                         Scm::Vector(v) => {
                             for x in v {
-                                Self::walk_cycles(x.get(), ancestors, seen);
+                                Self::walk_cycles(x.get().value, ancestors, seen);
                             }
                         }
                         _ => unreachable!(),
@@ -276,7 +281,7 @@ impl Display for ScmDisplay {
                 write!(f, "({}", p.0.get().display())?;
                 let mut cdr = p.1.get();
                 loop {
-                    match cdr {
+                    match cdr.value {
                         Scm::Nil => break,
                         Scm::Pair(q)
                             if [Some("quote"), Some("quasiquote"), Some("unquote")]
@@ -289,8 +294,8 @@ impl Display for ScmDisplay {
                             write!(f, " {}", q.0.get().display())?;
                             cdr = q.1.get();
                         }
-                        x => {
-                            write!(f, " . {}", x.display())?;
+                        _ => {
+                            write!(f, " . {}", cdr.display())?;
                             break;
                         }
                     }
@@ -362,7 +367,7 @@ impl Display for ScmWriteSimple {
                 write!(f, "({}", p.0.get().write_simple())?;
                 let mut cdr = p.1.get();
                 loop {
-                    match cdr {
+                    match cdr.value {
                         Scm::Nil => break,
                         Scm::Pair(q)
                             if [Some("quote"), Some("quasiquote"), Some("unquote")]
@@ -375,8 +380,8 @@ impl Display for ScmWriteSimple {
                             write!(f, " {}", q.0.get().write_simple())?;
                             cdr = q.1.get();
                         }
-                        x => {
-                            write!(f, " . {}", x.write_simple())?;
+                        _ => {
+                            write!(f, " . {}", cdr.write_simple())?;
                             break;
                         }
                     }

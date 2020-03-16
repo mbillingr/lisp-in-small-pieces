@@ -49,7 +49,7 @@ impl Reify for FixLet {
             .iter()
             .zip(&self.arguments)
             .rev()
-            .map(|(v, a)| Scm::list(vec![Scm::Symbol(v.name()), a.reify()]));
+            .map(|(v, a)| Scm::list(vec![Scm::symbol(v.name()), a.reify()]));
         let body = self.body.reify();
         Scm::list(vec![Scm::symbol("let"), Scm::list(init), body])
     }

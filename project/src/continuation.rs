@@ -34,7 +34,7 @@ impl Continuation {
 
     pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
         match nargs {
-            0 => vm.val = Scm::Undefined,
+            0 => vm.val = Scm::undefined(),
             1 => vm.val = vm.pop_value()?,
             _ => unimplemented!("more than 1 continuation arg"),
         }
@@ -64,7 +64,7 @@ impl ExitProcedure {
 
     pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
         match nargs {
-            0 => vm.val = Scm::Undefined,
+            0 => vm.val = Scm::undefined(),
             1 => vm.val = vm.pop_value()?,
             _ => unimplemented!("more than 1 continuation arg"),
         }
