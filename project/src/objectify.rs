@@ -648,12 +648,8 @@ impl Translate {
                             .cdr()
                             .and_then(|cdar| cdar.car().map(|cadar| (cadar, cdar.cdr().unwrap())))
                             .and_then(|(cadar, cddar)| cddar.car().map(|caddar| (cadar, caddar)))
-                            .and_then(|(cadar, caddar)| {
-                                cadar.as_symbol().map(|old| (old, caddar))
-                            })
-                            .and_then(|(old, caddar)| {
-                                caddar.as_symbol().map(|new| (*old, *new))
-                            })?;
+                            .and_then(|(cadar, caddar)| cadar.as_symbol().map(|old| (old, caddar)))
+                            .and_then(|(old, caddar)| caddar.as_symbol().map(|new| (*old, *new)))?;
                         export.adjoin_rename(old, new, car.source());
                     }
                     _ => Err(Error::at_expr(

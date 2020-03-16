@@ -715,6 +715,10 @@ pub mod scheme {
                             $expect
                         ),
                         Err(e) if e == $expect => {}
+                        Err(Error {
+                            kind: crate::error::ErrorKind::Unhandled(e),
+                            ..
+                        }) if e == Scm::error($expect) => {}
                         Err(e) => panic!(
                             r#"assertion failed:
           expression: `{}`
@@ -1099,7 +1103,7 @@ pub mod scheme {
             use crate::error::RuntimeError;
 
             assert_error!(nonexisting_library: "(import (test foo bar)) #f",
-                ObjectifyErrorKind::UnknownLibrary(["test", "foo", "bar.sld"].iter().collect()));
+                ObjectifyErrorKind::UnknownLibrary(["libs", "test", "foo", "bar.sld"].iter().collect()));
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,

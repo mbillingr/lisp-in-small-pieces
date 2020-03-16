@@ -285,9 +285,8 @@ impl VirtualMachine {
                 Op::GlobalRef(idx) => {
                     self.val = self.globals[idx];
                     if self.val.is_uninitialized() {
-                        self.raise(Scm::string(format!(
-                            "Undefined Global: {:?}",
-                            self.ga.find_var(idx).full_name()
+                        self.raise(Scm::error(RuntimeError::UndefinedGlobal(
+                            self.ga.find_var(idx).full_name(),
                         )))?;
                         continue;
                     }

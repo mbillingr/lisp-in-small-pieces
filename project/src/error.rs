@@ -186,6 +186,31 @@ impl std::fmt::Display for ErrorKind {
     }
 }
 
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl PartialEq for ErrorKind {
+    fn eq(&self, other: &Self) -> bool {
+        use ErrorKind::*;
+        match (self, other) {
+            (Custom(a), Custom(b)) => a == b,
+            (Parse(a), Parse(b)) => a == b,
+            (Objectify(a), Objectify(b)) => a == b,
+            (Compile(a), Compile(b)) => a == b,
+            (Runtime(a), Runtime(b)) => a == b,
+            (TypeError(a), TypeError(b)) => a == b,
+            (IoError(_), IoError(_)) => false,
+            (Utf8Error(a), Utf8Error(b)) => a == b,
+            (Chained(a1, a2), Chained(b1, b2)) => a1 == b1 && a2 == b2,
+            (Unhandled(a), Unhandled(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
 impl PartialEq<ObjectifyErrorKind> for Error {
     fn eq(&self, other: &ObjectifyErrorKind) -> bool {
         match self.kind {

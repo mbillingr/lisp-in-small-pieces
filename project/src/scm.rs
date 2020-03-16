@@ -1,6 +1,6 @@
 use crate::bytecode::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::{Continuation, ExitProcedure};
-use crate::error::{Result, TypeError};
+use crate::error::{Error, Result, TypeError};
 use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::scm_write::{ScmDisplay, ScmWriteShared, ScmWriteSimple};
@@ -37,6 +37,7 @@ pub enum Scm {
 
     Cell(&'static Cell<Scm>),
     Rust(&'static Box<dyn Any>),
+    Error(&'static Error),
 }
 
 impl Scm {
@@ -73,6 +74,10 @@ impl Scm {
 
     pub fn string(s: impl Into<Box<str>>) -> Self {
         Scm::String(Box::leak(s.into()))
+    }
+
+    pub fn error(e: impl Into<Error>) -> Self {
+        Scm::Error(Box::leak(Box::new(e.into())))
     }
 
     pub fn list<T, I>(items: T) -> Self
@@ -326,6 +331,7 @@ impl Scm {
             (Pair(a), Pair(b)) => *a as *const _ == *b as *const _,
             (Primitive(a), Primitive(b)) => a == b,
             (Cell(a), Cell(b)) => *a as *const _ == *b as *const _,
+            (Error(a), Error(b)) => *a as *const _ == *b as *const _,
             _ => false,
         }
     }
@@ -344,6 +350,7 @@ impl Scm {
             (Pair(a), Pair(b)) => a.0.get().equals(&b.0.get()) && a.1.get().equals(&b.1.get()),
             (Primitive(a), Primitive(b)) => a == b,
             (Cell(a), Cell(b)) => a.get().equals(&b.get()),
+            (Error(a), Error(b)) => a == b,
             _ => false,
         }
     }
