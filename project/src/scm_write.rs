@@ -305,6 +305,7 @@ impl Display for ScmDisplay {
             Scm::Cell(c) => write!(f, "{}", c.get().display()),
             Scm::Rust(o) => write!(f, "<rust object {:p}>", *o),
             Scm::Error(e) => write!(f, "<error object {:?}>", e),
+            Scm::Meta((x, _)) => write!(f, "{}", x.display()),
         }
     }
 }
@@ -391,6 +392,7 @@ impl Display for ScmWriteSimple {
             Scm::Cell(c) => write!(f, "{}", c.get().display()),
             Scm::Rust(o) => write!(f, "<rust object {:p}>", *o),
             Scm::Error(e) => write!(f, "<error object {:?}>", e),
+            Scm::Meta((x, _)) => write!(f, "{}", x.write_simple()),
         }
     }
 }

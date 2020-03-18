@@ -36,8 +36,10 @@ pub enum Scm {
     Port(&'static SchemePort),
 
     Cell(&'static Cell<Scm>),
+
     Rust(&'static Box<dyn Any>),
     Error(&'static Error),
+    Meta(&'static (Scm, Box<dyn Any>)),
 }
 
 impl Scm {
@@ -108,9 +110,16 @@ impl Scm {
         Scm::Rust(obj)
     }
 
+    pub fn with_meta_data<T: 'static>(self, meta: T) -> Self {
+        let meta: Box<dyn Any> = Box::new(meta);
+        let obj = Box::leak(Box::new((self, meta)));
+        Scm::Meta(obj)
+    }
+
     pub fn is_undefined(&self) -> bool {
         match self {
             Scm::Undefined => true,
+            Scm::Meta((x, _)) => x.is_undefined(),
             _ => false,
         }
     }
@@ -118,6 +127,7 @@ impl Scm {
     pub fn is_uninitialized(&self) -> bool {
         match self {
             Scm::Uninitialized => true,
+            Scm::Meta((x, _)) => x.is_uninitialized(),
             _ => false,
         }
     }
@@ -125,6 +135,7 @@ impl Scm {
     pub fn is_nil(&self) -> bool {
         match self {
             Scm::Nil => true,
+            Scm::Meta((x, _)) => x.is_nil(),
             _ => false,
         }
     }
@@ -132,6 +143,7 @@ impl Scm {
     pub fn is_eof(&self) -> bool {
         match self {
             Scm::Eof => true,
+            Scm::Meta((x, _)) => x.is_eof(),
             _ => false,
         }
     }
@@ -139,6 +151,7 @@ impl Scm {
     pub fn is_bool(&self) -> bool {
         match self {
             Scm::True | Scm::False => true,
+            Scm::Meta((x, _)) => x.is_bool(),
             _ => false,
         }
     }
@@ -146,6 +159,7 @@ impl Scm {
     pub fn is_false(&self) -> bool {
         match self {
             Scm::False => true,
+            Scm::Meta((x, _)) => x.is_false(),
             _ => false,
         }
     }
@@ -153,6 +167,7 @@ impl Scm {
     pub fn is_procedure(&self) -> bool {
         match self {
             Scm::Closure(_) | Scm::Primitive(_) | Scm::Continuation(_) | Scm::ExitProc(_) => true,
+            Scm::Meta((x, _)) => x.is_procedure(),
             _ => false,
         }
     }
@@ -160,6 +175,7 @@ impl Scm {
     pub fn is_primitive(&self) -> bool {
         match self {
             Scm::Primitive(_) => true,
+            Scm::Meta((x, _)) => x.is_primitive(),
             _ => false,
         }
     }
@@ -167,6 +183,7 @@ impl Scm {
     pub fn is_cell(&self) -> bool {
         match self {
             Scm::Cell(_) => true,
+            Scm::Meta((x, _)) => x.is_cell(),
             _ => false,
         }
     }
@@ -174,6 +191,7 @@ impl Scm {
     pub fn as_int(&self) -> Result<i64> {
         match self {
             Scm::Int(i) => Ok(*i),
+            Scm::Meta((x, _)) => x.as_int(),
             _ => Err(TypeError::NoInt.into()),
         }
     }
@@ -181,6 +199,7 @@ impl Scm {
     pub fn as_char(&self) -> Result<char> {
         match self {
             Scm::Char(ch) => Ok(*ch),
+            Scm::Meta((x, _)) => x.as_char(),
             _ => Err(TypeError::NoChar(*self).into()),
         }
     }
@@ -188,6 +207,7 @@ impl Scm {
     pub fn as_symbol(&self) -> Result<Symbol> {
         match self {
             Scm::Symbol(s) => Ok(*s),
+            Scm::Meta((x, _)) => x.as_symbol(),
             _ => Err(TypeError::NoSymbol.into()),
         }
     }
@@ -195,6 +215,7 @@ impl Scm {
     pub fn as_string(&self) -> Result<&'static str> {
         match self {
             Scm::String(s) => Ok(*s),
+            Scm::Meta((x, _)) => x.as_string(),
             _ => Err(TypeError::NoString(*self).into()),
         }
     }
@@ -206,6 +227,7 @@ impl Scm {
     pub fn as_rust_object(&self) -> Result<&'static dyn Any> {
         match self {
             Scm::Rust(o) => Ok(&***o),
+            Scm::Meta((x, _)) => x.as_rust_object(),
             _ => Err(TypeError::NoRustObject(*self).into()),
         }
     }
@@ -213,6 +235,7 @@ impl Scm {
     pub fn is_pair(&self) -> bool {
         match self {
             Scm::Pair(_) => true,
+            Scm::Meta((x, _)) => x.is_pair(),
             _ => false,
         }
     }
@@ -220,6 +243,7 @@ impl Scm {
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),
+            Scm::Meta((x, _)) => x.car(),
             _ => Err(TypeError::NoPair(*self).into()),
         }
     }
@@ -227,6 +251,7 @@ impl Scm {
     pub fn cdr(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.1.get()),
+            Scm::Meta((x, _)) => x.cdr(),
             _ => Err(TypeError::NoPair(*self).into()),
         }
     }
@@ -237,6 +262,7 @@ impl Scm {
                 p.0.set(x);
                 Ok(Scm::Undefined)
             }
+            Scm::Meta((obj, _)) => obj.set_car(x),
             _ => Err(TypeError::NoPair(*self).into()),
         }
     }
@@ -247,6 +273,7 @@ impl Scm {
                 p.1.set(x);
                 Ok(Scm::Undefined)
             }
+            Scm::Meta((obj, _)) => obj.set_cdr(x),
             _ => Err(TypeError::NoPair(*self).into()),
         }
     }
@@ -258,6 +285,7 @@ impl Scm {
     pub fn as_vector(&self) -> Result<&'static [Cell<Scm>]> {
         match self {
             Scm::Vector(v) => Ok(*v),
+            Scm::Meta((x, _)) => x.as_vector(),
             _ => Err(TypeError::NoVector.into()),
         }
     }
@@ -268,6 +296,7 @@ impl Scm {
                 .get(idx)
                 .map(Cell::get)
                 .ok_or(TypeError::OutOfBounds.into()),
+            Scm::Meta((x, _)) => x.vector_ref(idx),
             _ => Err(TypeError::NoVector.into()),
         }
     }
@@ -281,6 +310,7 @@ impl Scm {
                 }
                 None => Err(TypeError::OutOfBounds.into()),
             },
+            Scm::Meta((x, _)) => x.vector_set(idx, val),
             _ => Err(TypeError::NoVector.into()),
         }
     }
@@ -288,6 +318,7 @@ impl Scm {
     pub fn as_closure(&self) -> Result<&'static Closure> {
         match self {
             Scm::Closure(cls) => Ok(*cls),
+            Scm::Meta((x, _)) => x.as_closure(),
             _ => Err(TypeError::NoClosure.into()),
         }
     }
@@ -295,6 +326,7 @@ impl Scm {
     pub fn as_port(&self) -> Result<&'static SchemePort> {
         match self {
             Scm::Port(p) => Ok(*p),
+            Scm::Meta((x, _)) => x.as_port(),
             _ => Err(TypeError::NoPort(*self).into()),
         }
     }
@@ -302,6 +334,7 @@ impl Scm {
     pub fn as_bytevec(&self) -> Result<&'static [u8]> {
         match self {
             Scm::Bytevector(v) => Ok(*v),
+            Scm::Meta((x, _)) => x.as_bytevec(),
             _ => Err(TypeError::NoBytevector(*self).into()),
         }
     }
@@ -313,6 +346,7 @@ impl Scm {
                 let mut_ptr = ptr as *mut _;
                 Ok(&mut *mut_ptr)
             },
+            Scm::Meta((x, _)) => x.as_mut_bytevec(),
             _ => Err(TypeError::NoBytevector(*self).into()),
         }
     }
@@ -332,6 +366,7 @@ impl Scm {
             (Primitive(a), Primitive(b)) => a == b,
             (Cell(a), Cell(b)) => *a as *const _ == *b as *const _,
             (Error(a), Error(b)) => *a as *const _ == *b as *const _,
+            (Meta((a, _)), Meta((b, _))) => a.ptr_eq(b),
             _ => false,
         }
     }
@@ -351,6 +386,7 @@ impl Scm {
             (Primitive(a), Primitive(b)) => a == b,
             (Cell(a), Cell(b)) => a.get().equals(&b.get()),
             (Error(a), Error(b)) => a == b,
+            (Meta((a, _)), Meta((b, _))) => a.equals(b),
             _ => false,
         }
     }
@@ -364,6 +400,7 @@ impl Scm {
             (Float(a), Float(b)) => a == b,
             (Int(a), Float(b)) => *a as f64 == *b,
             (Float(a), Int(b)) => *a == *b as f64,
+            (Meta((a, _)), Meta((b, _))) => a.num_eq(b),
             _ => false,
         }
     }
@@ -375,6 +412,7 @@ impl Scm {
             (Int(a), Float(b)) => Ok((a as f64) < b),
             (Float(a), Int(b)) => Ok(a < (b as f64)),
             (Float(a), Float(b)) => Ok(a < b),
+            (Meta((a, _)), Meta((b, _))) => a.num_less(b),
             _ => Err(TypeError::WrongType.into()),
         }
     }
@@ -382,6 +420,7 @@ impl Scm {
     pub fn set(&self, value: Scm) -> Result<()> {
         match self {
             Scm::Cell(x) => Ok(x.set(value)),
+            Scm::Meta((x, _)) => x.set(value),
             _ => Err(TypeError::WrongType.into()),
         }
     }
@@ -389,30 +428,31 @@ impl Scm {
     pub fn get(&self) -> Result<Scm> {
         match self {
             Scm::Cell(x) => Ok(x.get()),
+            Scm::Meta((x, _)) => x.get(),
             _ => Err(TypeError::WrongType.into()),
         }
     }
 
     pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
         match self {
-            Scm::Closure(cls) => cls.invoke(nargs, vm),
-            Scm::Primitive(func) => func.invoke(nargs, vm)?,
-            Scm::Continuation(cnt) => cnt.invoke(nargs, vm)?,
-            Scm::ExitProc(cnt) => cnt.invoke(nargs, vm)?,
-            _ => return Err(TypeError::NotCallable(*self).into()),
+            Scm::Closure(cls) => Ok(cls.invoke(nargs, vm)),
+            Scm::Primitive(func) => func.invoke(nargs, vm),
+            Scm::Continuation(cnt) => cnt.invoke(nargs, vm),
+            Scm::ExitProc(cnt) => cnt.invoke(nargs, vm),
+            Scm::Meta((x, _)) => x.invoke(nargs, vm),
+            _ => Err(TypeError::NotCallable(*self).into()),
         }
-        Ok(())
     }
 
     pub fn invoke_tail(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
         match self {
-            Scm::Closure(cls) => cls.invoke_tail(nargs, vm),
-            Scm::Primitive(func) => func.invoke_tail(nargs, vm)?,
-            Scm::Continuation(cnt) => cnt.invoke_tail(nargs, vm)?,
-            Scm::ExitProc(cnt) => cnt.invoke_tail(nargs, vm)?,
-            _ => return Err(TypeError::NotCallable(*self).into()),
+            Scm::Closure(cls) => Ok(cls.invoke_tail(nargs, vm)),
+            Scm::Primitive(func) => func.invoke_tail(nargs, vm),
+            Scm::Continuation(cnt) => cnt.invoke_tail(nargs, vm),
+            Scm::ExitProc(cnt) => cnt.invoke_tail(nargs, vm),
+            Scm::Meta((x, _)) => x.invoke_tail(nargs, vm),
+            _ => Err(TypeError::NotCallable(*self).into()),
         }
-        Ok(())
     }
 
     pub fn caar(&self) -> Result<Scm> {
@@ -445,6 +485,30 @@ impl Scm {
 
     pub fn write(&self) -> ScmWriteShared<ScmWriteSimple> {
         ScmWriteShared::new_cyclic(*self)
+    }
+
+    pub fn get_meta_data(self) -> Option<&'static dyn Any> {
+        match self {
+            Scm::Meta((_, meta)) => Some(meta),
+            _ => None,
+        }
+    }
+
+    pub fn unwrap_meta(self) -> Option<Self> {
+        match self {
+            Scm::Meta((x, _)) => Some(*x),
+            _ => None,
+        }
+    }
+
+    pub fn strip_meta(self) -> Self {
+        match self {
+            Scm::Meta((x, _)) => x.strip_meta(),
+            Scm::Cell(c) => c.get().strip_meta(),
+            Scm::Pair(p) => Self::cons(p.0.get().strip_meta(), p.1.get().strip_meta()),
+            Scm::Vector(v) => Self::vector(v.iter().map(Cell::get).map(Self::strip_meta)),
+            _ => self,
+        }
     }
 }
 
