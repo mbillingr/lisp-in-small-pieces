@@ -1,26 +1,25 @@
 use crate::parsing;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::path::Path;
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum SourceLocation {
     NoSource,
     Span(Span),
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Span {
     src: Source,
     start: usize,
     end: usize,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Source {
-    pub content: Rc<String>,
-    pub file: Option<PathBuf>,
+    pub content: &'static str,
+    pub file: Option<&'static Path>,
 }
 
 impl Source {
@@ -63,7 +62,7 @@ impl Span {
     }
 
     pub fn is_compatible(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.src.content, &other.src.content)
+        std::ptr::eq(self.src.content, other.src.content)
     }
 }
 
@@ -153,10 +152,10 @@ impl SourceLocation {
     }
 }
 
-impl<T: Into<String>> From<T> for Source {
+impl<T: Into<Box<str>>> From<T> for Source {
     fn from(s: T) -> Self {
         Source {
-            content: Rc::new(s.into()),
+            content: Box::leak(s.into()),
             file: None,
         }
     }
@@ -168,8 +167,8 @@ impl Source {
         let mut src = String::new();
         f.read_to_string(&mut src)?;
         Ok(Source {
-            content: Rc::new(src),
-            file: Some(file.to_owned()),
+            content: Box::leak(src.into()),
+            file: Some(Box::leak(file.to_owned().into_boxed_path())),
         })
     }
 

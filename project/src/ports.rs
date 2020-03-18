@@ -392,7 +392,7 @@ pub fn read_sexpr(port: &mut dyn InputPort) -> Result<Scm> {
         match parse_sexpr(span) {
             Ok((x, _)) => return Ok((&x).into()),
             Err(e) if e.kind == ParseErrorKind::UnclosedSequence => {}
-            Err(e) => return Err(Error::from_parse_error_and_source(e, (&buf).into())),
+            Err(e) => return Err(Error::from_parse_error_and_source(e, buf.clone().into())),
         }
     }
 }
