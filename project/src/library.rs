@@ -80,7 +80,7 @@ impl LibraryBuilder {
 }
 
 pub fn is_import(expr: &TrackedSexpr) -> bool {
-    expr.car().map(|car| car == "import").unwrap_or(false)
+    expr.car().map(|car| &car == "import").unwrap_or(false)
 }
 
 pub fn libname_to_path(mut expr: &TrackedSexpr) -> Result<PathBuf> {
@@ -88,7 +88,7 @@ pub fn libname_to_path(mut expr: &TrackedSexpr) -> Result<PathBuf> {
 
     while expr.is_pair() {
         path.push(format!("{}", expr.car()?));
-        expr = expr.cdr()?;
+        expr = &expr.cdr()?;
     }
 
     Ok(path)

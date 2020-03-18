@@ -334,7 +334,7 @@ pub mod scheme {
         let body = ocdr(def)?;
         let body = scan_out_defines(body.clone())?;
 
-        let result = trans.objectify_function(names, &body, expr.source().clone())?;
+        let result = trans.objectify_function(&names, &body, expr.source().clone())?;
 
         for (alias, old_name, bound) in rebound {
             alias.set_bound(bound);
@@ -346,8 +346,8 @@ pub mod scheme {
 
     pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = ocdr(expr)?;
-        let vars = ocar(def)?;
-        let body = ocdr(def)?;
+        let vars = ocar(&def)?;
+        let body = ocdr(&def)?;
 
         let mut var_names = vec![];
         let mut var_forms = vec![];
@@ -357,7 +357,7 @@ pub mod scheme {
                 .map_err(|_| {
                     Error::at_expr(
                         ObjectifyErrorKind::SyntaxError("invalid variable definition in let form"),
-                        body,
+                        &body,
                     )
                 })
                 .map(|(name, form)| {
@@ -375,13 +375,13 @@ pub mod scheme {
             }
         }
 
-        let param_list = TrackedSexpr::list(var_names, vars.src.clone());
-        let func = make_function(param_list, body.clone(), expr.src.clone());
+        let param_list = TrackedSexpr::list(var_names).with_src(vars.source().clone());
+        let func = make_function(param_list, body.clone(), expr.source().clone());
 
         let mut call = vec![func];
         call.extend(var_forms);
 
-        let new_expr = TrackedSexpr::list(call, expr.src.clone());
+        let new_expr = TrackedSexpr::list(call).with_src(expr.source().clone());
         let result = trans.objectify(&new_expr)?;
 
         for (alias, old_name, bound) in rebound {
@@ -393,7 +393,7 @@ pub mod scheme {
     }
 
     pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
-        trans.objectify_sequence(ocdr(expr)?)
+        trans.objectify_sequence(&ocdr(expr)?)
     }
 
     pub fn expand_assign(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
@@ -407,7 +407,7 @@ pub mod scheme {
 
     pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let body = &ocdr(expr)?;
-        trans.objectify_quotation(ocar(body)?)
+        trans.objectify_quotation(&ocar(body)?)
     }
 
     pub fn expand_alternative(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
@@ -415,13 +415,13 @@ pub mod scheme {
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
         let no = decons(&rest).ok().map(|(no, _)| no);
-        trans.objectify_alternative(cond, yes, no, expr.source().clone())
+        trans.objectify_alternative(&cond, &yes, no.as_ref(), expr.source().clone())
     }
 
     pub fn expand_define(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let definee = definition_variable(expr)?;
         let form = definition_value(expr)?;
-        trans.objectify_definition(definee, &form, expr.source().clone())
+        trans.objectify_definition(&definee, &form, expr.source().clone())
     }
 
     pub fn expand_letcc(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
@@ -438,8 +438,8 @@ pub mod scheme {
         kind: LetContKind,
     ) -> Result<Expression> {
         let def = ocdr(expr)?;
-        let var_name = ocar(def)?;
-        let body = ocdr(def)?;
+        let var_name = ocar(&def)?;
+        let body = ocdr(&def)?;
 
         let mut rebound = None;
         if let Some(alias) = var_name.as_alias() {
@@ -451,7 +451,7 @@ pub mod scheme {
         let var = LocalVariable::new(var_name.as_symbol()?, false, false);
 
         trans.env.push_local(var.clone());
-        let body = trans.objectify_sequence(body)?;
+        let body = trans.objectify_sequence(&body)?;
         trans.env.drop_frame(1);
 
         let ast = LetContinuation::new(kind, var, body, expr.source().clone());
@@ -465,8 +465,8 @@ pub mod scheme {
     }
 
     pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
-        let name = *expr.at(1)?.as_symbol()?;
-        let handler = eval_syntax(expr.cdr()?, &trans.env)?;
+        let name = expr.at(1)?.as_symbol()?;
+        let handler = eval_syntax(&expr.cdr()?, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
         trans.env.push_global(macro_binding);
         Ok(Expression::NoOp(NoOp))
@@ -474,8 +474,8 @@ pub mod scheme {
 
     pub fn expand_let_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = ocdr(expr)?;
-        let bindings = ocar(def)?;
-        let body = ocdr(def)?;
+        let bindings = ocar(&def)?;
+        let body = ocdr(&def)?;
 
         let mut rebound = vec![];
         let mut macros = vec![];
@@ -487,7 +487,7 @@ pub mod scheme {
                 alias.rename();
             }
 
-            let name = *name.as_symbol()?;
+            let name = name.as_symbol()?;
             let handler = eval_syntax(v, &trans.env)?;
             let macro_binding = MagicKeyword { name, handler };
             macros.push(macro_binding);
@@ -497,7 +497,7 @@ pub mod scheme {
         let n_macros = macros.len();
         trans.env.extend_local(macros);
 
-        let result = trans.objectify_sequence(body);
+        let result = trans.objectify_sequence(&body);
 
         trans.env.drop_frame(n_macros);
 
@@ -511,8 +511,8 @@ pub mod scheme {
 
     pub fn expand_letrec_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
         let def = ocdr(expr)?;
-        let bindings = ocar(def)?;
-        let body = ocdr(def)?;
+        let bindings = ocar(&def)?;
+        let body = ocdr(&def)?;
 
         let mut rebound = vec![];
         let mut macros = vec![];
@@ -524,7 +524,7 @@ pub mod scheme {
                 alias.rename();
             }
 
-            let name = *name.as_symbol()?;
+            let name = name.as_symbol()?;
             let macro_binding = MagicKeyword::new(name, |_, _| unimplemented!());
             trans.env.push_local(macro_binding.clone());
             macros.push(macro_binding);
@@ -543,7 +543,7 @@ pub mod scheme {
             Ok(())
         })?;
 
-        let result = trans.objectify_sequence(body);
+        let result = trans.objectify_sequence(&body);
 
         trans.env.drop_frame(n_macros);
 
@@ -644,7 +644,7 @@ pub mod scheme {
                     .add_macro(
                         "invoke",
                         MagicKeyword::new("invoke", |trans, expr| {
-                            trans.objectify(expr.cdr().unwrap())
+                            trans.objectify(&expr.cdr().unwrap())
                         }),
                     )
                     .build(),

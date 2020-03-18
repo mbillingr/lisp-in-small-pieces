@@ -2,7 +2,7 @@ use super::expression::Expression;
 use super::reference::LocalReference;
 use super::variable::GlobalVariable;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::{Named, Sourced};
@@ -91,8 +91,8 @@ impl GlobalAssignment {
 impl Reify for Assignment {
     fn reify(&self) -> Scm {
         let var = match self {
-            Assignment::LocalAssignment(a) => Scm::symbol(a.reference.var.name()),
-            Assignment::GlobalAssignment(a) => Scm::symbol(a.variable.name()),
+            Assignment::LocalAssignment(a) => ScmContainer::symbol(a.reference.var.name()),
+            Assignment::GlobalAssignment(a) => ScmContainer::symbol(a.variable.name()),
         };
 
         let val = match self {
@@ -100,6 +100,6 @@ impl Reify for Assignment {
             Assignment::GlobalAssignment(a) => a.form.reify(),
         };
 
-        Scm::list(vec![Scm::symbol("set!"), var, val])
+        ScmContainer::list(vec![ScmContainer::symbol("set!"), var, val])
     }
 }

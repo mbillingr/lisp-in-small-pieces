@@ -1,6 +1,6 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 
@@ -39,8 +39,8 @@ impl Alternative {
 
 impl Reify for Alternative {
     fn reify(&self) -> Scm {
-        Scm::list(vec![
-            Scm::symbol("if"),
+        ScmContainer::list(vec![
+            ScmContainer::symbol("if"),
             self.condition.reify(),
             self.consequence.reify(),
             self.alternative.reify(),

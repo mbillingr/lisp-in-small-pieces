@@ -1,7 +1,7 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::Named;
@@ -61,14 +61,14 @@ impl LetContinuation {
 
 impl Reify for LetContinuation {
     fn reify(&self) -> Scm {
-        let name = Scm::symbol(match self.kind {
+        let name = ScmContainer::symbol(match self.kind {
             LetContKind::ExitProcedure => "let/ep",
             LetContKind::IndefiniteContinuation => "let/cc",
         });
 
-        Scm::list(vec![
+        ScmContainer::list(vec![
             name,
-            Scm::symbol(self.variable.name()),
+            ScmContainer::symbol(self.variable.name()),
             self.body.reify(),
         ])
     }

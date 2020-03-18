@@ -8,9 +8,10 @@ use crate::syntactic_closure::SyntacticClosure;
 use crate::syntax::{Expression, MagicKeywordHandler};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use crate::scm::ScmValue;
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
-    let name = *expr.car()?.as_symbol()?;
+    let name = expr.car()?.as_symbol()?;
     let expr = expr.cdr()?.car()?;
     match expr.at(0) {
         Ok(s) if s == "syntax-rules" => {
@@ -30,7 +31,7 @@ pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler
                 let rules = expr.cdr().unwrap().cdr().unwrap();
                 eval_syntax_rules(
                     name,
-                    TrackedSexpr::symbol("...", NoSource),
+                    TrackedSexpr::symbol("..."),
                     literals.clone(),
                     rules.clone(),
                     env.clone(),
@@ -72,7 +73,7 @@ fn prepare_rules(
     rules: &TrackedSexpr,
     definition_env: &Env,
 ) -> Result<TrackedSexpr> {
-    if rules.is_null() {
+    if rules.is_nil() {
         return Ok(rules.clone());
     }
 
@@ -80,11 +81,11 @@ fn prepare_rules(
     let pattern = rule.at(0)?;
     let template = rule.at(1)?;
 
-    let mut unclosed = pattern_vars(ellipsis, literals, pattern.cdr()?);
+    let mut unclosed = pattern_vars(ellipsis, literals, &pattern.cdr()?);
     unclosed.insert(ellipsis.identifier_name().unwrap());
     literals.scan(|lit| {
         lit.as_symbol().and_then(|s| {
-            unclosed.insert(*s);
+            unclosed.insert(s);
             Ok(())
         })
     })?;
@@ -94,12 +95,12 @@ fn prepare_rules(
     let pattern = pattern.clone();
     let template = close_template_symbols(template, &unclosed, &mut aliases, definition_env);
 
-    let rule = TrackedSexpr::list(vec![pattern, template], rule.src.clone());
+    let rule = TrackedSexpr::list(vec![pattern, template]).with_src(rule.source().clone());
     Ok(TrackedSexpr::cons(
         rule,
-        prepare_rules(ellipsis, literals, rules.cdr().unwrap(), definition_env)?,
-        rules.src.clone(),
-    ))
+        prepare_rules(ellipsis, literals, &rules.cdr().unwrap(), definition_env)?)
+           .with_src(rules.source().clone())
+    )
 }
 
 fn close_template_symbols(
@@ -109,18 +110,18 @@ fn close_template_symbols(
     definition_env: &Env,
 ) -> TrackedSexpr {
     //println!("{} ?", template);
-    match &template.sexpr {
-        Sexpr::SyntacticClosure(sc)
+    match &template.value {
+        ScmValue::SyntacticClosure(sc)
             if sc
                 .sexpr()
                 .as_symbol()
-                .map(|s| unclosed.contains(s))
+                .map(|s| unclosed.contains(&s))
                 .unwrap_or(false) =>
         {
             template.clone()
         }
-        Sexpr::Symbol(s) if unclosed.contains(s) => template.clone(),
-        Sexpr::Symbol(s) => aliases
+        ScmValue::Symbol(s) if unclosed.contains(s) => template.clone(),
+        ScmValue::Symbol(s) => aliases
             .entry(*s)
             .or_insert_with(|| {
                 Rc::new(SyntacticClosure::new(
@@ -130,12 +131,11 @@ fn close_template_symbols(
             })
             .clone()
             .into(),
-        Sexpr::Pair(p) => TrackedSexpr::cons(
-            close_template_symbols(&p.0, unclosed, aliases, definition_env),
-            close_template_symbols(&p.1, unclosed, aliases, definition_env),
-            template.src.clone(),
-        ),
-        Sexpr::Vector(_) => unimplemented!(),
+        ScmValue::Pair(p) => TrackedSexpr::cons(
+            close_template_symbols(&p.0.get(), unclosed, aliases, definition_env),
+            close_template_symbols(&p.1.get(), unclosed, aliases, definition_env))
+            .with_src(template.source().clone()),
+        ScmValue::Vector(_) => unimplemented!(),
         _ => template.clone(),
     }
 }
@@ -155,10 +155,10 @@ fn apply_syntax_rules(
         let template = rule.at(1).unwrap();
 
         if let Some(bound_vars) = match_pattern(
-            expr.cdr().unwrap(),
+            &expr.cdr().unwrap(),
             ellipsis,
             literals,
-            pattern.cdr().unwrap(),
+            &pattern.cdr().unwrap(),
         ) {
             //println!("{} matched {}", expr, pattern);
             let result = match realize_template(&MultiIndex::new(), template, &bound_vars, ellipsis)
@@ -181,7 +181,7 @@ fn apply_syntax_rules(
                 expr,
                 ellipsis,
                 literals,
-                rules.cdr().unwrap(),
+                &rules.cdr().unwrap(),
                 env,
                 definition_env,
             )
@@ -204,8 +204,8 @@ fn match_pattern(
     pattern: &TrackedSexpr,
 ) -> Option<HashMap<Symbol, Binding>> {
     //println!("matching {} and {}", expr, pattern);
-    use Sexpr::*;
-    match (&pattern.sexpr, &expr.sexpr) {
+    use ScmValue::*;
+    match (&pattern.value, &expr.value) {
         (SyntacticClosure(sc), _) => match_pattern(expr, ellipsis, literals, sc.sexpr()),
         (lit, _) if literals.contains(lit) => {
             if pattern.is_identifier() && pattern.identifier_name() == expr.identifier_name() {
@@ -221,7 +221,7 @@ fn match_pattern(
             Some(binding)
         }
         (Pair(p), _) => {
-            if p.1
+            if p.1.get()
                 .car()
                 .map(|next| {
                     next.is_identifier()
@@ -230,7 +230,7 @@ fn match_pattern(
                 })
                 .unwrap_or(false)
             {
-                let n_after_ellipsis = p.1.cdr().unwrap().list_len();
+                let n_after_ellipsis = p.1.get().cdr().unwrap().list_len();
                 let n_expr = expr.list_len();
                 let n_ellipsis = n_expr - n_after_ellipsis;
 
@@ -238,11 +238,11 @@ fn match_pattern(
                 let mut xp = expr;
                 for _ in 0..n_ellipsis {
                     let x = xp.car().ok()?;
-                    let m = match_pattern(&x, ellipsis, literals, &p.0)?;
+                    let m = match_pattern(&x, ellipsis, literals, &p.0.get())?;
                     matches.push(m);
-                    xp = xp.cdr().unwrap();
+                    xp = &xp.cdr().unwrap();
                 }
-                let mut bindings: HashMap<_, _> = pattern_vars(ellipsis, literals, &p.0)
+                let mut bindings: HashMap<_, _> = pattern_vars(ellipsis, literals, &p.0.get())
                     .into_iter()
                     .map(|name| (name, vec![]))
                     .collect();
@@ -255,13 +255,13 @@ fn match_pattern(
                     .into_iter()
                     .map(|(k, v)| (k, Binding::Sequence(v)))
                     .collect();
-                let more = match_pattern(xp, ellipsis, literals, p.1.cdr().unwrap())?;
+                let more = match_pattern(xp, ellipsis, literals, &p.1.get().cdr().unwrap())?;
                 bindings.extend(more);
                 Some(bindings)
             } else {
-                if let Pair(x) = &expr.sexpr {
-                    let mut a = match_pattern(&x.0, ellipsis, literals, &p.0)?;
-                    let b = match_pattern(&x.1, ellipsis, literals, &p.1)?;
+                if let Pair(x) = expr.value {
+                    let mut a = match_pattern(&x.0.get(), ellipsis, literals, &p.0.get())?;
+                    let b = match_pattern(&x.1.get(), ellipsis, literals, &p.1.get())?;
                     a.extend(b);
                     Some(a)
                 } else {
@@ -280,8 +280,8 @@ fn pattern_vars(
     literals: &TrackedSexpr,
     pattern: &TrackedSexpr,
 ) -> HashSet<Symbol> {
-    use Sexpr::*;
-    match &pattern.sexpr {
+    use ScmValue::*;
+    match &pattern.value {
         lit if literals.contains(lit) => HashSet::new(),
         _ if pattern.identifier_name() == ellipsis.identifier_name() => HashSet::new(),
         _ if pattern.is_identifier() => match pattern.identifier_name().unwrap() {
@@ -293,15 +293,15 @@ fn pattern_vars(
             }
         },
         Pair(p) => {
-            let mut a = pattern_vars(ellipsis, literals, &p.0);
-            let b = pattern_vars(ellipsis, literals, &p.1);
+            let mut a = pattern_vars(ellipsis, literals, &p.0.get());
+            let b = pattern_vars(ellipsis, literals, &p.1.get());
             a.extend(b);
             a
         }
         Vector(v) => {
             let mut vars = HashSet::new();
-            for x in v {
-                vars.extend(pattern_vars(ellipsis, literals, x))
+            for x in *v {
+                vars.extend(pattern_vars(ellipsis, literals, &x.get()))
             }
             vars
         }
@@ -315,18 +315,18 @@ fn realize_template(
     bound_vars: &HashMap<Symbol, Binding>,
     ellipsis: &TrackedSexpr,
 ) -> MultiIndexResult<TrackedSexpr> {
-    use Sexpr::*;
+    use ScmValue::*;
     //println!("realizing {}", template);
-    match &template.sexpr {
+    match &template.value {
         Pair(_) => {
             let car = template.car().unwrap();
             let cdr = template.cdr().unwrap();
             if car.identifier_name() == ellipsis.identifier_name() {
                 realize_template(
                     idx,
-                    cdr.car().unwrap(),
+                    &cdr.car().unwrap(),
                     bound_vars,
-                    &TrackedSexpr::symbol(crate::symbol::Symbol::uninterned(""), NoSource),
+                    &TrackedSexpr::symbol(crate::symbol::Symbol::uninterned("")),
                 )
             } else {
                 if cdr
@@ -335,16 +335,15 @@ fn realize_template(
                     .unwrap_or(false)
                 {
                     let rep = realize_repeated_template(idx, &car, bound_vars, ellipsis)?;
-                    let mut rest = realize_template(idx, cdr.cdr().unwrap(), bound_vars, ellipsis)?;
+                    let mut rest = realize_template(idx, &cdr.cdr().unwrap(), bound_vars, ellipsis)?;
                     for r in rep.into_iter().rev() {
-                        rest = TrackedSexpr::cons(r, rest, NoSource);
+                        rest = TrackedSexpr::cons(r, rest);
                     }
                     Ok(rest)
                 } else {
                     Ok(TrackedSexpr::cons(
                         realize_template(idx, &car, bound_vars, ellipsis)?,
-                        realize_template(idx, &cdr, bound_vars, ellipsis)?,
-                        NoSource,
+                        realize_template(idx, &cdr, bound_vars, ellipsis)?
                     ))
                 }
             }

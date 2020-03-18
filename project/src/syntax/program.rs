@@ -1,7 +1,7 @@
 use super::expression::Expression;
 use super::import::Import;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 
@@ -34,6 +34,6 @@ impl Reify for Program {
     fn reify(&self) -> Scm {
         let imports = self.imports.reify();
         let body = self.body.reify();
-        Scm::vector(vec![imports, body])
+        ScmContainer::vector(vec![imports, body])
     }
 }

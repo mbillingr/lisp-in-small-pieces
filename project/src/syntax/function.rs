@@ -2,7 +2,7 @@ use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::primitive::Arity;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::Named;
@@ -52,16 +52,16 @@ impl Function {
 
 impl Reify for Function {
     fn reify(&self) -> Scm {
-        let mut vars = Scm::nil();
+        let mut vars = ScmContainer::nil();
         for v in self.variables.iter().rev() {
-            let name = Scm::symbol(v.name());
+            let name = ScmContainer::symbol(v.name());
             if v.is_dotted() {
                 vars = name;
             } else {
-                vars = Scm::cons(name, vars);
+                vars = ScmContainer::cons(name, vars);
             }
         }
         let body = self.body.reify();
-        Scm::list(vec![Scm::symbol("lambda"), vars, body])
+        ScmContainer::list(vec![ScmContainer::symbol("lambda"), vars, body])
     }
 }

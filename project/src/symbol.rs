@@ -104,6 +104,12 @@ impl std::cmp::PartialEq<str> for Symbol {
     }
 }
 
+impl std::cmp::PartialEq<&str> for Symbol {
+    fn eq(&self, s: &&str) -> bool {
+        s.eq(&*self.0)
+    }
+}
+
 impl std::cmp::PartialEq<Symbol> for str {
     fn eq(&self, s: &Symbol) -> bool {
         self.eq(&*s.0)

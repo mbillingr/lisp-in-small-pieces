@@ -1,5 +1,5 @@
 use crate::ast_transform::Transformer;
-use crate::scm::{Scm, ScmValue};
+use crate::scm::{ScmContainer, ScmValue, Scm};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
@@ -51,9 +51,9 @@ impl From<Sexpr> for Constant {
 
 impl Reify for Constant {
     fn reify(&self) -> Scm {
-        let x: Scm = (&self.value).into();
+        let x: ScmContainer = (&self.value).into();
         match x.value {
-            ScmValue::Symbol(_) => Scm::list(vec![Scm::symbol("quote"), x]),
+            ScmValue::Symbol(_) => ScmContainer::list(vec![ScmContainer::symbol("quote"), x]),
             _ => x,
         }
     }

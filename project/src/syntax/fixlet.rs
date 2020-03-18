@@ -1,7 +1,7 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::Named;
@@ -49,8 +49,8 @@ impl Reify for FixLet {
             .iter()
             .zip(&self.arguments)
             .rev()
-            .map(|(v, a)| Scm::list(vec![Scm::symbol(v.name()), a.reify()]));
+            .map(|(v, a)| ScmContainer::list(vec![ScmContainer::symbol(v.name()), a.reify()]));
         let body = self.body.reify();
-        Scm::list(vec![Scm::symbol("let"), Scm::list(init), body])
+        ScmContainer::list(vec![ScmContainer::symbol("let"), ScmContainer::list(init), body])
     }
 }

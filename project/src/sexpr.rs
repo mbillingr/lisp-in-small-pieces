@@ -1,19 +1,14 @@
 use crate::error::{Error, Result, TypeError};
 use crate::parsing::{parse, Sexpr as PS, SpannedSexpr};
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, ScmValue};
 use crate::source::{Source, SourceLocation};
 use crate::symbol::Symbol;
 use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
-pub struct TrackedSexpr {
-    pub sexpr: Sexpr,
-    pub src: SourceLocation,
-}
-
-// TODO: Should we intern symbols and string?
+pub type TrackedSexpr = ScmContainer<&'static SourceLocation>;
+pub type TrackedValue = ScmValue<&'static SourceLocation>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Sexpr {
@@ -155,16 +150,16 @@ impl TrackedSexpr {
         self
     }
 
-    pub fn new(sexpr: Sexpr, src: SourceLocation) -> Self {
+    pub fn source(&self) -> &SourceLocation {
+        &self.src
+    }
+
+    /*pub fn new(sexpr: Sexpr, src: SourceLocation) -> Self {
         TrackedSexpr { sexpr, src }
     }
 
     pub fn into_sexpr(self) -> Sexpr {
         self.sexpr
-    }
-
-    pub fn source(&self) -> &SourceLocation {
-        &self.src
     }
 
     pub fn undefined() -> Self {
@@ -222,7 +217,7 @@ impl TrackedSexpr {
                 self,
             )),
         }
-    }
+    }*/
 
     pub fn decons(self) -> std::result::Result<(Self, Self), Self> {
         match self.sexpr {
@@ -233,24 +228,21 @@ impl TrackedSexpr {
 
     pub fn at(&self, idx: usize) -> Result<&Self> {
         if idx == 0 {
-            self.car()
+            self.car().map(|x| &x)
         } else {
             self.cdr().and_then(|cdr| cdr.at(idx - 1))
         }
     }
 
-    pub fn is_null(&self) -> bool {
+    /*pub fn is_null(&self) -> bool {
         match self.sexpr {
             Sexpr::Nil => true,
             _ => false,
         }
-    }
+    }*/
 
     pub fn is_atom(&self) -> bool {
-        match &self.sexpr {
-            Sexpr::Pair(_) => false,
-            _ => true,
-        }
+        !self.is_pair()
     }
 
     pub fn is_identifier(&self) -> bool {
@@ -276,7 +268,7 @@ impl TrackedSexpr {
         }
     }
 
-    pub fn is_symbol(&self) -> bool {
+    /*pub fn is_symbol(&self) -> bool {
         self.as_symbol().is_ok()
     }
 
@@ -297,7 +289,7 @@ impl TrackedSexpr {
             Sexpr::Pair(p) => Some((&p.0, &p.1)),
             _ => None,
         }
-    }
+    }*/
 
     pub fn scan<E>(
         &self,
@@ -324,7 +316,7 @@ impl TrackedSexpr {
         Ok(x)
     }
 
-    pub fn contains(&self, x: &Sexpr) -> bool {
+    pub fn contains(&self, x: &TrackedValue) -> bool {
         match &self.sexpr {
             Sexpr::Vector(v) => v.iter().find(|item| &item.sexpr == x).is_some(),
             Sexpr::Pair(p) if &p.0.sexpr == x => true,
@@ -388,8 +380,33 @@ impl PartialEq<str> for TrackedSexpr {
     }
 }
 
-impl PartialEq for TrackedSexpr {
-    fn eq(&self, other: &Self) -> bool {
-        self.sexpr == other.sexpr
+impl From<TrackedValue> for ScmValue<()> {
+    fn from(value: TrackedValue) -> ScmValue<()> {
+        use ScmValue::*;
+        match value {
+            Undefined => Undefined,
+            Uninitialized => Uninitialized,
+            Nil => Nil,
+            True => True,
+            False => False,
+            Eof => Eof,
+            Int(i) => Int(i),
+            Float(f) => Float(f),
+            Char(ch) => Char(ch),
+            Symbol(s) => Symbol(s),
+            String(s) => String(s),
+            Vector(items) => Vector(items),
+            Bytevector(bv) => Bytevector(bv),
+            Pair(p) => Pair(p),
+            Closure(c) => Closure(c),
+            Primitive(p) => Primitive(p),
+            Continuation(c) => Continuation(c),
+            ExitProc(ep) => ExitProc(ep),
+            Port(p) => Port(p),
+            Cell(c) => Cell(c),
+            Rust(obj) => Rust(obj),
+            Error(e) => Error(e),
+            SyntacticClosure(sc) => SyntacticClosure(sc),
+        }
     }
 }

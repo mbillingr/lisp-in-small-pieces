@@ -1,7 +1,7 @@
 use super::expression::Expression;
 use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::symbol::Symbol;
 use crate::syntax::{Reify, Variable};
@@ -129,9 +129,9 @@ impl FreeReference {
 impl Reify for Reference {
     fn reify(&self) -> Scm {
         match self {
-            Reference::LocalReference(r) => Scm::symbol(r.var.name()),
-            Reference::GlobalReference(r) => Scm::symbol(r.var.name()),
-            Reference::FreeReference(r) => Scm::symbol(r.var.name()),
+            Reference::LocalReference(r) => ScmContainer::symbol(r.var.name()),
+            Reference::GlobalReference(r) => ScmContainer::symbol(r.var.name()),
+            Reference::FreeReference(r) => ScmContainer::symbol(r.var.name()),
         }
     }
 }

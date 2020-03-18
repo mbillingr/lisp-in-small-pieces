@@ -14,7 +14,7 @@ use super::reference::Reference;
 use super::sequence::Sequence;
 
 use crate::ast_transform::{Transformer, Visited};
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
 use crate::syntax::Reify;
@@ -111,7 +111,7 @@ impl Reify for Expression {
     fn reify(&self) -> Scm {
         use Expression::*;
         match self {
-            MagicKeyword(mkw) => Scm::symbol(mkw.name),
+            MagicKeyword(mkw) => ScmContainer::symbol(mkw.name),
             Reference(ast) => ast.reify(),
             Assignment(ast) => ast.reify(),
             Constant(ast) => ast.reify(),
@@ -123,7 +123,7 @@ impl Reify for Expression {
             BoxRead(_) | BoxWrite(_) | BoxCreate(_) => unimplemented!(),
             FlatClosure(_) => unimplemented!(),
             GlobalDefine(ast) => ast.reify(),
-            NoOp(_) => Scm::undefined(),
+            NoOp(_) => ScmContainer::undefined(),
             LetContinuation(ast) => ast.reify(),
         }
     }

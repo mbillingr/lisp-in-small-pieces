@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use crate::scm::ScmValue;
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {
@@ -79,12 +80,12 @@ impl Translate {
             .map(|expr| self.objectify_import(expr))
             .collect::<Result<_>>()?;
 
-        let mut sequence = TrackedSexpr::nil(NoSource);
+        let mut sequence = TrackedSexpr::nil();
         for expr in exprs[n_imports..].iter().rev() {
-            sequence = TrackedSexpr::cons(expr.clone(), sequence, NoSource);
+            sequence = TrackedSexpr::cons(expr.clone(), sequence);
         }
 
-        let body = if sequence.is_null() {
+        let body = if sequence.is_nil() {
             Expression::NoOp(NoOp)
         } else {
             /*sequence =
@@ -99,24 +100,24 @@ impl Translate {
     }
 
     pub fn objectify(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
-        match &expr.sexpr {
-            Sexpr::SyntacticClosure(sc) => sc.expand(self),
+        match &expr.value {
+            ScmValue::SyntacticClosure(sc) => sc.expand(self),
             _ if expr.is_symbol() => self.objectify_symbol(expr),
             _ if expr.is_atom() => self.objectify_quotation(expr),
             _ => {
-                let m = self.objectify(ocar(expr)?)?;
+                let m = self.objectify(&ocar(expr)?)?;
                 if let Expression::MagicKeyword(MagicKeyword { name: _, handler }) = m {
                     handler.invoke(self, expr)
                 } else {
-                    self.objectify_application(&m, ocdr(expr)?, expr.source().clone())
+                    self.objectify_application(&m, &ocdr(expr)?, expr.source().clone())
                 }
             }
         }
     }
 
     pub fn objectify_quotation(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
-        let c: Constant = match &expr.sexpr {
-            Sexpr::SyntacticClosure(sc) => sc.sexpr().clone().into(),
+        let c: Constant = match &expr.value {
+            ScmValue::SyntacticClosure(sc) => sc.sexpr().clone().into(),
             _ => expr.clone().into(),
         };
         Ok(Expression::Constant(c))
@@ -143,11 +144,11 @@ impl Translate {
             let car = exprs.car().unwrap();
             let cdr = exprs.cdr().unwrap();
             if cdr.is_pair() {
-                let this = self.objectify(car)?;
-                let next = self.objectify_sequence(cdr)?;
-                Ok(Sequence::new(this, next, exprs.src.clone()).into())
+                let this = self.objectify(&car)?;
+                let next = self.objectify_sequence(&cdr)?;
+                Ok(Sequence::new(this, next, exprs.source().clone()).into())
             } else {
-                self.objectify(car)
+                self.objectify(&car)
             }
         } else {
             Err(Error::at_expr(ObjectifyErrorKind::ExpectedList, exprs))
@@ -157,7 +158,7 @@ impl Translate {
     fn objectify_symbol(&mut self, expr: &TrackedSexpr) -> Result<Expression> {
         let var_name = TrackedSexpr::as_symbol(expr).unwrap();
         //println!("{} -> {:?} in {:?}", var_name, self.env.find_variable(var_name), self.env);
-        match self.env.find_variable(var_name) {
+        match self.env.find_variable(&var_name) {
             Some(Variable::LocalVariable(v)) => {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
@@ -194,12 +195,12 @@ impl Translate {
         span: SourceLocation,
     ) -> Result<Expression> {
         let mut args_list = vec![];
-        while !args.is_null() {
+        while !args.is_nil() {
             let car = args
                 .car()
                 .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, args))?;
-            args_list.push(self.objectify(car)?);
-            args = args.cdr().unwrap();
+            args_list.push(self.objectify(&car)?);
+            args = &args.cdr().unwrap();
         }
 
         match func {
@@ -253,7 +254,7 @@ impl Translate {
             .try_into()
             .unwrap();
 
-        let mut dotted = Expression::Constant(TrackedSexpr::nil(span.last_char()).into());
+        let mut dotted = Expression::Constant(TrackedSexpr::nil().with_src(span.last_char()).into());
 
         while args.len() >= variables.len() {
             let x = args.pop().unwrap();
@@ -292,14 +293,14 @@ impl Translate {
         let mut vars = vec![];
         while let Ok(car) = names.car() {
             let name = car.as_symbol()?;
-            vars.push(LocalVariable::new(*name, false, false));
+            vars.push(LocalVariable::new(name, false, false));
 
-            names = names.cdr().unwrap();
+            names = &names.cdr().unwrap();
         }
 
-        if !names.is_null() {
+        if !names.is_nil() {
             let name = names.as_symbol()?;
-            vars.push(LocalVariable::new(*name, false, true));
+            vars.push(LocalVariable::new(name, false, true));
         }
 
         Ok(vars)
@@ -314,7 +315,7 @@ impl Translate {
         let form = self.objectify(expr)?;
 
         let var_name = TrackedSexpr::as_symbol(variable).unwrap();
-        let gvar = match self.env.find_variable(var_name) {
+        let gvar = match self.env.find_variable(&var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
             Some(Variable::GlobalVariable(v)) => {
                 v.set_mutable(true);
@@ -322,7 +323,7 @@ impl Translate {
                 v
             }
             _ => {
-                let v = self.adjoin_global_variable(*var_name, VarDef::Unknown);
+                let v = self.adjoin_global_variable(var_name, VarDef::Unknown);
                 match &form {
                     Expression::Constant(c) => v.set_value(VarDef::Value((&c.value).into())),
                     Expression::Reference(Reference::GlobalReference(gr)) => {
@@ -372,7 +373,7 @@ impl Translate {
         let mut sets = vec![];
 
         while import_sets.is_pair() {
-            let import_obj = self.objectify_import_set(import_sets.car().unwrap())?;
+            let import_obj = self.objectify_import_set(&import_sets.car().unwrap())?;
 
             let mut import_vars = vec![];
             let mut import_macros = vec![];
@@ -449,12 +450,12 @@ impl Translate {
         let import_set = form.cdr().unwrap().car().unwrap();
         let mut identifiers = form.cdr().unwrap().cdr().unwrap();
 
-        let mut import_set = self.objectify_import_set(import_set)?;
+        let mut import_set = self.objectify_import_set(&import_set)?;
 
         let mut only_names = HashSet::new();
 
         while identifiers.is_pair() {
-            let identifier = *identifiers.car().unwrap().as_symbol().unwrap();
+            let identifier = identifiers.car().unwrap().as_symbol().unwrap();
             only_names.insert(identifier);
             identifiers = identifiers.cdr().unwrap();
         }
@@ -478,10 +479,10 @@ impl Translate {
         let import_set = form.cdr().unwrap().car().unwrap();
         let mut identifiers = form.cdr().unwrap().cdr().unwrap();
 
-        let mut import_set = self.objectify_import_set(import_set)?;
+        let mut import_set = self.objectify_import_set(&import_set)?;
 
         while identifiers.is_pair() {
-            let identifier = *identifiers.car().unwrap().as_symbol().unwrap();
+            let identifier = identifiers.car().unwrap().as_symbol().unwrap();
             import_set.items = import_set
                 .items
                 .into_iter()
@@ -495,7 +496,7 @@ impl Translate {
 
     fn objectify_import_prefix(&mut self, form: &TrackedSexpr) -> Result<ImportSet> {
         let import_set = form.cdr().unwrap().car().unwrap();
-        let prefix = *form
+        let prefix = form
             .cdr()
             .unwrap()
             .cdr()
@@ -505,7 +506,7 @@ impl Translate {
             .as_symbol()
             .unwrap();
 
-        let mut import_set = self.objectify_import_set(import_set)?;
+        let mut import_set = self.objectify_import_set(&import_set)?;
 
         import_set.items = import_set
             .items
@@ -523,7 +524,7 @@ impl Translate {
         let import_set = form.cdr().unwrap().car().unwrap();
         let mut mappings = form.cdr().unwrap().cdr().unwrap();
 
-        let mut import_set = self.objectify_import_set(import_set)?;
+        let mut import_set = self.objectify_import_set(&import_set)?;
 
         let mut mapping = HashMap::new();
         while mappings.is_pair() {
@@ -537,7 +538,7 @@ impl Translate {
                 .unwrap()
                 .as_symbol()
                 .unwrap();
-            mapping.insert(*original, *newname);
+            mapping.insert(original, newname);
             mappings = mappings.cdr().unwrap();
         }
 
@@ -601,11 +602,11 @@ impl Translate {
             let car = body.car().unwrap();
             let cdr = body.cdr().unwrap();
             if cdr.is_pair() {
-                let mut declarations = vec![self.objectify_library_declaration(car)?];
-                declarations.extend(self.objectify_library_declarations(cdr)?);
+                let mut declarations = vec![self.objectify_library_declaration(&car)?];
+                declarations.extend(self.objectify_library_declarations(&cdr)?);
                 Ok(declarations)
             } else {
-                Ok(vec![self.objectify_library_declaration(car)?])
+                Ok(vec![self.objectify_library_declaration(&car)?])
             }
         } else {
             Err(Error::at_expr(ObjectifyErrorKind::ExpectedList, body))
@@ -617,11 +618,11 @@ impl Translate {
         decl: &TrackedSexpr,
     ) -> Result<LibraryDeclaration> {
         match decl.car() {
-            Ok(x) if x == "begin" => self.objectify_sequence(decl.cdr().unwrap()).map(Into::into),
-            Ok(x) if x == "export" => self
-                .objectify_library_export(decl.cdr().unwrap())
+            Ok(x) if x.cmp_symbol("begin") => self.objectify_sequence(&decl.cdr().unwrap()).map(Into::into),
+            Ok(x) if x.cmp_symbol("export") => self
+                .objectify_library_export(&decl.cdr().unwrap())
                 .map(Into::into),
-            Ok(x) if x == "import" => self.objectify_library_import(decl).map(Into::into),
+            Ok(x) if x.cmp_symbol("import") => self.objectify_library_import(decl).map(Into::into),
             _ => Err(Error::at_expr(
                 ObjectifyErrorKind::InvalidLibraryDefinition,
                 decl,
@@ -634,27 +635,27 @@ impl Translate {
     }
 
     pub fn objectify_library_export(&mut self, specs: &TrackedSexpr) -> Result<LibraryExport> {
-        match specs.sexpr {
-            Sexpr::Nil => Ok(LibraryExport::new(specs.source().last_char())),
-            Sexpr::Pair(_) => {
+        match specs.value {
+            ScmValue::Nil => Ok(LibraryExport::new(specs.source().last_char())),
+            ScmValue::Pair(_) => {
                 let car = specs.car().unwrap();
                 let cdr = specs.cdr().unwrap();
 
-                let mut export = self.objectify_library_export(cdr)?;
-                match car.sexpr {
-                    Sexpr::Symbol(ident) => export.adjoin_identifier(ident, car.source()),
-                    Sexpr::Pair(_) if car.car().unwrap() == "rename" => {
+                let mut export = self.objectify_library_export(&cdr)?;
+                match car.value {
+                    ScmValue::Symbol(ident) => export.adjoin_identifier(ident, car.source()),
+                    ScmValue::Pair(_) if car.car().unwrap().cmp_symbol("rename") => {
                         let (old, new) = car
                             .cdr()
                             .and_then(|cdar| cdar.car().map(|cadar| (cadar, cdar.cdr().unwrap())))
                             .and_then(|(cadar, cddar)| cddar.car().map(|caddar| (cadar, caddar)))
                             .and_then(|(cadar, caddar)| cadar.as_symbol().map(|old| (old, caddar)))
-                            .and_then(|(old, caddar)| caddar.as_symbol().map(|new| (*old, *new)))?;
+                            .and_then(|(old, caddar)| caddar.as_symbol().map(|new| (old, new)))?;
                         export.adjoin_rename(old, new, car.source());
                     }
                     _ => Err(Error::at_expr(
                         ObjectifyErrorKind::InvalidLibraryDefinition,
-                        car,
+                        &car,
                     ))?,
                 };
                 Ok(export)
@@ -699,7 +700,7 @@ impl Translate {
                 code.into(),
             ));
         }
-        if ocar(&sexprs[0])? != "define-library" {
+        if !ocar(&sexprs[0])?.cmp_symbol("define-library") {
             return Err(Error::at_span(
                 ObjectifyErrorKind::InvalidLibraryDefinition,
                 sexprs[0].source().clone(),
@@ -714,9 +715,9 @@ impl Translate {
         }
 
         let sexpr = &sexprs[0];
-        let name = ocar(ocdr(sexpr)?)?;
-        let body = ocdr(ocdr(sexpr)?)?;
-        self.objectify_library(name, body, sexpr.source().clone())
+        let name = ocar(&ocdr(sexpr)?)?;
+        let body = ocdr(&ocdr(sexpr)?)?;
+        self.objectify_library(&name, &body, sexpr.source().clone())
     }
 
     pub fn add_library(&mut self, library_name: impl Into<PathBuf>, library: Library) {
@@ -731,14 +732,14 @@ impl Translate {
     }
 }
 
-pub fn ocar(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
+pub fn ocar(e: &TrackedSexpr) -> Result<TrackedSexpr> {
     e.car()
 }
 
-pub fn ocdr(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
+pub fn ocdr(e: &TrackedSexpr) -> Result<TrackedSexpr> {
     e.cdr()
 }
 
-pub fn decons(e: &TrackedSexpr) -> Result<(&TrackedSexpr, &TrackedSexpr)> {
+pub fn decons(e: &TrackedSexpr) -> Result<(TrackedSexpr, TrackedSexpr)> {
     ocar(e).and_then(|car| ocdr(e).map(|cdr| (car, cdr)))
 }

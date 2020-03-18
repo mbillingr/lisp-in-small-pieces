@@ -8,25 +8,25 @@ use SourceLocation::NoSource;
 pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
     let uninit: TrackedSexpr = Sexpr::Uninitialized.into();
 
-    let mut variables = TrackedSexpr::nil(NoSource);
-    let mut values = TrackedSexpr::nil(NoSource);
+    let mut variables = TrackedSexpr::nil();
+    let mut values = TrackedSexpr::nil();
     body.scan(|expr| -> Result<()> {
         if is_definition(expr) {
-            let vars = std::mem::replace(&mut variables, TrackedSexpr::nil(NoSource));
-            variables = TrackedSexpr::cons(definition_variable(expr)?.clone(), vars, NoSource);
-            values = TrackedSexpr::cons(uninit.clone(), values.clone(), NoSource);
+            let vars = std::mem::replace(&mut variables, TrackedSexpr::nil());
+            variables = TrackedSexpr::cons(definition_variable(expr)?.clone(), vars);
+            values = TrackedSexpr::cons(uninit.clone(), values.clone());
         }
         Ok(())
     })?;
 
-    if variables.is_null() {
+    if variables.is_nil() {
         return Ok(body);
     }
 
     fn transform(body: TrackedSexpr) -> Result<TrackedSexpr> {
         match body.decons() {
             Ok((mut expr, rest)) => {
-                let src = rest.src.start_at(&expr.src);
+                let src = rest.source().start_at(&expr.source());
                 if is_definition(&expr) {
                     expr = make_assignment(
                         definition_variable(&expr)?.clone(),
@@ -34,7 +34,7 @@ pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
                     )
                 }
                 transform(rest)
-                    .map(|transformed_rest| TrackedSexpr::cons(expr, transformed_rest, src))
+                    .map(|transformed_rest| TrackedSexpr::cons(expr, transformed_rest).with_src(src))
             }
             Err(body) => Ok(body),
         }
@@ -43,8 +43,7 @@ pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
     let new_body = make_let(variables, values, transform(body)?);
     Ok(TrackedSexpr::cons(
         new_body,
-        TrackedSexpr::nil(NoSource),
-        NoSource,
+        TrackedSexpr::nil()
     ))
 }
 
@@ -52,9 +51,9 @@ fn is_definition(expr: &TrackedSexpr) -> bool {
     expr.at(0).map(|sx| sx == "define").unwrap_or(false)
 }
 
-pub fn definition_variable(expr: &TrackedSexpr) -> Result<&TrackedSexpr> {
+pub fn definition_variable(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
     expr.at(1)
-        .and_then(|var| if var.is_symbol() { Ok(var) } else { var.car() })
+        .and_then(|var| if var.is_symbol() { Ok(*var) } else { var.car() })
         .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
 }
 
@@ -67,7 +66,7 @@ pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
                 Ok(make_function(
                     expr.at(1).unwrap().cdr()?.clone(),
                     expr.cdr().unwrap().cdr()?.clone(),
-                    expr.src.clone(),
+                    expr.source().clone(),
                 ))
             }
         })
@@ -80,10 +79,8 @@ fn make_assignment(variable: TrackedSexpr, value: TrackedSexpr) -> TrackedSexpr 
         Sexpr::Symbol(Symbol::new("set!")).into(),
         S::cons(
             variable,
-            S::cons(value, TrackedSexpr::nil(NoSource), NoSource),
-            NoSource,
+            S::cons(value, TrackedSexpr::nil()),
         ),
-        NoSource,
     )
 }
 
@@ -92,24 +89,22 @@ pub fn make_function(
     body: TrackedSexpr,
     src: SourceLocation,
 ) -> TrackedSexpr {
-    let part_src = body.src.start_at(&variables.src);
+    let part_src = body.source().start_at(&variables.source());
     TrackedSexpr::cons(
         Sexpr::Symbol(Symbol::new("lambda")).into(),
-        TrackedSexpr::cons(variables, body, part_src),
-        src,
-    )
+        TrackedSexpr::cons(variables, body).with_src(part_src))
+        .with_src(src)
 }
 
 fn make_let(variables: TrackedSexpr, values: TrackedSexpr, body: TrackedSexpr) -> TrackedSexpr {
-    let var_and_body = TrackedSexpr::cons(variables, body, NoSource);
+    let var_and_body = TrackedSexpr::cons(variables, body);
 
     let func = TrackedSexpr::cons(
         Sexpr::Symbol(Symbol::new("lambda")).into(),
         var_and_body,
-        NoSource,
     );
 
-    let call = TrackedSexpr::cons(func, values, NoSource);
+    let call = TrackedSexpr::cons(func, values);
 
     call
 }

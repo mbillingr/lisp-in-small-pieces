@@ -234,3 +234,15 @@ impl From<Source> for SourceLocation {
         SourceLocation::Span(src.into())
     }
 }
+
+impl Default for SourceLocation {
+    fn default() -> Self {
+        SourceLocation::NoSource
+    }
+}
+
+impl Default for &SourceLocation {
+    fn default() -> Self {
+        &SourceLocation::NoSource
+    }
+}

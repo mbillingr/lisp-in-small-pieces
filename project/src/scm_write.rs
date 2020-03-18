@@ -1,4 +1,4 @@
-use crate::scm::ScmValue as Scm;
+use crate::scm::Scm;
 use std::cell::Cell;
 use std::fmt::Display;
 use std::marker::PhantomData;

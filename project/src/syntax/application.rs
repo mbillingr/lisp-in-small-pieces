@@ -1,6 +1,6 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
+use crate::scm::{ScmContainer, Scm};
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 
@@ -39,7 +39,7 @@ impl Application {
 
 impl Reify for Application {
     fn reify(&self) -> Scm {
-        let args = Scm::list(self.arguments.iter().map(Reify::reify));
-        Scm::cons(self.function.reify(), args)
+        let args = ScmContainer::list(self.arguments.iter().map(Reify::reify));
+        ScmContainer::cons(self.function.reify(), args)
     }
 }
