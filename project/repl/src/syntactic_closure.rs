@@ -2,10 +2,10 @@ use crate::env::Env;
 use crate::error::Result;
 use crate::objectify::Translate;
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::symbol::Symbol;
 use crate::syntax::Expression;
 use std::cell::Cell;
 use std::rc::Rc;
+use sunny_common::Symbol;
 
 #[derive(Debug, Clone)]
 pub struct SyntacticClosure {

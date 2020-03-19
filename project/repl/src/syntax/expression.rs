@@ -20,6 +20,8 @@ use crate::source::SourceLocation::NoSource;
 use crate::syntax::Reify;
 use crate::utils::Sourced;
 
+use sunny_common::{sum_type, sum_types};
+
 sum_types! {
     #[derive(Debug, Clone)]
     pub type Expression = NoOp

@@ -1,4 +1,3 @@
-use crate::parsing;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -111,7 +110,7 @@ impl std::fmt::Display for Span {
 }
 
 impl SourceLocation {
-    pub fn from_spanned(span: parsing::Span, src: Source) -> Self {
+    pub fn from_spanned(span: sunny_parser::Span, src: Source) -> Self {
         SourceLocation::Span(Span {
             src,
             start: span.start,

@@ -17,7 +17,6 @@ pub mod scheme {
     use crate::sexpr::TrackedSexpr;
     use crate::source::Source;
     use crate::source::SourceLocation::NoSource;
-    use crate::symbol::Symbol;
     use crate::syntax::{
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
@@ -26,6 +25,7 @@ pub mod scheme {
     use std::ops::{Div, Mul, Rem, Sub};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
+    use sunny_common::Symbol;
 
     pub struct Context {
         pub vm: VirtualMachine,
@@ -733,7 +733,6 @@ pub mod scheme {
 
         mod self_evaluating {
             use super::*;
-            use crate::symbol::Symbol;
 
             compare!(boolean_true: "#t", equals, Scm::True);
             compare!(boolean_false: "#f", equals, Scm::False);

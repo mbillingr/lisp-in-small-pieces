@@ -5,10 +5,10 @@ use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::scm_write::{ScmDisplay, ScmWriteShared, ScmWriteSimple};
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::symbol::Symbol;
 use std::any::Any;
 use std::cell::Cell;
 use std::convert::TryFrom;
+use sunny_common::Symbol;
 
 #[derive(Copy, Clone)]
 pub enum Scm {
@@ -548,16 +548,16 @@ impl From<&TrackedSexpr> for Scm {
     }
 }
 
-impl From<&crate::parsing::Sexpr<'_>> for Scm {
-    fn from(e: &crate::parsing::Sexpr<'_>) -> Self {
-        use crate::parsing::Sexpr::*;
+impl From<&sunny_parser::Sexpr<'_>> for Scm {
+    fn from(e: &sunny_parser::Sexpr<'_>) -> Self {
+        use sunny_parser::Sexpr::*;
         match e {
             Nil => Scm::Nil,
             True => Scm::True,
             False => Scm::False,
             Integer(i) => Scm::Int(*i),
             Float(f) => Scm::Float(*f),
-            Symbol(s) => Scm::Symbol(crate::symbol::Symbol::from_str(s)),
+            Symbol(s) => Scm::Symbol(sunny_common::Symbol::from_str(s)),
             String(s) => Scm::string(s.to_owned()),
             List(l) => {
                 let mut out_list = Scm::Nil;
@@ -580,8 +580,8 @@ impl From<&crate::parsing::Sexpr<'_>> for Scm {
     }
 }
 
-impl From<&crate::parsing::SpannedSexpr<'_>> for Scm {
-    fn from(e: &crate::parsing::SpannedSexpr<'_>) -> Self {
+impl From<&sunny_parser::SpannedSexpr<'_>> for Scm {
+    fn from(e: &sunny_parser::SpannedSexpr<'_>) -> Self {
         (&e.expr).into()
     }
 }

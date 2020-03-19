@@ -4,7 +4,6 @@ use crate::library::{is_import, libname_to_path};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
 use crate::source::{Source, SourceLocation};
-use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
@@ -19,6 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use sunny_common::Symbol;
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {

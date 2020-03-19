@@ -3,11 +3,11 @@ use crate::error::{Error, Result};
 use crate::objectify::{ObjectifyErrorKind, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation::NoSource;
-use crate::symbol::Symbol;
 use crate::syntactic_closure::SyntacticClosure;
 use crate::syntax::{Expression, MagicKeywordHandler};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use sunny_common::Symbol;
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
     let name = *expr.car()?.as_symbol()?;
@@ -326,7 +326,7 @@ fn realize_template(
                     idx,
                     cdr.car().unwrap(),
                     bound_vars,
-                    &TrackedSexpr::symbol(crate::symbol::Symbol::uninterned(""), NoSource),
+                    &TrackedSexpr::symbol(sunny_common::Symbol::uninterned(""), NoSource),
                 )
             } else {
                 if cdr

@@ -5,12 +5,12 @@ use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
 use crate::source::SourceLocation;
-use crate::symbol::Symbol;
 use crate::syntax::library::LibraryExportSpec;
 use crate::syntax::Library;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::path::Path;
+use sunny_common::Symbol;
 
 #[derive(Debug, Clone)]
 pub struct CodeObject {

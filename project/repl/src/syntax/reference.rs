@@ -3,9 +3,11 @@ use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
-use crate::symbol::Symbol;
 use crate::syntax::{Reify, Variable};
 use crate::utils::{Named, Sourced};
+use sunny_common::Symbol;
+
+use sunny_common::sum_type;
 
 sum_type! {
     #[derive(Debug, Clone, PartialEq)]

@@ -280,14 +280,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "535622e6be132bccd223f4bb2b8ac8d53cda3c7a6394944d3b2b33fb974f9d76"
 
 [[package]]
+name = "sunny-common"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
+name = "sunny-parser"
+version = "0.1.0"
+
+[[package]]
 name = "sunny-repl"
 version = "0.1.0"
 dependencies = [
  "bdwgc-alloc",
  "downcast-rs",
- "lazy_static",
  "lexpr",
  "rustyline",
+ "sunny-common",
+ "sunny-parser",
 ]
 
 [[package]]

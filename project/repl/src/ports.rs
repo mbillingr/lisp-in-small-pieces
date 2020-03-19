@@ -1,10 +1,10 @@
 use crate::error::{Error, Result, RuntimeError};
-use crate::parsing::{parse_sexpr, ParseErrorKind, Span};
 use crate::scm::Scm;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::{stderr, stdin, stdout, BufRead, BufReader, BufWriter, Write};
 use std::mem::size_of;
+use sunny_parser::{parse_sexpr, ParseErrorKind, Span};
 
 pub struct SchemePort {
     port: RefCell<PortState>,

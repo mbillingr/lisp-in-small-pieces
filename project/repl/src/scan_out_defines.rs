@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::objectify::ObjectifyErrorKind;
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::source::SourceLocation;
-use crate::symbol::Symbol;
+use sunny_common::Symbol;
 use SourceLocation::NoSource;
 
 pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {

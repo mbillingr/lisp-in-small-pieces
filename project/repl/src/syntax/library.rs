@@ -5,10 +5,12 @@ use crate::env::Env;
 use crate::library::ExportItem;
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
-use crate::symbol::Symbol;
 use crate::syntax::{GlobalVariable, NoOp, Variable};
 use crate::utils::Sourced;
 use std::collections::{HashMap, VecDeque};
+use sunny_common::Symbol;
+
+use sunny_common::sum_type;
 
 #[derive(Debug, Clone)]
 pub struct Library {

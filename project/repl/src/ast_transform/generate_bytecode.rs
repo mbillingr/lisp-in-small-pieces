@@ -3,7 +3,6 @@ use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
-use crate::symbol::Symbol;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
@@ -15,6 +14,7 @@ use crate::syntax::{
 use crate::utils::{Named, Sourced};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use sunny_common::Symbol;
 
 pub fn compile_program(
     prog: &Program,

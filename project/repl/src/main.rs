@@ -13,7 +13,6 @@ mod eval;
 mod language;
 mod macro_language;
 mod objectify;
-mod parsing;
 mod ports;
 mod primitive;
 mod repl;
@@ -22,7 +21,6 @@ mod scm;
 mod scm_write;
 mod sexpr;
 mod source;
-mod symbol;
 mod syntactic_closure;
 mod syntax;
 

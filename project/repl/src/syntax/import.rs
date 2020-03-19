@@ -2,11 +2,11 @@ use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::source::SourceLocation::NoSource;
-use crate::symbol::Symbol;
 use crate::syntax::{Reify, Variable};
 use crate::utils::Named;
 use std::iter::FromIterator;
 use std::path::PathBuf;
+use sunny_common::Symbol;
 
 #[derive(Debug, Clone)]
 pub struct Import {

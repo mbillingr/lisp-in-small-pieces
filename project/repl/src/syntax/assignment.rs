@@ -6,6 +6,7 @@ use crate::scm::Scm;
 use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::{Named, Sourced};
+use sunny_common::sum_type;
 
 sum_type! {
     #[derive(Debug, Clone)]

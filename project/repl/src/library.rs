@@ -1,11 +1,11 @@
 use crate::error::Result;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
-use crate::symbol::Symbol;
 use crate::syntax::variable::VarDef;
 use crate::syntax::MagicKeyword;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use sunny_common::Symbol;
 
 pub type StaticLibrary = HashMap<Symbol, ExportItem>;
 pub type DynamicLibrary = HashMap<Symbol, Scm>;
