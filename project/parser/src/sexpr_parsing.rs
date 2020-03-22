@@ -20,8 +20,8 @@ pub fn parse(src: &str) -> Result<Vec<SpannedSexpr>> {
 pub fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
     let (_, src) = opt(parse_intertoken_space)(src)?;
     let (expr, rest) = any((
-        any((parse_abbreviation, parse_dot, parse_boolean, parse_symbol)),
-        any((parse_list, parse_vector, parse_string, parse_number)),
+        any((parse_abbreviation, parse_dot, parse_boolean, parse_number)),
+        any((parse_symbol, parse_list, parse_vector, parse_string)),
         parse_invalid,
     ))(src)?;
     let (_, rest) = opt(parse_intertoken_space)(rest)?;
@@ -364,6 +364,14 @@ mod tests {
         compare!(Sexpr::Integer(-24), parse_number(Span::new("-24")));
         compare!(Sexpr::Float(3.1415), parse_number(Span::new("3.1415")));
         fail!(parse_number(Span::new("1x2y3")))
+    }
+
+    #[test]
+    fn sexpr_number_parsing() {
+        compare!(Sexpr::Integer(42), parse_sexpr(Span::new("42")));
+        compare!(Sexpr::Integer(-24), parse_sexpr(Span::new("-24")));
+        compare!(Sexpr::Float(3.1415), parse_sexpr(Span::new("3.1415")));
+        fail!(parse_sexpr(Span::new("1x2y3")))
     }
 
     #[test]
