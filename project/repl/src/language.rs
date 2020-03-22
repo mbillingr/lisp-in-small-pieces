@@ -102,7 +102,7 @@ pub mod scheme {
     }
 
     pub fn load_library(trans: &mut Translate, path: &Path) -> Result<Library> {
-        let mut file_path = Path::new("libs").join(path);
+        let mut file_path = Path::new("../libs").join(path);
         file_path.set_extension("sld");
 
         let library_src = Source::from_file(&file_path).map_err(|err| match err.kind() {
@@ -1102,7 +1102,7 @@ pub mod scheme {
             use crate::error::RuntimeError;
 
             assert_error!(nonexisting_library: "(import (test foo bar)) #f",
-                ObjectifyErrorKind::UnknownLibrary(["libs", "test", "foo", "bar.sld"].iter().collect()));
+                ObjectifyErrorKind::UnknownLibrary(["..", "libs", "test", "foo", "bar.sld"].iter().collect()));
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
