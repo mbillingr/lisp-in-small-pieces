@@ -882,15 +882,6 @@ pub mod scheme {
             compare!(primitive: "(let ((x 42) (y 8)) (+ x y))", equals, Scm::Int(50));
         }
 
-        mod syntactic_closure {
-            use super::*;
-            compare!(or:
-                r#"(begin
-                        (define temp 42)
-                        (or #f temp))"#,
-                equals, Scm::Int(42));
-        }
-
         mod macros {
             use super::*;
             use crate::error::RuntimeError;
