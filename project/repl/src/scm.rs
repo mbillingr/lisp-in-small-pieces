@@ -446,6 +446,14 @@ impl Scm {
     pub fn write(&self) -> ScmWriteShared<ScmWriteSimple> {
         ScmWriteShared::new_cyclic(*self)
     }
+
+    pub fn sqrt(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(x) => Ok(Scm::Float(f64::sqrt(*x as _))),
+            Scm::Float(x) => Ok(Scm::Float(x.sqrt())),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
 }
 
 impl std::fmt::Debug for Scm {

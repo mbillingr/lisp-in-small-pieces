@@ -71,6 +71,7 @@ impl std::fmt::Debug for RuntimeError {
 pub enum TypeError {
     WrongType,
     NotCallable(Scm),
+    NoNumber(Scm),
     NoInt,
     NoU8,
     NoPositiveInt(Scm),

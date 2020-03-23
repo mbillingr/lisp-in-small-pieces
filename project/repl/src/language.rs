@@ -164,6 +164,8 @@ pub mod scheme {
             native "list", >=0, list;
             native "vector", >=0, vector;
 
+            native "sqrt", =1, Scm::sqrt;
+
             native "number->string", >=1, |z: Scm, args: &[Scm]| -> Result<Scm> {
                 // quick and dirty implementation that only works for integers and panics uncontrollably...
                 let radix = args.get(0).unwrap_or(&Scm::Int(10)).as_int()? as u32;
