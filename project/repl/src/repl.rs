@@ -3,9 +3,10 @@ use crate::language::scheme::{
     create_scheme_base_library, create_scheme_extra_library, create_scheme_ports_library, Context,
 };
 use crate::scm::Scm;
-use crate::source::SourceLocation;
+use crate::source::{Source, SourceLocation};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
+use std::path::Path;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -22,6 +23,19 @@ pub fn repl() {
     context.import_library("scheme/base");
 
     println!("Sunny Scheme REPL version {}.", VERSION);
+
+    for arg in std::env::args().skip(1) {
+        match Source::from_file(Path::new(&arg))
+            .map_err(Error::from)
+            .and_then(|src| context.eval_source(&src))
+        {
+            Ok(_) => {}
+            Err(e) => {
+                report_error(e);
+                return;
+            }
+        }
+    }
 
     loop {
         match rl.readline(">> ") {
