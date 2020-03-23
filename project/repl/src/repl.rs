@@ -7,6 +7,8 @@ use crate::source::SourceLocation;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 pub fn repl() {
     let mut rl = Editor::<()>::new();
     if rl.load_history("repl.hist.txt").is_err() {}
@@ -18,6 +20,8 @@ pub fn repl() {
     context.add_library("sunny/ports-core", create_scheme_ports_library());
 
     context.import_library("scheme/base");
+
+    println!("Sunny Scheme REPL version {}.", VERSION);
 
     loop {
         match rl.readline(">> ") {
