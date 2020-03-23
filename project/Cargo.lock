@@ -295,6 +295,7 @@ name = "sunny-repl"
 version = "0.1.0"
 dependencies = [
  "bdwgc-alloc",
+ "dirs",
  "downcast-rs",
  "lexpr",
  "rustyline",

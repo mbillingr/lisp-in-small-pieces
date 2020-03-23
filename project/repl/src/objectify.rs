@@ -12,7 +12,7 @@ use crate::syntax::{
     LibraryExport, LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, Program,
     Reference, Sequence, Variable,
 };
-use crate::utils::{Named, Sourced};
+use crate::utils::{find_library, Named, Sourced};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
@@ -671,15 +671,16 @@ impl Translate {
         if self.libs.borrow().contains_key(&library_path) {
             Ok(self.libs.borrow()[&library_path].clone())
         } else {
-            let mut file_path = Path::new("../libs").join(library_path.clone());
-            file_path.set_extension("sld");
+            let file_path = if let Some(p) = find_library(&library_path) {
+                p
+            } else {
+                return Err(Error::at_expr(
+                    ObjectifyErrorKind::UnknownLibrary(library_path),
+                    library_name,
+                ));
+            };
 
-            let library_code = Source::from_file(&file_path).map_err(|err| match err.kind() {
-                std::io::ErrorKind::NotFound => {
-                    Error::at_expr(ObjectifyErrorKind::UnknownLibrary(file_path), library_name)
-                }
-                _ => err.into(),
-            })?;
+            let library_code = Source::from_file(&file_path)?;
 
             let lib = self.parse_library(library_code)?;
             let lib = Rc::new(lib);

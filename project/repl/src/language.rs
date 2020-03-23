@@ -20,6 +20,7 @@ pub mod scheme {
     use crate::syntax::{
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
+    use crate::utils::find_library;
     use std::collections::VecDeque;
     use std::convert::TryInto;
     use std::ops::{Div, Mul, Rem, Sub};
@@ -102,15 +103,16 @@ pub mod scheme {
     }
 
     pub fn load_library(trans: &mut Translate, path: &Path) -> Result<Library> {
-        let mut file_path = Path::new("../libs").join(path);
-        file_path.set_extension("sld");
+        let file_path = if let Some(p) = find_library(path) {
+            p
+        } else {
+            return Err(Error::at_span(
+                ObjectifyErrorKind::UnknownLibrary(path.to_owned()),
+                NoSource,
+            ));
+        };
 
-        let library_src = Source::from_file(&file_path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => {
-                Error::at_span(ObjectifyErrorKind::UnknownLibrary(file_path), NoSource)
-            }
-            _ => err.into(),
-        })?;
+        let library_src = Source::from_file(&file_path)?;
 
         let lib = trans.parse_library(library_src)?;
         let lib = lib.transform(&mut Boxify);
@@ -1093,7 +1095,7 @@ pub mod scheme {
             use crate::error::RuntimeError;
 
             assert_error!(nonexisting_library: "(import (test foo bar)) #f",
-                ObjectifyErrorKind::UnknownLibrary(["..", "libs", "test", "foo", "bar.sld"].iter().collect()));
+                ObjectifyErrorKind::UnknownLibrary(["test", "foo", "bar"].iter().collect()));
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
