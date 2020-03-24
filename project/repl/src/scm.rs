@@ -150,6 +150,14 @@ impl Scm {
         }
     }
 
+    pub fn is_number(&self) -> bool {
+        match self {
+            Scm::Int(_) => true,
+            Scm::Float(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_procedure(&self) -> bool {
         match self {
             Scm::Closure(_) | Scm::Primitive(_) | Scm::Continuation(_) | Scm::ExitProc(_) => true,

@@ -23,7 +23,7 @@ pub mod scheme {
     use crate::utils::find_library;
     use std::collections::VecDeque;
     use std::convert::TryInto;
-    use std::ops::{Div, Mul, Rem, Sub};
+    use std::ops::{Div, Mul, Rem};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
     use sunny_common::Symbol;
@@ -145,6 +145,7 @@ pub mod scheme {
             native "pair?", =1, Scm::is_pair;
             native "vector?", =1, Scm::is_vector;
             native "procedure?", =1, Scm::is_procedure;
+            native "number?", =1, Scm::is_number;
 
             native "cons", =2, Scm::cons;
             native "car", =1, Scm::car;
@@ -160,7 +161,7 @@ pub mod scheme {
             native "/", =2, Scm::div;
             native "%", =2, Scm::rem;
             native "+", >=0, add;
-            native "-", =2, Scm::sub;
+            native "-", >=0, sub;
             native "list", >=0, list;
             native "vector", >=0, vector;
 
@@ -565,6 +566,20 @@ pub mod scheme {
             total = (total + a)?;
         }
         Ok(total)
+    }
+
+    pub fn sub(args: &[Scm]) -> Result<Scm> {
+        match args {
+            [] => Ok(Scm::Int(0)),
+            [x] => (Scm::Int(0) - *x),
+            [a, b@..] => {
+                let mut result = *a;
+                for &x in b {
+                    result = (result - x)?;
+                }
+                Ok(result)
+            }
+        }
     }
 
     pub fn list(args: &[Scm]) -> Scm {

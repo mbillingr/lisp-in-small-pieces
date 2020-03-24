@@ -26,7 +26,7 @@
             letrec-syntax
             make-parameter map
             member memq memv
-            newline not null? number->string
+            newline not null? number? number->string
             odd?
             open-input-bytevector open-input-string
             open-output-bytevector open-output-string
