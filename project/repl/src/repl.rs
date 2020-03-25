@@ -57,6 +57,10 @@ pub fn repl() {
                         Ok(x) => println!("{}", x.write()),
                         Err(e) => report_error(e),
                     }
+
+                    if !context.vm.value_stack.is_empty() {
+                        eprintln!("WARNING: value stack not empty\n    {:?}", context.vm.value_stack);
+                    }
                 }
             }
             Err(ReadlineError::Interrupted) => {
