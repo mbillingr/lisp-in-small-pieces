@@ -75,4 +75,8 @@ impl<'a> Span<'a> {
     pub fn as_str(&self) -> &str {
         &self.text[self.start..self.end]
     }
+
+    pub fn chars(&'a self) -> impl 'a + Iterator<Item = char> {
+        self.as_str().chars()
+    }
 }

@@ -541,6 +541,7 @@ impl From<&Sexpr> for Scm {
             Sexpr::Nil => Scm::Nil,
             Sexpr::True => Scm::True,
             Sexpr::False => Scm::False,
+            Sexpr::Char(ch) => Scm::Char(*ch),
             Sexpr::Int(i) => Scm::Int(*i),
             Sexpr::Float(f) => Scm::Float(*f),
             Sexpr::Symbol(s) => Scm::Symbol(*s),
@@ -573,6 +574,7 @@ impl From<&sunny_parser::Sexpr<'_>> for Scm {
             False => Scm::False,
             Integer(i) => Scm::Int(*i),
             Float(f) => Scm::Float(*f),
+            Char(ch) => Scm::Char(*ch),
             Symbol(s) => Scm::Symbol(sunny_common::Symbol::from_str(s)),
             String(s) => Scm::string(s.to_owned()),
             List(l) => {

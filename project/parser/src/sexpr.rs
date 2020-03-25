@@ -17,6 +17,7 @@ pub enum Sexpr<'a> {
     Nil,
     True,
     False,
+    Char(char),
     Symbol(&'a str),
     String(&'a str),
     Integer(i64),

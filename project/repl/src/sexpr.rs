@@ -22,6 +22,7 @@ pub enum Sexpr {
     Nil,
     True,
     False,
+    Char(char),
     Symbol(Symbol),
     String(Rc<str>),
     Int(i64),
@@ -47,6 +48,7 @@ impl std::fmt::Display for Sexpr {
             Sexpr::Nil => write!(f, "'()"),
             Sexpr::True => write!(f, "#t"),
             Sexpr::False => write!(f, "#f"),
+            Sexpr::Char(ch) => write!(f, "#\\{}", ch),
             Sexpr::Symbol(s) => write!(f, "{}", s),
             Sexpr::String(s) => write!(f, "\"{}\"", s),
             Sexpr::Int(i) => write!(f, "{}", i),
@@ -98,6 +100,10 @@ impl TrackedSexpr {
             PS::False => {
                 TrackedSexpr::new(Sexpr::False, SourceLocation::from_spanned(se.span, source))
             }
+            PS::Char(ch) => TrackedSexpr::new(
+                Sexpr::Char(ch),
+                SourceLocation::from_spanned(se.span, source),
+            ),
             PS::Symbol(s) => TrackedSexpr::new(
                 Sexpr::Symbol(s.into()),
                 SourceLocation::from_spanned(se.span, source),

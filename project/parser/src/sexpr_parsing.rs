@@ -21,7 +21,8 @@ pub fn parse_sexpr(src: Span) -> ParseResult<SpannedSexpr> {
     let (_, src) = opt(parse_intertoken_space)(src)?;
     let (expr, rest) = any((
         any((parse_abbreviation, parse_dot, parse_boolean, parse_number)),
-        any((parse_symbol, parse_list, parse_vector, parse_string)),
+        any((parse_character, parse_symbol)),
+        any((parse_list, parse_vector, parse_string)),
         parse_invalid,
     ))(src)?;
     let (_, rest) = opt(parse_intertoken_space)(rest)?;
@@ -137,6 +138,45 @@ fn parse_number(input: Span) -> ParseResult<SpannedSexpr> {
         location: input,
         fatal: false,
     })
+}
+
+fn parse_character(input: Span) -> ParseResult<SpannedSexpr> {
+    any((
+        any((
+            parse_literal_character,
+            parse_named_character(r"#\alarm", '\u{0007}'),
+            parse_named_character(r"#\backspace", '\u{0008}'),
+            parse_named_character(r"#\delete", '\u{007f}'),
+        )),
+        any((
+            parse_named_character(r"#\escape", '\u{001b}'),
+            parse_named_character(r"#\newline", '\u{000a}'),
+            parse_named_character(r"#\null", '\u{0000}'),
+            parse_named_character(r"#\return", '\u{000d}'),
+        )),
+        any((
+            parse_named_character(r"#\space", ' '),
+            parse_named_character(r"#\tab", '\u{0009}'),
+        )),
+    ))(input)
+}
+
+fn parse_literal_character(input: Span) -> ParseResult<SpannedSexpr> {
+    let (t, rest) = tag(r"#\")(input)?;
+    let (first_ch, rest) = any_char(rest)?;
+    peek(parse_delimiter)(rest)?;
+    //let (rest_ch, _) = repeat_0_or_more(all((not(parse_delimiter), any_char)))(rest)?;
+
+    let span = Span::range(t, first_ch);
+    let ch = first_ch.chars().next().unwrap();
+    Ok(((span.into_spanned(Sexpr::Char(ch))), rest))
+}
+
+fn parse_named_character<'a>(
+    name: &'static str,
+    ch: char,
+) -> impl Fn(Span<'a>) -> ParseResult<SpannedSexpr> {
+    map(tag(name), move |span| span.into_spanned(Sexpr::Char(ch)))
 }
 
 fn parse_symbol(input: Span) -> ParseResult<SpannedSexpr> {
