@@ -164,6 +164,7 @@ pub mod scheme {
             native "-", >=0, sub;
             native "list", >=0, list;
             native "vector", >=0, vector;
+            native "make-vector", >=1, make_vector;
 
             native "sqrt", =1, Scm::sqrt;
 
@@ -572,7 +573,7 @@ pub mod scheme {
         match args {
             [] => Ok(Scm::Int(0)),
             [x] => (Scm::Int(0) - *x),
-            [a, b@..] => {
+            [a, b @ ..] => {
                 let mut result = *a;
                 for &x in b {
                     result = (result - x)?;
@@ -588,6 +589,15 @@ pub mod scheme {
 
     pub fn vector(args: &[Scm]) -> Scm {
         Scm::vector(args.iter().copied())
+    }
+
+    pub fn make_vector(k: usize, args: &[Scm]) -> Result<Scm> {
+        let fill = match args {
+            [] => Scm::uninitialized(),
+            [f] => *f,
+            _ => return Err(RuntimeError::IncorrectArity.into()),
+        };
+        Ok(Scm::vector(std::iter::repeat(fill).take(k.try_into()?)))
     }
 
     pub fn disassemble(obj: Scm) {

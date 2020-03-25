@@ -228,14 +228,14 @@ macro_rules! wrap_native {
     };
 
     (@inner $args:ident >=1 $func:expr) => {
-        $func($args[0].into(), &$args[1..]).wrap()
+        $func($args[0].try_into()?, &$args[1..]).wrap()
     };
 
     (@inner $args:ident >=2 $func:expr) => {
-        $func($args[0].into(), $args[1].into(), &$args[2..]).wrap()
+        $func($args[0].try_into()?, $args[1].try_into()?, &$args[2..]).wrap()
     };
 
     (@inner $args:ident >=3 $func:expr) => {
-        $func($args[0].into(), $args[1].into(), $args[2].into(), &$args[3..]).wrap()
+        $func($args[0].try_into()?, $args[1].try_into()?, $args[2].try_into()?, &$args[3..]).wrap()
     };
 }

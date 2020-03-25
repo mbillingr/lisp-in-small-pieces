@@ -24,7 +24,7 @@
             lambda length list
             let let* let-syntax
             letrec-syntax
-            make-parameter map
+            make-parameter make-vector map
             member memq memv
             newline not null? number? number->string
             odd?
