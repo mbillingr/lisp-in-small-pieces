@@ -36,6 +36,7 @@
             pair? parameterize peek-char peek-u8 port? procedure?
             quasiquote quote
             raise raise-continuable
+            reverse
             read read-bytevector read-bytevector! read-char read-line read-string read-u8
             remainder
             round

@@ -1,6 +1,8 @@
 (define-library (sunny lists)
-    (export append assoc assq assv caar cadr cdar cddr length member memq memv)
+    (export append assoc assq assv caar cadr cdar cddr length member memq memv
+            reverse)
     (import (sunny core)
+            (sunny binding)
             (sunny conditionals))
     (begin
       (define (append . lists)
@@ -31,18 +33,17 @@
         (let ((compare? (if (pair? optional)
                             (car optional)
                             equal?)))
-          (define (assoc_ alist)
+          (let loop ((alist alist))
             (cond ((null? alist) #f)
                   ((compare? obj (caar alist)) (car alist))
-                  (else (assoc_ (cdr alist)))))
-          (assoc_ alist)))
+                  (else (loop (cdr alist)))))))
 
 
       (define (caar x) (car (car x)))
       (define (cadr x) (car (cdr x)))
       (define (cdar x) (cdr (car x)))
       (define (cddr x) (cdr (cdr x)))
-      
+
 
       (define (length list)
         (define (scan rest len)
@@ -75,4 +76,11 @@
             (if (compare? obj (car list))
                 list
                 (member_ obj (cdr list) compare?))
-            #f))))
+            #f))
+
+      (define (reverse list)
+        (let loop ((in list)
+                   (out '()))
+          (if (pair? in)
+              (loop (cdr in) (cons (car in) out))
+              out)))))
