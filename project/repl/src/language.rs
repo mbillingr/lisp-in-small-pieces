@@ -188,6 +188,7 @@ pub mod scheme {
 
             native "string-append", >=0, |args: &[Scm]| args.iter().map(Scm::as_string).collect::<Result<String>>().map(Scm::string);
 
+            native "vector-length", =1, |vec: Scm| vec.as_vector().map(|v| v.len());
             native "vector-ref", =2, Scm::vector_ref;
             native "vector-set!", =3, Scm::vector_set;
             native "vector-fill!", >=2, vector_fill;
