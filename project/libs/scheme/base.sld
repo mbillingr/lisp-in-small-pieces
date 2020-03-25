@@ -17,6 +17,7 @@
             eq? equal? eqv?
             error error-object? error-object-message error-object-irritants
             even?
+            exact
             flush-output-port
             get-output-bytevector get-output-string
             if
@@ -37,6 +38,7 @@
             raise raise-continuable
             read read-bytevector read-bytevector! read-char read-line read-string read-u8
             remainder
+            round
             set! set-car! set-cdr!
             string->symbol string-append
             textual-port?

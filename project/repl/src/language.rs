@@ -166,6 +166,8 @@ pub mod scheme {
             native "vector", >=0, vector;
             native "make-vector", >=1, make_vector;
 
+            native "exact", =1, Scm::exact;
+            native "round", =1, Scm::round;
             native "sqrt", =1, Scm::sqrt;
 
             native "number->string", >=1, |z: Scm, args: &[Scm]| -> Result<Scm> {

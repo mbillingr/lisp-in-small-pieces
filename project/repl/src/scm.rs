@@ -455,6 +455,22 @@ impl Scm {
         ScmWriteShared::new_cyclic(*self)
     }
 
+    pub fn exact(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(_) => Ok(*self),
+            Scm::Float(x) => Ok(Scm::Int(*x as i64)),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
+
+    pub fn round(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(_) => Ok(*self),
+            Scm::Float(x) => Ok(Scm::Float(x.round())),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
+
     pub fn sqrt(&self) -> Result<Scm> {
         match self {
             Scm::Int(x) => Ok(Scm::Float(f64::sqrt(*x as _))),
