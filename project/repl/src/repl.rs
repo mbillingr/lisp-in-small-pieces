@@ -59,7 +59,10 @@ pub fn repl() {
                     }
 
                     if !context.vm.value_stack.is_empty() {
-                        eprintln!("WARNING: value stack not empty\n    {:?}", context.vm.value_stack);
+                        eprintln!(
+                            "WARNING: value stack not empty\n    {:?}",
+                            context.vm.value_stack
+                        );
                     }
                 }
             }

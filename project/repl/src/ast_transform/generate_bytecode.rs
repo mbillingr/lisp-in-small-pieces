@@ -402,13 +402,11 @@ impl<'a> BytecodeGenerator<'a> {
                         "cdr" => Ok(Some(vec![Op::Cdr])),
                         "call/cc" => Ok(Some(vec![Op::PushCC(1), Op::Call(1)])),
                         "call/ep" => Ok(Some(vec![Op::PushEP(2), Op::Call(1), Op::PopEP])),
-                        "apply" => Ok(Some(
-                            if tail {
-                                vec![Op::PreApply(n_args), Op::TailCallN]
-                            } else {
-                                vec![Op::PreApply(n_args), Op::CallN, Op::Drop(1)]
-                            },
-                        )),
+                        "apply" => Ok(Some(if tail {
+                            vec![Op::PreApply(n_args), Op::TailCallN]
+                        } else {
+                            vec![Op::PreApply(n_args), Op::CallN, Op::Drop(1)]
+                        })),
                         _ => Ok(None),
                     },
                     _ => Ok(None),
