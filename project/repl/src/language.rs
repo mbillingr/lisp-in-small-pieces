@@ -1294,6 +1294,14 @@ pub mod scheme {
                 r#"(list (let ((x 1)) x)
                          (let ((y 2)) y))"#,
                 equals, Scm::list(vec![Scm::Int(1), Scm::Int(2)]));
+
+            compare!(raw_apply:
+                r#"(apply (lambda (x y z) y) '(1 2 3))"#,
+                equals, Scm::Int(2));
+
+            compare!(assign_apply_result_to_variable:
+                r#"(let ((x (apply (lambda (x y z) y) '(1 2 3)))) x)"#,
+                equals, Scm::Int(2));
         }
     }
 }
