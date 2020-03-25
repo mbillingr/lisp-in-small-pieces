@@ -190,6 +190,7 @@ pub mod scheme {
 
             native "vector-ref", =2, Scm::vector_ref;
             native "vector-set!", =3, Scm::vector_set;
+            native "vector-fill!", >=2, vector_fill;
 
             native "apply", >=2, |_f: Scm, _a: Scm, _args: &[Scm]| -> () { unimplemented!() };
 
@@ -598,6 +599,20 @@ pub mod scheme {
             _ => return Err(RuntimeError::IncorrectArity.into()),
         };
         Ok(Scm::vector(std::iter::repeat(fill).take(k.try_into()?)))
+    }
+
+    pub fn vector_fill(vec: Scm, fill: Scm, args: &[Scm]) -> Result<()> {
+        let vec = vec.as_vector()?;
+        let (start, end) = match args {
+            [] => (0, vec.len()),
+            [start] => (start.try_into()?, vec.len()),
+            [start, end] => (start.try_into()?, end.try_into()?),
+            _ => return Err(RuntimeError::IncorrectArity.into()),
+        };
+        for x in &vec[start..end] {
+            x.set(fill);
+        }
+        Ok(())
     }
 
     pub fn disassemble(obj: Scm) {

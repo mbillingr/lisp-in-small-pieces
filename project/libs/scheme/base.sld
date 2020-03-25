@@ -41,7 +41,7 @@
             string->symbol string-append
             textual-port?
             u8-ready?
-            vector vector? vector-ref
+            vector vector? vector-fill! vector-ref
             with-exception-handler
             write-bytevector write-char write-string write-u8
             zero?)
