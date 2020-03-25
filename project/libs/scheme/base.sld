@@ -41,7 +41,7 @@
             string->symbol string-append
             textual-port?
             u8-ready?
-            vector vector? vector-fill! vector-ref
+            vector vector? vector-fill! vector-for-each vector-length vector-ref vector-set!
             with-exception-handler
             write-bytevector write-char write-string write-u8
             zero?)
@@ -73,9 +73,31 @@
       (define (not b)
         (eq? b #f))
 
+      (define (min a b)
+        (if (< a b) a b))
+
       ; simplistic definition of map, that takes only one list
       (define (map proc list)
         (if (null? list)
             '()
             (cons (proc (car list))
-                  (map proc (cdr list)))))))
+                  (map proc (cdr list)))))
+
+      (define (fold op init list)
+        (if (null? list)
+            init
+            (fold op
+                  (op init (car list))
+                  (cdr list))))
+
+      (define (vector-for-each proc . vecs)
+        (let* ((n (fold min
+                        (vector-length (car vecs))
+                        (map vector-length (cdr vecs)))))
+          (let loop ((i 0))
+            (if (< i n)
+                (begin
+                  (apply proc
+                         (map (lambda (v) (vector-ref v i))
+                              vecs))
+                  (loop (+ i 1)))))))))
