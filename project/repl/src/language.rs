@@ -189,6 +189,23 @@ pub mod scheme {
             native "string->symbol", =1, |s: Scm| s.as_string().map(|s| Scm::Symbol(Symbol::new(s)));
 
             native "string-append", >=0, |args: &[Scm]| args.iter().map(Scm::as_string).collect::<Result<String>>().map(Scm::string);
+            native "string-length", =1, |s: &str| s.len();
+            native "string-ref", =2, |s: &str, i: usize| -> Result<char> { s.chars().nth(i).ok_or(RuntimeError::IndexOutOfRange(i as isize).into()) };
+            native "string-set!", =3, |string: Scm, i: usize, ch: char| -> Result<()> {
+                let s = string.as_string()?;
+                if i >= s.len() {
+                    return Err(RuntimeError::IndexOutOfRange(i as isize).into());
+                }
+                let mut chars = s.chars();
+                let mut newstr = String::with_capacity(s.len());
+                for _ in 0..i {
+                    newstr.push(chars.next().unwrap());
+                }
+                newstr.push(ch);
+                newstr.extend(chars.skip(1));
+                string.replace_string(newstr)?;
+                Ok(())
+            };
 
             native "vector-length", =1, |vec: Scm| vec.as_vector().map(|v| v.len());
             native "vector-ref", =2, Scm::vector_ref;
@@ -788,7 +805,7 @@ pub mod scheme {
             compare!(negative_integer: "-42", equals, Scm::Int(-42));
             compare!(float: "3.1415", equals, Scm::Float(3.1415));
             compare!(symbol: "'foobar", ptr_eq, Scm::Symbol(Symbol::new("foobar")));
-            compare!(string: "\"text\"", equals, Scm::String("text"));
+            compare!(string: "\"text\"", equals, Scm::str("text"));
             compare!(vector: "#(1 2 3)",
                      equals, Scm::vector(vec![Scm::Int(1), Scm::Int(2), Scm::Int(3)]));
             compare!(quoted_pair: "(quote (1 . 2))",

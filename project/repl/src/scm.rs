@@ -22,7 +22,7 @@ pub enum Scm {
     Float(f64),
     Char(char),
     Symbol(Symbol),
-    String(&'static str),
+    String(&'static Cell<&'static str>),
     Vector(&'static [Cell<Scm>]),
     Bytevector(&'static [u8]),
 
@@ -73,7 +73,12 @@ impl Scm {
     }
 
     pub fn string(s: impl Into<Box<str>>) -> Self {
-        Scm::String(Box::leak(s.into()))
+        let static_str: &str = Box::leak(s.into());
+        Scm::str(static_str)
+    }
+
+    pub fn str(s: &'static str) -> Self {
+        Scm::String(Box::leak(Box::new(Cell::new(s))))
     }
 
     pub fn error(e: impl Into<Error>) -> Self {
@@ -202,7 +207,19 @@ impl Scm {
 
     pub fn as_string(&self) -> Result<&'static str> {
         match self {
-            Scm::String(s) => Ok(*s),
+            Scm::String(s) => Ok(s.get()),
+            _ => Err(TypeError::NoString(*self).into()),
+        }
+    }
+
+    pub fn replace_string(&self, s: impl Into<Box<str>>) -> Result<()> {
+        let static_str: &str = Box::leak(s.into());
+        self.replace_str(static_str)
+    }
+
+    pub fn replace_str(&self, s: &'static str) -> Result<()> {
+        match self {
+            Scm::String(sc) => Ok(sc.set(s)),
             _ => Err(TypeError::NoString(*self).into()),
         }
     }
@@ -334,7 +351,7 @@ impl Scm {
             (Int(a), Int(b)) => a == b,
             (Float(a), Float(b)) => a == b,
             (Symbol(a), Symbol(b)) => a.ptr_eq(b),
-            (String(a), String(b)) => *a as *const str == *b as *const str,
+            (String(a), String(b)) => *a as *const _ == *b as *const _,
             (Vector(a), Vector(b)) => *a as *const _ == *b as *const _,
             (Pair(a), Pair(b)) => *a as *const _ == *b as *const _,
             (Primitive(a), Primitive(b)) => a == b,
@@ -537,8 +554,7 @@ impl From<Vec<u8>> for Scm {
 
 impl From<String> for Scm {
     fn from(s: String) -> Scm {
-        let s = Box::leak(s.into_boxed_str());
-        Scm::String(s)
+        Scm::string(s)
     }
 }
 
@@ -730,6 +746,23 @@ impl PartialEq for Scm {
     }
 }
 
+impl TryFrom<Scm> for char {
+    type Error = crate::error::Error;
+    fn try_from(scm: Scm) -> Result<Self> {
+        match scm {
+            Scm::Char(ch) => Ok(ch),
+            _ => Err(TypeError::NoChar(scm).into()),
+        }
+    }
+}
+
+impl TryFrom<&Scm> for char {
+    type Error = crate::error::Error;
+    fn try_from(scm: &Scm) -> Result<Self> {
+        Self::try_from(*scm)
+    }
+}
+
 impl TryFrom<Scm> for usize {
     type Error = crate::error::Error;
     fn try_from(scm: Scm) -> Result<Self> {
@@ -741,6 +774,23 @@ impl TryFrom<Scm> for usize {
 }
 
 impl TryFrom<&Scm> for usize {
+    type Error = crate::error::Error;
+    fn try_from(scm: &Scm) -> Result<Self> {
+        Self::try_from(*scm)
+    }
+}
+
+impl TryFrom<Scm> for &str {
+    type Error = crate::error::Error;
+    fn try_from(scm: Scm) -> Result<Self> {
+        match scm {
+            Scm::String(s) => Ok(s.get()),
+            _ => Err(TypeError::NoString(scm).into()),
+        }
+    }
+}
+
+impl TryFrom<&Scm> for &str {
     type Error = crate::error::Error;
     fn try_from(scm: &Scm) -> Result<Self> {
         Self::try_from(*scm)

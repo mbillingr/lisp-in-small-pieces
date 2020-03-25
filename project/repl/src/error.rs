@@ -51,6 +51,7 @@ pub enum RuntimeError {
     ClosedPort,
     WrongPortKind,
     WriteError,
+    IndexOutOfRange(isize),
 }
 
 impl std::fmt::Debug for RuntimeError {
@@ -63,6 +64,7 @@ impl std::fmt::Debug for RuntimeError {
             RuntimeError::ClosedPort => write!(f, "access to closed port"),
             RuntimeError::WrongPortKind => write!(f, "wrong kind of port (input/output)"),
             RuntimeError::WriteError => write!(f, "write error"),
+            RuntimeError::IndexOutOfRange(i) => write!(f, "index out of range: {}", i),
         }
     }
 }

@@ -40,7 +40,7 @@
             remainder
             round
             set! set-car! set-cdr!
-            string->symbol string-append
+            string->symbol string-append string-length string-ref string-set!
             textual-port?
             u8-ready?
             vector vector? vector-fill! vector-for-each vector-length vector-ref vector-set!

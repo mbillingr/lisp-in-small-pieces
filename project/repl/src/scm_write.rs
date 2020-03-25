@@ -243,7 +243,7 @@ impl Display for ScmDisplay {
             Scm::Float(x) => write!(f, "{}", x),
             Scm::Char(c) => write!(f, "{}", c),
             Scm::Symbol(s) => write!(f, "{}", s),
-            Scm::String(s) => write!(f, "{}", s),
+            Scm::String(s) => write!(f, "{}", s.get()),
             Scm::Bytevector(v) => write_bytevector(v, f),
             Scm::Vector(v) => {
                 write!(f, "#(")?;
