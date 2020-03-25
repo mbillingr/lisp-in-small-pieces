@@ -108,10 +108,8 @@ impl TrackedSexpr {
                 Sexpr::Symbol(s.into()),
                 SourceLocation::from_spanned(se.span, source),
             ),
-            PS::String(s) => TrackedSexpr::new(
-                Sexpr::String(s.into()),
-                SourceLocation::from_spanned(se.span, source),
-            ),
+            PS::String(s) => TrackedSexpr::escaped_string(s)
+                .with_src(SourceLocation::from_spanned(se.span, source)),
             PS::Integer(i) => {
                 TrackedSexpr::new(Sexpr::Int(i), SourceLocation::from_spanned(se.span, source))
             }
@@ -191,6 +189,40 @@ impl TrackedSexpr {
         TrackedSexpr {
             sexpr: Sexpr::Symbol(s.into()),
             src,
+        }
+    }
+
+    pub fn escaped_string(s: &str) -> Self {
+        let mut buffer = Vec::with_capacity(s.len());
+        let mut bytes = s.bytes();
+        while let Some(b) = bytes.next() {
+            let x = if b == b'\\' {
+                match bytes.next() {
+                    Some(b'a') => 0x07,
+                    Some(b'b') => 0x08,
+                    Some(b't') => 0x09,
+                    Some(b'n') => 0x0A,
+                    Some(b'r') => 0x0D,
+                    Some(b'"') => 0x22,
+                    Some(b'\\') => 0x5C,
+                    Some(b'|') => 0x7C,
+                    Some(b'x') => unimplemented!(),
+                    Some(x) => {
+                        eprintln!("Warning: invalid escape sequence \\{}", x as char);
+                        buffer.push(b'\\');
+                        x
+                    }
+                    None => b'\\',
+                }
+            } else {
+                b
+            };
+            buffer.push(x);
+        }
+
+        TrackedSexpr {
+            sexpr: Sexpr::String(String::from_utf8(buffer).unwrap().into()),
+            src: SourceLocation::NoSource,
         }
     }
 
