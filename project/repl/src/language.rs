@@ -221,6 +221,9 @@ pub mod scheme {
             primitive "raise", =1, |args: &[Scm], vm: &mut VirtualMachine| vm.raise(args[0]);
             primitive "raise-continuable", =1, |args: &[Scm], vm: &mut VirtualMachine| vm.raise_continuable(args[0]);
 
+            native "file-exists?", =1, |filename: &str| std::path::Path::new(filename).exists();
+            native "delete-file", =1, |filename: &str| std::fs::remove_file(filename).map_err(Error::from);
+
             macro "define-syntax", expand_define_syntax;
             macro "let-syntax", expand_let_syntax;
             macro "letrec-syntax", expand_letrec_syntax;
