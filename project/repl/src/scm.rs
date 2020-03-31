@@ -497,6 +497,22 @@ impl Scm {
             _ => Err(TypeError::NoNumber(*self).into()),
         }
     }
+
+    pub fn sin(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(x) => Ok(Scm::Float(f64::sin(*x as _))),
+            Scm::Float(x) => Ok(Scm::Float(x.sin())),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
+
+    pub fn cos(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(x) => Ok(Scm::Float(f64::cos(*x as _))),
+            Scm::Float(x) => Ok(Scm::Float(x.cos())),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
 }
 
 impl std::fmt::Debug for Scm {

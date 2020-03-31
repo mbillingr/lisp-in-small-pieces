@@ -1,4 +1,4 @@
 (define-library (scheme inexact)
-    (export sqrt)
+    (export cos sin sqrt)
     (import (sunny core)))
     
