@@ -23,7 +23,7 @@ pub mod scheme {
     use crate::utils::find_library;
     use std::collections::VecDeque;
     use std::convert::TryInto;
-    use std::ops::{Div, Mul, Rem};
+    use std::ops::{Div, Rem};
     use std::path::{Path, PathBuf};
     use std::time::Instant;
     use sunny_common::Symbol;
@@ -157,7 +157,7 @@ pub mod scheme {
             native "equal?", =2, Scm::equals;
             native "=", =2, Scm::num_eq;
             native "<", =2, Scm::num_less;
-            native "*", =2, Scm::mul;
+            native "*", >=0, mul;
             native "/", =2, Scm::div;
             native "%", =2, Scm::rem;
             native "+", >=0, add;
@@ -585,6 +585,14 @@ pub mod scheme {
         }
 
         result
+    }
+
+    pub fn mul(args: &[Scm]) -> Result<Scm> {
+        let mut total = Scm::Int(1);
+        for &a in args {
+            total = (total * a)?;
+        }
+        Ok(total)
     }
 
     pub fn add(args: &[Scm]) -> Result<Scm> {
