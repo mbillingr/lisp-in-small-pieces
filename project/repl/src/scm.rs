@@ -519,6 +519,31 @@ impl Scm {
             _ => Err(TypeError::NoNumber(*self).into()),
         }
     }
+
+    pub fn pow(&self, z: Self) -> Result<Scm> {
+        use Scm::*;
+        match (*self, z) {
+            (_, Int(e)) if e < 0 => self.pow(Float(e as f64)),
+            (Int(b), Int(e)) => {
+                if e <= u32::max_value() as i64 {
+                    Ok(Int(b.pow(e as u32)))
+                } else {
+                    Err(TypeError::ValueOutOfRange(z).into())
+                }
+            }
+            (Float(b), Int(e)) => {
+                if e >= i32::min_value() as i64 && e <= i32::max_value() as i64 {
+                    Ok(Float(b.powi(e as i32)))
+                } else {
+                    Err(TypeError::ValueOutOfRange(z).into())
+                }
+            }
+            (Float(b), Float(e)) => Ok(Float(b.powf(e))),
+            (Int(b), Float(e)) => Ok(Float(f64::powf(b as f64, e))),
+            (Int(_), _) | (Float(_), _) => Err(TypeError::NoNumber(z).into()),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
 }
 
 impl std::fmt::Debug for Scm {

@@ -87,6 +87,7 @@ pub enum TypeError {
     NoPort(Scm),
     NoRustObject(Scm),
     OutOfBounds,
+    ValueOutOfRange(Scm),
 }
 
 #[derive(Debug)]
