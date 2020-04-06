@@ -171,6 +171,7 @@ pub mod scheme {
             native "sqrt", =1, Scm::sqrt;
             native "sin", =1, Scm::sin;
             native "cos", =1, Scm::cos;
+            native "tan", =1, Scm::tan;
             native "expt", =2, Scm::pow;
 
             native "number->string", >=1, |z: Scm, args: &[Scm]| -> Result<Scm> {

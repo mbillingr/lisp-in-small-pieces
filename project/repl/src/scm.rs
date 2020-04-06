@@ -520,6 +520,14 @@ impl Scm {
         }
     }
 
+    pub fn tan(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(x) => Ok(Scm::Float(f64::tan(*x as _))),
+            Scm::Float(x) => Ok(Scm::Float(x.tan())),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
+
     pub fn pow(&self, z: Self) -> Result<Scm> {
         use Scm::*;
         match (*self, z) {
