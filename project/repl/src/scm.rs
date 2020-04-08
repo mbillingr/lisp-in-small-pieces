@@ -496,6 +496,14 @@ impl Scm {
         }
     }
 
+    pub fn floor(&self) -> Result<Scm> {
+        match self {
+            Scm::Int(_) => Ok(*self),
+            Scm::Float(x) => Ok(Scm::Float(x.floor())),
+            _ => Err(TypeError::NoNumber(*self).into()),
+        }
+    }
+
     pub fn sqrt(&self) -> Result<Scm> {
         match self {
             Scm::Int(x) => Ok(Scm::Float(f64::sqrt(*x as _))),

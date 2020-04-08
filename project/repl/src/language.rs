@@ -168,6 +168,7 @@ pub mod scheme {
 
             native "exact", =1, Scm::exact;
             native "round", =1, Scm::round;
+            native "floor", =1, Scm::floor;
             native "sqrt", =1, Scm::sqrt;
             native "sin", =1, Scm::sin;
             native "cos", =1, Scm::cos;

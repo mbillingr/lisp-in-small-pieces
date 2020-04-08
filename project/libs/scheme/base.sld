@@ -18,7 +18,7 @@
             error error-object? error-object-message error-object-irritants
             even?
             exact expt
-            flush-output-port
+            floor flush-output-port
             get-output-bytevector get-output-string
             if
             input-port? input-port-open?
