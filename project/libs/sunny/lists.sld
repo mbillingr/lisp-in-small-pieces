@@ -1,6 +1,6 @@
 (define-library (sunny lists)
-    (export append assoc assq assv caar cadr cdar cddr length member memq memv
-            reverse)
+    (export append assoc assq assv caar cadr cdar cddr length list-ref
+            member memq memv reverse)
     (import (sunny core)
             (sunny binding)
             (sunny conditionals))
@@ -83,4 +83,9 @@
                    (out '()))
           (if (pair? in)
               (loop (cdr in) (cons (car in) out))
-              out)))))
+              out)))
+
+      (define (list-ref list k)
+        (if (= 0 k)
+            (car list)
+            (list-ref (cdr list) (- k 1))))))
