@@ -26,8 +26,9 @@
             let let* let-syntax
             letrec-syntax
             list-ref
-            make-parameter make-vector map
+            make-parameter make-vector map max
             member memq memv
+            min
             newline not null? number? number->string
             odd?
             open-input-bytevector open-input-string
@@ -76,9 +77,6 @@
 
       (define (not b)
         (eq? b #f))
-
-      (define (min a b)
-        (if (< a b) a b))
 
       ; simplistic definition of map, that takes only one list
       (define (map proc list)

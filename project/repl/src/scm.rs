@@ -488,6 +488,28 @@ impl Scm {
         }
     }
 
+    pub fn min(self, other: Self) -> Result<Scm> {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Int(a.min(b))),
+            (Int(a), Float(b)) => Ok(Float(b.min(a as f64))),
+            (Float(a), Int(b)) => Ok(Float(a.min(b as f64))),
+            (Float(a), Float(b)) => Ok(Float(a.min(b))),
+            _ => Err(TypeError::WrongType.into()),
+        }
+    }
+
+    pub fn max(self, other: Self) -> Result<Scm> {
+        use Scm::*;
+        match (self, other) {
+            (Int(a), Int(b)) => Ok(Int(a.max(b))),
+            (Int(a), Float(b)) => Ok(Float(b.max(a as f64))),
+            (Float(a), Int(b)) => Ok(Float(a.max(b as f64))),
+            (Float(a), Float(b)) => Ok(Float(a.max(b))),
+            _ => Err(TypeError::WrongType.into()),
+        }
+    }
+
     pub fn round(&self) -> Result<Scm> {
         match self {
             Scm::Int(_) => Ok(*self),

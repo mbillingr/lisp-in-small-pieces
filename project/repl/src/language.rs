@@ -165,6 +165,8 @@ pub mod scheme {
             native "list", >=0, list;
             native "vector", >=0, vector;
             native "make-vector", >=1, make_vector;
+            native "min", >=1, min;
+            native "max", >=1, max;
 
             native "exact", =1, Scm::exact;
             native "round", =1, Scm::round;
@@ -615,6 +617,32 @@ pub mod scheme {
                 let mut result = *a;
                 for &x in b {
                     result = (result - x)?;
+                }
+                Ok(result)
+            }
+        }
+    }
+
+    pub fn min(first: Scm, args: &[Scm]) -> Result<Scm> {
+        match args {
+            [] => Ok(first),
+            [..] => {
+                let mut result = first;
+                for &x in args {
+                    result = result.min(x)?;
+                }
+                Ok(result)
+            }
+        }
+    }
+
+    pub fn max(first: Scm, args: &[Scm]) -> Result<Scm> {
+        match args {
+            [] => Ok(first),
+            [..] => {
+                let mut result = first;
+                for &x in args {
+                    result = result.max(x)?;
                 }
                 Ok(result)
             }
