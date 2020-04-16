@@ -123,6 +123,27 @@ fn parse_false(input: Span) -> ParseResult<SpannedSexpr> {
 }
 
 fn parse_number(input: Span) -> ParseResult<SpannedSexpr> {
+    any((parse_infnan, parse_normal_number))(input)
+}
+
+fn parse_infnan(input: Span) -> ParseResult<SpannedSexpr> {
+    any((
+        map(tag("+inf.0"), |span| {
+            span.into_spanned(Sexpr::Float(std::f64::INFINITY))
+        }),
+        map(tag("-inf.0"), |span| {
+            span.into_spanned(Sexpr::Float(std::f64::NEG_INFINITY))
+        }),
+        map(tag("+nan.0"), |span| {
+            span.into_spanned(Sexpr::Float(std::f64::NAN))
+        }),
+        map(tag("-nan.0"), |span| {
+            span.into_spanned(Sexpr::Float(std::f64::NAN))
+        }),
+    ))(input)
+}
+
+fn parse_normal_number(input: Span) -> ParseResult<SpannedSexpr> {
     let (num, rest) = repeat_1_or_more(all((not(parse_delimiter), any_char)))(input)?;
 
     if let Ok(i) = num.parse() {
@@ -403,6 +424,14 @@ mod tests {
         compare!(Sexpr::Integer(42), parse_number(Span::new("42")));
         compare!(Sexpr::Integer(-24), parse_number(Span::new("-24")));
         compare!(Sexpr::Float(3.1415), parse_number(Span::new("3.1415")));
+        compare!(
+            Sexpr::Float(std::f64::INFINITY),
+            parse_number(Span::new("+inf.0"))
+        );
+        compare!(
+            Sexpr::Float(std::f64::NEG_INFINITY),
+            parse_number(Span::new("-inf.0"))
+        );
         fail!(parse_number(Span::new("1x2y3")))
     }
 
