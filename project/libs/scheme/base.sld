@@ -1,7 +1,7 @@
 (define-library (scheme base)
     (export ; ... <= => > >= _
             * + - / < =
-            and append apply assoc assq assv
+            abs and append apply assoc assq assv
             binary-port? begin boolean?
             car cdr caar cadr cdar cddr
             call/cc call-with-current-continuation

@@ -174,6 +174,7 @@ pub mod scheme {
             native "cos", =1, Scm::cos;
             native "tan", =1, Scm::tan;
             native "expt", =2, Scm::pow;
+            native "abs", =1, Scm::abs;
 
             native "number->string", >=1, |z: Scm, args: &[Scm]| -> Result<Scm> {
                 // quick and dirty implementation that only works for integers and panics uncontrollably...
