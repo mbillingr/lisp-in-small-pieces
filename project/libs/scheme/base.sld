@@ -43,6 +43,7 @@
             remainder
             round
             set! set-car! set-cdr!
+            square
             string->symbol string-append string-length string-ref string-set!
             textual-port?
             u8-ready?
@@ -77,6 +78,8 @@
 
       (define (not b)
         (eq? b #f))
+
+      (define (square x) (* x x))
 
       ; simplistic definition of map, that takes only one list
       (define (map proc list)
