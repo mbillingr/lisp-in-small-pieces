@@ -1,6 +1,6 @@
 (define-library (scheme base)
-    (export ; ... <= => > >= _
-            * + - / < =
+    (export ; ... => _
+            * + - / < <= > >= =
             abs and append apply assoc assq assv
             binary-port? begin boolean?
             car cdr caar cadr cdar cddr
@@ -67,6 +67,10 @@
 
       (define (zero? x)
         (= x 0))
+
+      (define (> a b) (< b a))
+      (define (<= a b) (or (< a b) (= a b)))
+      (define (>= a b) (or (< b a) (= a b)))
 
       (define remainder %)
 
