@@ -277,7 +277,7 @@ impl VirtualMachine {
     fn run(&mut self) -> Result<Scm> {
         loop {
             let op = &self.cls.code.ops[self.ip as usize];
-            //println!("{:?}", op);
+            //println!("Step: {:?}", op);
             self.ip += 1;
             match *op {
                 Op::Constant(idx) => self.val = self.cls.code.constants[idx],
@@ -542,6 +542,7 @@ impl VirtualMachine {
             let lib = crate::language::scheme::load_library(&mut trans, Path::new(libname))?;
 
             for set in &lib.imports.import_sets {
+                //println!("subimport: {} -> {}", libname, set.library_symb.as_str());
                 self.init_library(set.library_symb.as_str())?;
             }
 

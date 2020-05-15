@@ -9,6 +9,7 @@ use crate::utils::Named;
 pub struct GlobalDefine {
     pub variable: GlobalVariable,
     pub form: Box<Expression>,
+    pub redefine: bool,
     span: SourceLocation,
 }
 
@@ -23,6 +24,19 @@ impl GlobalDefine {
         GlobalDefine {
             variable,
             form: form.into(),
+            redefine: false,
+            span,
+        }
+    }
+    pub fn redefine(
+        variable: GlobalVariable,
+        form: impl Into<Box<Expression>>,
+        span: SourceLocation,
+    ) -> Self {
+        GlobalDefine {
+            variable,
+            form: form.into(),
+            redefine: true,
             span,
         }
     }

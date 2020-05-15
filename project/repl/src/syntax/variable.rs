@@ -104,30 +104,23 @@ pub struct GlobalVariable(Rc<(Symbol, Symbol, Cell<VarDef>, Cell<bool>)>);
 
 impl GlobalVariable {
     pub fn new(module: Symbol, name: impl Into<Symbol>, def: VarDef) -> Self {
-        GlobalVariable(Rc::new((
-            module,
-            name.into(),
-            Cell::new(def),
-            Cell::new(true),
-        )))
+        let name = name.into();
+        GlobalVariable(Rc::new((module, name, Cell::new(def), Cell::new(true))))
     }
 
     pub fn defined(module: Symbol, name: impl Into<Symbol>, value: Scm) -> Self {
+        let name = name.into();
         GlobalVariable(Rc::new((
             module,
-            name.into(),
+            name,
             Cell::new(VarDef::Value(value)),
             Cell::new(true),
         )))
     }
 
     pub fn constant(module: Symbol, name: impl Into<Symbol>, def: VarDef) -> Self {
-        GlobalVariable(Rc::new((
-            module,
-            name.into(),
-            Cell::new(def),
-            Cell::new(false),
-        )))
+        let name = name.into();
+        GlobalVariable(Rc::new((module, name, Cell::new(def), Cell::new(false))))
     }
 
     pub fn module(&self) -> Symbol {
@@ -139,7 +132,9 @@ impl GlobalVariable {
     }
 
     pub fn set_value(&self, value: VarDef) {
-        if !self.is_mutable() && self.value() != VarDef::Undefined {
+        if !self.is_mutable()
+        /*&& self.value() != VarDef::Undefined*/
+        {
             eprintln!("WARNING: setting immutable {:?} := {}", self, value)
         }
         (&self.0).2.set(value);
@@ -157,6 +152,10 @@ impl GlobalVariable {
 
     pub fn set_mutable(&self, d: bool) {
         (&self.0).3.set(d)
+    }
+
+    pub fn is_defined(&self) -> bool {
+        self.value() != VarDef::Undefined
     }
 
     fn renamed(&self, newname: Symbol) -> GlobalVariable {
@@ -196,7 +195,8 @@ impl std::fmt::Debug for GlobalVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "global {} {}: {}",
+            "{}global {} {}: {}",
+            if self.is_mutable() { "" } else { "immutable " },
             self.module(),
             self.name(),
             self.value()

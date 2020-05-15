@@ -1281,6 +1281,14 @@ pub mod scheme {
             compare!(reexport:
                 r#"(import (testing reexport)) (cons (foo 7) (kons 5 '()))"#,
                  equals, Scm::list(vec![Scm::Int(7), Scm::Int(5)]));
+
+            #[test]
+            fn import_defined() {
+                let mut ctx = create_testing_context();
+                ctx.eval_str("(define a 42)").unwrap();
+                ctx.eval_str("(import (testing 1))").unwrap();
+                assert_eq!(ctx.eval_str("a"), Ok(Scm::Int(1)));
+            }
         }
 
         mod definition {

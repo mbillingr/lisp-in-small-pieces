@@ -110,11 +110,16 @@ impl GlobalAllocator {
         if let Some(idx) = self.idx(var) {
             idx
         } else {
-            let idx = self.vars.len();
-            self.vars.push(var.clone());
-            self.globals.insert(var.clone(), idx);
-            idx
+            self.new_idx(var)
         }
+    }
+
+    pub fn new_idx(&mut self, var: &GlobalVariable) -> usize {
+        //println!("new index: {:?}", var.full_name());
+        let idx = self.vars.len();
+        self.vars.push(var.clone());
+        self.globals.insert(var.clone(), idx);
+        idx
     }
 
     pub fn idx(&mut self, var: &GlobalVariable) -> Option<usize> {
@@ -124,27 +129,32 @@ impl GlobalAllocator {
     pub fn declare_alias(&mut self, var: &GlobalVariable, alias: &GlobalVariable) -> usize {
         match (self.idx(var), self.idx(alias)) {
             (None, None) => {
-                let idx = self.get_idx(var);
+                println!("new-new: {:?} {:?}", var, alias);
+                let idx = self.new_idx(var);
                 self.globals.insert(alias.clone(), idx);
                 idx
             }
             (Some(idx), None) => {
+                //println!("old-new: {:?} {:?}", var, alias);
                 self.globals.insert(alias.clone(), idx);
                 idx
             }
             (None, Some(idx)) => {
+                println!("new-old: {:?} {:?}", var, alias);
                 self.globals.insert(var.clone(), idx);
                 self.vars[idx] = var.clone();
                 idx
             }
             (Some(idx1), Some(idx2)) => {
                 if idx1 != idx2 {
-                    panic!(
-                        "invalid global alias -- both variables exist: {:?} ({}), {:?} ({})",
-                        var, idx1, alias, idx2
-                    )
+                    println!(
+                        "WARNING: existing global alias:    {:?} -> {:?}",
+                        var.full_name(),
+                        alias.full_name()
+                    );
+                    self.globals.insert(alias.clone(), idx1);
                 }
-                idx1
+                idx2
             }
         }
     }
@@ -297,13 +307,14 @@ impl<'a> BytecodeGenerator<'a> {
 
     fn compile_global_def(&mut self, node: &GlobalDefine) -> Result<Vec<Op>> {
         let mut meaning = self.compile(&node.form, false)?;
-        meaning.push(self.build_global_def(&node.variable));
+        meaning.push(if node.redefine {
+            let idx = self.glob_alloc.new_idx(&node.variable);
+            Op::GlobalDef(idx)
+        } else {
+            let idx = self.glob_alloc.get_idx(&node.variable);
+            Op::GlobalDef(idx)
+        });
         Ok(meaning)
-    }
-
-    fn build_global_def(&mut self, var: &GlobalVariable) -> Op {
-        let idx = self.glob_alloc.get_idx(var);
-        Op::GlobalDef(idx)
     }
 
     fn compile_fixlet(&mut self, node: &FixLet, tail: bool) -> Result<Vec<Op>> {

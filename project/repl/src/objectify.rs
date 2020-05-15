@@ -314,12 +314,15 @@ impl Translate {
         let form = self.objectify(expr)?;
 
         let var_name = TrackedSexpr::as_symbol(variable).unwrap();
-        let gvar = match self.env.find_variable(var_name) {
+        match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
-            Some(Variable::GlobalVariable(v)) => {
-                v.set_mutable(true);
+            Some(Variable::GlobalVariable(v)) if !v.is_defined() => {
                 v.set_value(VarDef::Unknown);
-                v
+                Ok(GlobalDefine::new(v, form, span).into())
+            }
+            Some(Variable::GlobalVariable(v)) if v.is_mutable() => {
+                v.set_value(VarDef::Unknown);
+                Ok(GlobalAssignment::new(v, form, span).into())
             }
             _ => {
                 let v = self.adjoin_global_variable(*var_name, VarDef::Unknown);
@@ -330,11 +333,9 @@ impl Translate {
                     }
                     _ => v.set_value(VarDef::Unknown),
                 }
-                v
+                Ok(GlobalDefine::redefine(v, form, span).into())
             }
-        };
-
-        Ok(GlobalDefine::new(gvar, form, span).into())
+        }
     }
 
     pub fn objectify_assignment(
