@@ -1,4 +1,4 @@
-(define-library (synny case-lambda)
+(define-library (sunny case-lambda)
     (export case-lambda)
     (import (sunny core)
             (sunny lists))

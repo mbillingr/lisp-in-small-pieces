@@ -1,4 +1,4 @@
-(define-library (synny dynwind)
+(define-library (sunny dynwind)
     (export call/cc call/ep dynamic-wind)
     (import (sunny core)
             (only (sunny conditionals) cond))

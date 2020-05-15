@@ -1,4 +1,4 @@
-(define-library (synny binding)
+(define-library (sunny binding)
     (export let let*)
     (import (sunny core))
     (begin

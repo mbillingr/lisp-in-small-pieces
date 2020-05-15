@@ -1,4 +1,4 @@
-(define-library (synny ports)
+(define-library (sunny ports)
     (export call-with-port
             call-with-input-file
             call-with-output-file

@@ -1,4 +1,4 @@
-(define-library (synny record)
+(define-library (sunny record)
     (export define-record-type)
     (import (sunny core)
             (sunny conditionals)
