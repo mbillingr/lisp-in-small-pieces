@@ -36,6 +36,14 @@ pub enum ObjectifyErrorKind {
     MismatchedEllipses,
 }
 
+impl std::fmt::Display for ObjectifyErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for ObjectifyErrorKind {}
+
 #[derive(Debug)]
 pub struct Translate {
     pub current_lib: Symbol,

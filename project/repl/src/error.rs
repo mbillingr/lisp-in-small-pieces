@@ -1,23 +1,33 @@
 use crate::objectify::ObjectifyErrorKind;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
-use sunny_common::Symbol;
-use sunny_parser::{ParseError, ParseErrorKind};
-use sunny_parser::{Source, SourceLocation};
 use std::fmt::{Display, Formatter};
+use sunny_common::Symbol;
+use sunny_parser::ParseError;
+use sunny_parser::{Source, SourceLocation};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub struct Error {
-    pub kind: ErrorKind,
+    pub error: Box<dyn std::error::Error>,
     pub context: ErrorContext,
 }
 
 impl Error {
-    pub fn chain(self, other: Error) -> Self {
+    pub fn new(e: impl std::error::Error + 'static, context: ErrorContext) -> Self {
         Error {
-            kind: ErrorKind::Chained(Box::new(self), Box::new(other)),
+            error: Box::new(e),
+            context,
+        }
+    }
+
+    pub fn chain(self, other: impl std::error::Error + 'static) -> Self {
+        Error {
+            error: Box::new(ChainedError {
+                first: Box::new(self),
+                next: Box::new(other),
+            }),
             context: ErrorContext::None,
         }
     }
@@ -25,13 +35,27 @@ impl Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self.error)
     }
 }
 
-impl std::error::Error for Error { }
+impl std::error::Error for Error {}
 
 #[derive(Debug)]
+pub struct ChainedError {
+    pub first: Box<dyn std::error::Error>,
+    pub next: Box<dyn std::error::Error>,
+}
+
+impl Display for ChainedError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{} --> {}", self.first, self.next)
+    }
+}
+
+impl std::error::Error for ChainedError {}
+
+/*#[derive(Debug)]
 pub enum ErrorKind {
     Custom(Scm),
     Parse(ParseErrorKind),
@@ -46,10 +70,43 @@ pub enum ErrorKind {
     Unhandled(Scm),
 }
 
+impl std::error::Error for ErrorKind { }*/
+
+#[derive(Debug)]
+pub struct UnhandledException {
+    obj: Scm,
+}
+
+impl UnhandledException {
+    pub fn new(obj: Scm) -> Self {
+        UnhandledException { obj }
+    }
+
+    pub fn obj(&self) -> Scm {
+        self.obj
+    }
+}
+
+impl Display for UnhandledException {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "Unhandled exception: {}", self.obj.write())
+    }
+}
+
+impl std::error::Error for UnhandledException {}
+
 #[derive(Debug, PartialEq)]
 pub enum CompileError {
     MacroUsedAsValue(Symbol),
 }
+
+impl Display for CompileError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for CompileError {}
 
 #[derive(PartialEq)]
 pub enum RuntimeError {
@@ -78,6 +135,14 @@ impl std::fmt::Debug for RuntimeError {
     }
 }
 
+impl Display for RuntimeError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for RuntimeError {}
+
 #[derive(Debug, PartialEq)]
 pub enum TypeError {
     WrongType,
@@ -99,6 +164,14 @@ pub enum TypeError {
     ValueOutOfRange(Scm),
 }
 
+impl Display for TypeError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for TypeError {}
+
 #[derive(Debug)]
 pub enum ErrorContext {
     None,
@@ -106,27 +179,12 @@ pub enum ErrorContext {
 }
 
 impl Error {
-    pub fn at_expr(kind: impl Into<ErrorKind>, expr: &TrackedSexpr) -> Self {
-        Error::at_span(kind, expr.source().clone())
+    pub fn at_expr(e: impl std::error::Error + 'static, expr: &TrackedSexpr) -> Self {
+        Error::at_span(e, expr.source().clone())
     }
 
-    pub fn at_span(kind: impl Into<ErrorKind>, span: SourceLocation) -> Self {
-        Error {
-            kind: kind.into(),
-            context: ErrorContext::Source(span),
-        }
-    }
-}
-
-impl<T> From<T> for Error
-where
-    ErrorKind: From<T>,
-{
-    fn from(kind: T) -> Self {
-        Error {
-            kind: kind.into(),
-            context: ErrorContext::None,
-        }
+    pub fn at_span(e: impl std::error::Error + 'static, span: SourceLocation) -> Self {
+        Error::new(e, ErrorContext::Source(span))
     }
 }
 
@@ -136,150 +194,33 @@ impl From<std::convert::Infallible> for Error {
     }
 }
 
-impl From<RuntimeError> for ErrorKind {
-    fn from(err: RuntimeError) -> Self {
-        ErrorKind::Runtime(err)
-    }
-}
-
-impl From<TypeError> for ErrorKind {
-    fn from(err: TypeError) -> Self {
-        ErrorKind::TypeError(err)
-    }
-}
-
-impl From<ObjectifyErrorKind> for ErrorKind {
-    fn from(err: ObjectifyErrorKind) -> Self {
-        ErrorKind::Objectify(err)
-    }
-}
-
-impl From<std::io::Error> for ErrorKind {
-    fn from(err: std::io::Error) -> Self {
-        ErrorKind::IoError(err)
-    }
-}
-
-impl From<std::str::Utf8Error> for ErrorKind {
-    fn from(err: std::str::Utf8Error) -> Self {
-        ErrorKind::Utf8Error(err)
-    }
-}
-
-impl From<std::string::FromUtf8Error> for ErrorKind {
-    fn from(err: std::string::FromUtf8Error) -> Self {
-        ErrorKind::Utf8Error(err.utf8_error())
-    }
-}
-
 impl Error {
     pub fn from_parse_error_and_source(err: ParseError, src: Source) -> Error {
         assert_eq!(err.location.text, &*src.content);
-        Error {
-            kind: ErrorKind::Parse(err.kind),
-            context: ErrorContext::Source(src.loc(err.location.start, err.location.end)),
-        }
+        Error::new(
+            err.kind,
+            ErrorContext::Source(src.loc(err.location.start, err.location.end)),
+        )
     }
 }
 
-impl std::fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ErrorKind::Custom(e) => write!(f, "Error: {}", e.display()),
-            ErrorKind::Parse(e) => write!(f, "Parse Error: {:?}", e),
-            ErrorKind::Objectify(e) => write!(f, "Syntax Error: {:?}", e),
-            ErrorKind::Runtime(e) => write!(f, "Runtime Error: {:?}", e),
-            ErrorKind::Compile(e) => write!(f, "Compile Error: {:?}", e),
-            ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
-            ErrorKind::IoError(e) => write!(f, "I/O Error: {:?}", e),
-            ErrorKind::Utf8Error(e) => write!(f, "Utf8 Error: {:?}", e),
-            ErrorKind::Chained(e1, e2) => write!(f, "{} followed by {}", e1.kind, e2.kind),
-            ErrorKind::Unhandled(obj) => write!(f, "Unhandled Exception: {}", obj.write()),
-        }
+macro_rules! impl_from_errors {
+    ($($t:ty,)*) => {
+        $(impl From<$t> for Error {
+            fn from(e: $t) -> Self {
+                Error::new(e, ErrorContext::None)
+            }
+        })*
     }
 }
 
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
-}
-
-impl PartialEq for ErrorKind {
-    fn eq(&self, other: &Self) -> bool {
-        use ErrorKind::*;
-        match (self, other) {
-            (Custom(a), Custom(b)) => a == b,
-            (Parse(a), Parse(b)) => a == b,
-            (Objectify(a), Objectify(b)) => a == b,
-            (Compile(a), Compile(b)) => a == b,
-            (Runtime(a), Runtime(b)) => a == b,
-            (TypeError(a), TypeError(b)) => a == b,
-            (IoError(_), IoError(_)) => false,
-            (Utf8Error(a), Utf8Error(b)) => a == b,
-            (Chained(a1, a2), Chained(b1, b2)) => a1 == b1 && a2 == b2,
-            (Unhandled(a), Unhandled(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<ObjectifyErrorKind> for Error {
-    fn eq(&self, other: &ObjectifyErrorKind) -> bool {
-        match self.kind {
-            ErrorKind::Objectify(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for ObjectifyErrorKind {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<ParseErrorKind> for Error {
-    fn eq(&self, other: &ParseErrorKind) -> bool {
-        match self.kind {
-            ErrorKind::Parse(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for ParseErrorKind {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<RuntimeError> for Error {
-    fn eq(&self, other: &RuntimeError) -> bool {
-        match self.kind {
-            ErrorKind::Runtime(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for RuntimeError {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<TypeError> for Error {
-    fn eq(&self, other: &TypeError) -> bool {
-        match self.kind {
-            ErrorKind::TypeError(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for TypeError {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
+impl_from_errors!(
+    CompileError,
+    ObjectifyErrorKind,
+    RuntimeError,
+    TypeError,
+    UnhandledException,
+    std::io::Error,
+    std::string::FromUtf8Error,
+    std::str::Utf8Error,
+);

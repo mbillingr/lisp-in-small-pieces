@@ -1,5 +1,5 @@
 use crate::bytecode::{CodeObject, LibraryObject, Op};
-use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
+use crate::error::{CompileError, Error, ErrorContext, Result};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
@@ -211,10 +211,10 @@ impl<'a> BytecodeGenerator<'a> {
             BoxWrite(b) => self.compile_box_write(b, tail),
             BoxRead(b) => self.compile_box_read(b, tail),
             GlobalDefine(d) => self.compile_global_def(d),
-            MagicKeyword(m) => Err(Error {
-                kind: ErrorKind::Compile(CompileError::MacroUsedAsValue(m.name)),
-                context: ErrorContext::Source(node.source().clone()),
-            }),
+            MagicKeyword(m) => Err(Error::new(
+                CompileError::MacroUsedAsValue(m.name),
+                ErrorContext::Source(node.source().clone()),
+            )),
             LetContinuation(l) => self.compile_letcont(l, tail),
             _ => unimplemented!(
                 "Byte code compilation of:\n {:#?}\n {:?}",

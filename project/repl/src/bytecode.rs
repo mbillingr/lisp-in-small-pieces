@@ -1,6 +1,6 @@
 use crate::ast_transform::generate_bytecode::{compile_library, GlobalAllocator};
 use crate::continuation::{Continuation, ExitProcedure};
-use crate::error::{ErrorKind, Result, RuntimeError, TypeError};
+use crate::error::{Result, RuntimeError, TypeError, UnhandledException};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
@@ -204,7 +204,7 @@ impl VirtualMachine {
             exception_handler: Scm::Primitive(RuntimePrimitive::new(
                 "default-exception-handler",
                 Arity::Exact(1),
-                |args, _| Err(ErrorKind::Unhandled(args[0]).into()),
+                |args, _| Err(UnhandledException::new(args[0]).into()),
             )),
         }
     }

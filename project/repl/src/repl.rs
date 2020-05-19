@@ -86,12 +86,12 @@ pub fn repl() {
 pub fn report_error(e: Error) {
     match e.context {
         ErrorContext::None | ErrorContext::Source(SourceLocation::NoSource) => {
-            eprintln!("{}", e.kind)
+            eprintln!("{}", e.error)
         }
         ErrorContext::Source(SourceLocation::Span(span)) => {
             eprintln!("Error:");
             eprintln!("{}", span);
-            eprintln!("{}", e.kind);
+            eprintln!("{}", e.error);
         }
     }
 }
