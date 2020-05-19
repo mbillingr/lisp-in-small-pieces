@@ -301,7 +301,17 @@ dependencies = [
  "rustyline",
  "sunny-common",
  "sunny-parser",
+ "sunny-tmp-compiletime",
+ "sunny-tmp-runtime",
 ]
+
+[[package]]
+name = "sunny-tmp-compiletime"
+version = "0.1.0"
+
+[[package]]
+name = "sunny-tmp-runtime"
+version = "0.1.0"
 
 [[package]]
 name = "syn"

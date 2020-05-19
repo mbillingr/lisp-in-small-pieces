@@ -4,4 +4,6 @@ members = [
     "common",
     "parser",
     "repl",
+    "tmp_compile_time",
+    "tmp_run_time",
 ]
