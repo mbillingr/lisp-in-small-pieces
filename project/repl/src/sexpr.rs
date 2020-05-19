@@ -1,11 +1,11 @@
 use crate::error::{Error, Result, TypeError};
 use crate::scm::Scm;
-use crate::source::{Source, SourceLocation};
 use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
 use std::rc::Rc;
 use sunny_common::Symbol;
 use sunny_parser::{parse, Sexpr as PS, SpannedSexpr};
+use sunny_parser::{Source, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct TrackedSexpr {

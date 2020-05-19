@@ -513,8 +513,8 @@ mod tests {
     use super::*;
     use crate::bytecode::VirtualMachine;
     use crate::env::Env;
-    use crate::source::SourceLocation::NoSource;
     use crate::syntax::GlobalVariable;
+    use sunny_parser::SourceLocation::NoSource;
 
     #[test]
     fn compile_intrinsics() {

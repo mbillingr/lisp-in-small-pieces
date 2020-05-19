@@ -1,9 +1,9 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::syntax::{GlobalVariable, Reify};
 use crate::utils::Named;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct GlobalDefine {

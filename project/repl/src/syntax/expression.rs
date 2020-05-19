@@ -15,10 +15,10 @@ use super::sequence::Sequence;
 
 use crate::ast_transform::{Transformer, Visited};
 use crate::scm::Scm;
-use crate::source::SourceLocation;
-use crate::source::SourceLocation::NoSource;
 use crate::syntax::Reify;
 use crate::utils::Sourced;
+use sunny_parser::SourceLocation;
+use sunny_parser::SourceLocation::NoSource;
 
 use sunny_common::{sum_type, sum_types};
 

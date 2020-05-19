@@ -1,9 +1,9 @@
 use crate::objectify::ObjectifyErrorKind;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
-use crate::source::{Source, SourceLocation};
 use sunny_common::Symbol;
 use sunny_parser::{ParseError, ParseErrorKind};
+use sunny_parser::{Source, SourceLocation};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

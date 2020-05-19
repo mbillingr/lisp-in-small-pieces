@@ -15,8 +15,6 @@ pub mod scheme {
     };
     use crate::scm::{ResultWrap, Scm};
     use crate::sexpr::TrackedSexpr;
-    use crate::source::Source;
-    use crate::source::SourceLocation::NoSource;
     use crate::syntax::{
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
     };
@@ -27,6 +25,7 @@ pub mod scheme {
     use std::path::{Path, PathBuf};
     use std::time::Instant;
     use sunny_common::Symbol;
+    use sunny_parser::{Source, SourceLocation::NoSource};
 
     pub struct Context {
         pub vm: VirtualMachine,

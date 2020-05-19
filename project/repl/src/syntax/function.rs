@@ -3,10 +3,10 @@ use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::primitive::Arity;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::Named;
 use std::convert::TryInto;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct Function {

@@ -1,9 +1,9 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
-use crate::source::SourceLocation::NoSource;
 use crate::syntax::{NoOp, Reify};
+use sunny_parser::SourceLocation;
+use sunny_parser::SourceLocation::NoSource;
 
 #[derive(Debug, Clone)]
 pub struct Sequence {

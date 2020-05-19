@@ -1,10 +1,10 @@
 use super::{Transformer, Visited};
-use crate::source::SourceLocation;
 use crate::syntax::{
     BoxCreate, BoxRead, BoxWrite, Expression, FixLet, Function, LocalAssignment, LocalReference,
     LocalVariable, Sequence,
 };
 use crate::utils::Sourced;
+use sunny_parser::SourceLocation;
 
 pub struct Boxify;
 

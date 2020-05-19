@@ -3,10 +3,10 @@ use super::reference::LocalReference;
 use super::variable::GlobalVariable;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::{Named, Sourced};
 use sunny_common::sum_type;
+use sunny_parser::SourceLocation;
 
 sum_type! {
     #[derive(Debug, Clone)]

@@ -1,8 +1,8 @@
 use crate::error::{Error, Result};
 use crate::objectify::ObjectifyErrorKind;
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::source::SourceLocation;
 use sunny_common::Symbol;
+use sunny_parser::SourceLocation;
 use SourceLocation::NoSource;
 
 pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {

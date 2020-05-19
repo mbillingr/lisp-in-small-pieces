@@ -1,5 +1,5 @@
-use crate::source::SourceLocation;
 use std::path::{Path, PathBuf};
+use sunny_parser::SourceLocation;
 
 pub trait Named {
     type Name: PartialEq;
@@ -21,7 +21,7 @@ macro_rules! impl_sourced {
 
     ($t:ty: self.$($tokens:tt)*) => {
         impl crate::utils::Sourced for $t {
-            fn source(&self) -> &crate::source::SourceLocation {
+            fn source(&self) -> &sunny_parser::SourceLocation {
                 &self.$($tokens)*
             }
         }

@@ -20,7 +20,6 @@ mod scan_out_defines;
 mod scm;
 mod scm_write;
 mod sexpr;
-mod source;
 mod syntactic_closure;
 mod syntax;
 

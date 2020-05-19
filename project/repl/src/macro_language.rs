@@ -2,12 +2,12 @@ use crate::env::Env;
 use crate::error::{Error, Result};
 use crate::objectify::{ObjectifyErrorKind, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::source::SourceLocation::NoSource;
 use crate::syntactic_closure::SyntacticClosure;
 use crate::syntax::{Expression, MagicKeywordHandler};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use sunny_common::Symbol;
+use sunny_parser::SourceLocation::NoSource;
 
 pub fn eval_syntax(expr: &TrackedSexpr, env: &Env) -> Result<MagicKeywordHandler> {
     let name = *expr.car()?.as_symbol()?;

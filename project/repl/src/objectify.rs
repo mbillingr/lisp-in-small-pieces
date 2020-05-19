@@ -2,8 +2,6 @@ use crate::env::Env;
 use crate::error::{Error, Result};
 use crate::library::{is_import, libname_to_path};
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::source::SourceLocation::NoSource;
-use crate::source::{Source, SourceLocation};
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
@@ -19,6 +17,8 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use sunny_common::Symbol;
+use sunny_parser::SourceLocation::NoSource;
+use sunny_parser::{Source, SourceLocation};
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {

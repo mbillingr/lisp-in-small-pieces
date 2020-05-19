@@ -3,12 +3,12 @@ use super::Import;
 use crate::ast_transform::Transformer;
 use crate::env::Env;
 use crate::library::ExportItem;
-use crate::source::SourceLocation;
-use crate::source::SourceLocation::NoSource;
 use crate::syntax::{GlobalVariable, NoOp, Variable};
 use crate::utils::Sourced;
 use std::collections::{HashMap, VecDeque};
 use sunny_common::Symbol;
+use sunny_parser::SourceLocation;
+use sunny_parser::SourceLocation::NoSource;
 
 use sunny_common::sum_type;
 

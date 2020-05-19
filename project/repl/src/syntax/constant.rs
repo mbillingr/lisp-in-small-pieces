@@ -1,8 +1,8 @@
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::source::SourceLocation;
 use crate::syntax::Reify;
+use sunny_parser::SourceLocation;
 
 #[derive(Clone)]
 pub struct Constant {

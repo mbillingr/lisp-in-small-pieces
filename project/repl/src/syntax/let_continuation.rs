@@ -2,9 +2,9 @@ use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::syntax::Reify;
 use crate::utils::Named;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Copy, Clone)]
 pub enum LetContKind {

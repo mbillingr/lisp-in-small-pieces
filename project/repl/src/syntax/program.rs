@@ -2,8 +2,8 @@ use super::expression::Expression;
 use super::import::Import;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::syntax::Reify;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct Program {

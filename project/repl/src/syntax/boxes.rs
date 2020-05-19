@@ -1,9 +1,9 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
-use crate::source::SourceLocation;
 use crate::syntax::Reference;
 use std::convert::TryInto;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct BoxRead {

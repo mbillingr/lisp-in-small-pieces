@@ -1,5 +1,5 @@
 use crate::ast_transform::Transformer;
-use crate::source::SourceLocation;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct NoOp;

@@ -110,7 +110,7 @@ impl std::fmt::Display for Span {
 }
 
 impl SourceLocation {
-    pub fn from_spanned(span: sunny_parser::Span, src: Source) -> Self {
+    pub fn from_spanned(span: crate::Span, src: Source) -> Self {
         SourceLocation::Span(Span {
             src,
             start: span.start,

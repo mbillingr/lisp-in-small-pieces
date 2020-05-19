@@ -4,13 +4,13 @@ use crate::error::{ErrorKind, Result, RuntimeError, TypeError};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
-use crate::source::SourceLocation;
 use crate::syntax::library::LibraryExportSpec;
 use crate::syntax::Library;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::path::Path;
 use sunny_common::Symbol;
+use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct CodeObject {
