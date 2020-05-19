@@ -4,6 +4,7 @@ use crate::sexpr::TrackedSexpr;
 use sunny_common::Symbol;
 use sunny_parser::{ParseError, ParseErrorKind};
 use sunny_parser::{Source, SourceLocation};
+use std::fmt::{Display, Formatter};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -21,6 +22,14 @@ impl Error {
         }
     }
 }
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for Error { }
 
 #[derive(Debug)]
 pub enum ErrorKind {

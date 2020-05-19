@@ -1,7 +1,6 @@
 [workspace]
 
 members = [
-    #"ast",
     "common",
     "parser",
     "repl",

@@ -3,8 +3,9 @@ use crate::syntax::{
     Expression, FixLet, FlatClosure, FreeReference, FreeVariable, Function, LetContinuation,
     Reference, Variable,
 };
-use crate::utils::{Named, Sourced};
 use std::convert::TryInto;
+use sunny_common::Named;
+use sunny_parser::Sourced;
 
 pub struct Flatten {
     current_function: Option<FlatClosure>,

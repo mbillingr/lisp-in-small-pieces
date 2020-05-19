@@ -1,9 +1,9 @@
 use super::keyword::MagicKeyword;
 use crate::scm::Scm;
-use crate::utils::Named;
 use std::cell::Cell;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use sunny_common::Named;
 use sunny_common::Symbol;
 
 use sunny_common::{sum_type, sum_types};

@@ -2,6 +2,7 @@ use super::expression::Expression;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::Reify;
+use sunny_parser::impl_sourced;
 use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]

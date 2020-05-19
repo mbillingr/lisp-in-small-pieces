@@ -1,10 +1,10 @@
 use crate::ast_transform::Transformer;
-use sunny_parser::SourceLocation;
+use sunny_parser::{SourceLocation, Sourced};
 
 #[derive(Debug, Clone)]
 pub struct NoOp;
 
-impl crate::utils::Sourced for NoOp {
+impl Sourced for NoOp {
     fn source(&self) -> &SourceLocation {
         &SourceLocation::NoSource
     }

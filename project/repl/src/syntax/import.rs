@@ -1,12 +1,12 @@
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::{Reify, Variable};
-use crate::utils::Named;
 use std::iter::FromIterator;
 use std::path::PathBuf;
+use sunny_common::Named;
 use sunny_common::Symbol;
-use sunny_parser::SourceLocation;
 use sunny_parser::SourceLocation::NoSource;
+use sunny_parser::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct Import {

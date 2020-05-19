@@ -3,8 +3,7 @@ use crate::syntax::{
     BoxCreate, BoxRead, BoxWrite, Expression, FixLet, Function, LocalAssignment, LocalReference,
     LocalVariable, Sequence,
 };
-use crate::utils::Sourced;
-use sunny_parser::SourceLocation;
+use sunny_parser::{SourceLocation, Sourced};
 
 pub struct Boxify;
 

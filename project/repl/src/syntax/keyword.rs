@@ -3,8 +3,8 @@ use crate::ast_transform::Transformer;
 use crate::error::Result;
 use crate::objectify::Translate;
 use crate::sexpr::TrackedSexpr;
-use crate::utils::Named;
 use std::rc::Rc;
+use sunny_common::Named;
 use sunny_common::Symbol;
 
 #[derive(Clone)]

@@ -3,7 +3,7 @@ use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::syntax::Reference;
 use std::convert::TryInto;
-use sunny_parser::SourceLocation;
+use sunny_parser::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct BoxRead {

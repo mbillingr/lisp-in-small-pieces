@@ -37,7 +37,7 @@ pub enum Scm {
 
     Cell(&'static Cell<Scm>),
     Rust(&'static Box<dyn Any>),
-    Error(&'static Error),
+    Error(&'static dyn std::error::Error),
 }
 
 impl Scm {
@@ -383,7 +383,7 @@ impl Scm {
             (Continuation(a), Continuation(b)) => *a as *const _ == *b as *const _,
             (ExitProc(a), ExitProc(b)) => *a as *const _ == *b as *const _,
             (Cell(a), Cell(b)) => a.get().equals(&b.get()),
-            (Error(a), Error(b)) => a == b,
+            (Error(a), Error(b)) => *a as *const _ == *b as *const _,
             _ => false,
         }
     }

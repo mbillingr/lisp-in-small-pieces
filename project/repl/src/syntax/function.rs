@@ -4,9 +4,9 @@ use crate::ast_transform::Transformer;
 use crate::primitive::Arity;
 use crate::scm::Scm;
 use crate::syntax::Reify;
-use crate::utils::Named;
 use std::convert::TryInto;
-use sunny_parser::SourceLocation;
+use sunny_common::Named;
+use sunny_parser::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct Function {

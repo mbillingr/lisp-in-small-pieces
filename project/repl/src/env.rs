@@ -1,9 +1,9 @@
 use crate::scm::Scm;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{GlobalVariable, LocalVariable, Variable};
-use crate::utils::Named;
 use std::cell::RefCell;
 use std::rc::Rc;
+use sunny_common::Named;
 use sunny_common::Symbol;
 
 #[derive(Debug, Clone)]

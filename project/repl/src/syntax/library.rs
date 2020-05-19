@@ -4,11 +4,10 @@ use crate::ast_transform::Transformer;
 use crate::env::Env;
 use crate::library::ExportItem;
 use crate::syntax::{GlobalVariable, NoOp, Variable};
-use crate::utils::Sourced;
 use std::collections::{HashMap, VecDeque};
 use sunny_common::Symbol;
-use sunny_parser::SourceLocation;
 use sunny_parser::SourceLocation::NoSource;
+use sunny_parser::{impl_sourced, SourceLocation, Sourced};
 
 use sunny_common::sum_type;
 

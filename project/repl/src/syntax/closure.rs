@@ -3,6 +3,7 @@ use super::function::Function;
 use super::reference::Reference;
 use crate::ast_transform::Transformer;
 use std::convert::TryInto;
+use sunny_parser::impl_sourced;
 
 #[derive(Debug, Clone)]
 pub struct FlatClosure {

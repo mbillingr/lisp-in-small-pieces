@@ -3,7 +3,7 @@ use super::import::Import;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::Reify;
-use sunny_parser::SourceLocation;
+use sunny_parser::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct Program {

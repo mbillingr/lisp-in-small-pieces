@@ -11,10 +11,11 @@ use crate::syntax::{
     GlobalVariable, Import, LetContKind, LetContinuation, Library, LocalReference, Program,
     Reference, Sequence, Variable,
 };
-use crate::utils::{Named, Sourced};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use sunny_common::Named;
 use sunny_common::Symbol;
+use sunny_parser::Sourced;
 
 pub fn compile_program(
     prog: &Program,
