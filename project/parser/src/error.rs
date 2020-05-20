@@ -23,18 +23,3 @@ pub enum ParseErrorKind {
     UnclosedSequence,
     InvalidToken,
 }
-
-impl std::fmt::Display for ParseError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::fmt::Display for ParseErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for ParseErrorKind {}
-impl std::error::Error for ParseError<'_> {}

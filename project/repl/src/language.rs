@@ -829,18 +829,22 @@ pub mod scheme {
                             r#"assertion failed:
          expression: `{}`
        evaluates to: `{}`,
- but expected error: `{}`"#,
+ but expected error: `{:?}`"#,
                             $src,
                             r.display(),
                             $expect
                         ),
-                        Err(e) if format!("{}", e) == $expect => {}
+                        Err(e) if e == $expect => {}
+                        Err(Error {
+                            kind: crate::error::ErrorKind::Unhandled(e),
+                            ..
+                        }) if e == Scm::error($expect) => {}
                         Err(e) => panic!(
                             r#"assertion failed:
           expression: `{}`
-        causes error: `{}`,
-  but expected error: `{}`"#,
-                            $src, e, $expect
+        causes error: `{:?}`,
+  but expected error: `{:?}`"#,
+                            $src, e.kind, $expect
                         ),
                     }
                 }
@@ -872,7 +876,7 @@ pub mod scheme {
         mod compound {
             use super::*;
 
-            assert_error!(empty_sequence: "(begin)", "ExpectedList");
+            assert_error!(empty_sequence: "(begin)", ObjectifyErrorKind::ExpectedList);
             compare!(unary_sequence: "(begin 1)", equals, Scm::Int(1));
             compare!(binary_sequence: "(begin 1 2)", equals, Scm::Int(2));
             compare!(ternary_sequence: "(begin 1 2 3)", equals, Scm::Int(3));
@@ -923,11 +927,12 @@ pub mod scheme {
 
         mod variables {
             use super::*;
+            use crate::error::RuntimeError;
 
             check!(reify_intrinsic: "cons", Scm::is_procedure);
 
-            assert_error!(undefined_global_get: "flummox", "Unhandled exception: <error object undefined global (/ . flummox)>");
-            assert_error!(undefined_global_set: "(set! foo 42)", "undefined global (/ . foo)");
+            assert_error!(undefined_global_get: "flummox", RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("flummox"))));
+            assert_error!(undefined_global_set: "(set! foo 42)", RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("foo"))));
             check!(new_global: "(define the-answer 42)", Scm::is_undefined);
             compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
             compare!(overwrite_global: "(begin (define the-answer 42) (set! the-answer 666) the-answer)", equals, Scm::Int(666));
@@ -999,6 +1004,7 @@ pub mod scheme {
 
         mod macros {
             use super::*;
+            use crate::error::RuntimeError;
 
             compare!(primitive:
                 r#"(begin
@@ -1010,7 +1016,7 @@ pub mod scheme {
                 r#"(begin
                         (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
                         (foo x))"#,
-                "Unhandled exception: <error object undefined global (/ . x)>");
+                RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("x"))));
 
             compare!(hygiene_new_binding_defined_with_let:
                 r#"(begin
@@ -1151,7 +1157,7 @@ pub mod scheme {
             assert_error!(nested_ellipses_mismatch:
                 r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ))))
                    (nest (1 2) (3 4 5))"#,
-                 "MismatchedEllipses");
+                 ObjectifyErrorKind::MismatchedEllipses);
 
             compare!(macro_generating_macro:
                 r#"(define-syntax be-like-begin
@@ -1204,9 +1210,10 @@ pub mod scheme {
 
         mod libraries {
             use super::*;
+            use crate::error::RuntimeError;
 
             assert_error!(nonexisting_library: "(import (test foo bar)) #f",
-                "UnknownLibrary(\"test/foo/bar\")");
+                ObjectifyErrorKind::UnknownLibrary(["test", "foo", "bar"].iter().collect()));
 
             compare!(import_and_do_nothing:
                 r#"(import (testing 1)) #f"#,
@@ -1226,11 +1233,11 @@ pub mod scheme {
 
             assert_error!(import_only:
                 r#"(import (only (testing 1) a)) a b"#,
-                "Unhandled exception: <error object undefined global (/ . b)>");
+                RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("b"))));
 
             assert_error!(import_except:
                 r#"(import (except (testing 1) a)) a"#,
-                "Unhandled exception: <error object undefined global (/ . a)>");
+                RuntimeError::UndefinedGlobal(Scm::cons(Scm::symbol("/"), Scm::symbol("a"))));
 
             compare!(import_prefixed_values:
                 r#"(import (prefix (testing 1) foo-)) (cons foo-a foo-b)"#,
@@ -1278,7 +1285,7 @@ pub mod scheme {
                 let mut ctx = create_testing_context();
                 ctx.eval_str("(define a 42)").unwrap();
                 ctx.eval_str("(import (testing 1))").unwrap();
-                assert_eq!(ctx.eval_str("a").unwrap(), Scm::Int(1));
+                assert_eq!(ctx.eval_str("a"), Ok(Scm::Int(1)));
             }
         }
 
@@ -1320,6 +1327,7 @@ pub mod scheme {
 
         mod non_local_control_flow {
             use super::*;
+            use crate::error::RuntimeError;
 
             compare!(let_cc:
                 r#" (define cc #f)
@@ -1350,7 +1358,7 @@ pub mod scheme {
                     (let/ep exit
                         (set! cnt exit))
                     (cnt 42)"#,
-                "invalid exit procedure");
+                RuntimeError::InvalidExitProcedure);
 
             compare!(dynamic_wind_trivial:
                 r#"(import (sunny dynwind))
