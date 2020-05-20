@@ -304,7 +304,7 @@ impl Display for ScmDisplay {
             Scm::Port(p) => write!(f, "<port {:?}>", p),
             Scm::Cell(c) => write!(f, "{}", c.get().display()),
             Scm::Rust(o) => write!(f, "<rust object {:p}>", *o),
-            Scm::Error(e) => write!(f, "<error object {:?}>", e),
+            Scm::Error(e) => write!(f, "<{}>", e),
         }
     }
 }
@@ -390,7 +390,7 @@ impl Display for ScmWriteSimple {
             Scm::Port(p) => write!(f, "<port {:?}>", p),
             Scm::Cell(c) => write!(f, "{}", c.get().display()),
             Scm::Rust(o) => write!(f, "<rust object {:p}>", *o),
-            Scm::Error(e) => write!(f, "<error object {:?}>", e),
+            Scm::Error(e) => write!(f, "<{}>", e),
         }
     }
 }

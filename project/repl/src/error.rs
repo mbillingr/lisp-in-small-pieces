@@ -1,9 +1,9 @@
 use crate::objectify::ObjectifyErrorKind;
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
+use std::fmt::{Display, Formatter};
 use sunny_common::{Source, SourceLocation, Symbol};
 use sunny_parser::{ParseError, ParseErrorKind};
-use std::fmt::{Display, Formatter};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -13,22 +13,13 @@ pub struct Error {
     pub context: ErrorContext,
 }
 
-impl Error {
-    pub fn chain(self, other: Error) -> Self {
-        Error {
-            kind: ErrorKind::Chained(Box::new(self), Box::new(other)),
-            context: ErrorContext::None,
-        }
-    }
-}
-
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self.kind)
     }
 }
 
-impl std::error::Error for Error { }
+impl std::error::Error for Error {}
 
 #[derive(Debug)]
 pub enum ErrorKind {
@@ -41,7 +32,6 @@ pub enum ErrorKind {
     IoError(std::io::Error),
     Utf8Error(std::str::Utf8Error),
 
-    Chained(Box<Error>, Box<Error>),
     Unhandled(Scm),
 }
 
@@ -192,7 +182,6 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::TypeError(e) => write!(f, "Type Error: {:?}", e),
             ErrorKind::IoError(e) => write!(f, "I/O Error: {:?}", e),
             ErrorKind::Utf8Error(e) => write!(f, "Utf8 Error: {:?}", e),
-            ErrorKind::Chained(e1, e2) => write!(f, "{} followed by {}", e1.kind, e2.kind),
             ErrorKind::Unhandled(obj) => write!(f, "Unhandled Exception: {}", obj.write()),
         }
     }
@@ -216,7 +205,6 @@ impl PartialEq for ErrorKind {
             (TypeError(a), TypeError(b)) => a == b,
             (IoError(_), IoError(_)) => false,
             (Utf8Error(a), Utf8Error(b)) => a == b,
-            (Chained(a1, a2), Chained(b1, b2)) => a1 == b1 && a2 == b2,
             (Unhandled(a), Unhandled(b)) => a == b,
             _ => false,
         }
