@@ -1,3 +1,5 @@
+use sunny_common::{Source, SourceLocation};
+
 pub trait Spanned<'a> {
     fn span(&self) -> &Span<'a>;
     fn span_mut(&mut self) -> &mut Span<'a>;
@@ -78,5 +80,9 @@ impl<'a> Span<'a> {
 
     pub fn chars(&'a self) -> impl 'a + Iterator<Item = char> {
         self.as_str().chars()
+    }
+
+    pub fn into_location(self, src: Source) -> SourceLocation {
+        SourceLocation::Span(sunny_common::Span::new(src, self.start, self.end))
     }
 }

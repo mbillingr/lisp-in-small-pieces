@@ -15,8 +15,8 @@ macro_rules! impl_sourced {
     };
 
     ($t:ty: self.$($tokens:tt)*) => {
-        impl sunny_parser::Sourced for $t {
-            fn source(&self) -> &sunny_parser::SourceLocation {
+        impl sunny_common::Sourced for $t {
+            fn source(&self) -> &sunny_common::SourceLocation {
                 &self.$($tokens)*
             }
         }

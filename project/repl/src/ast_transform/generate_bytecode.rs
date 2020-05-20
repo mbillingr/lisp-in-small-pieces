@@ -13,9 +13,7 @@ use crate::syntax::{
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
-use sunny_common::Named;
-use sunny_common::Symbol;
-use sunny_parser::Sourced;
+use sunny_common::{Named, Sourced, Symbol};
 
 pub fn compile_program(
     prog: &Program,
@@ -515,7 +513,7 @@ mod tests {
     use crate::bytecode::VirtualMachine;
     use crate::env::Env;
     use crate::syntax::GlobalVariable;
-    use sunny_parser::SourceLocation::NoSource;
+    use sunny_common::SourceLocation::NoSource;
 
     #[test]
     fn compile_intrinsics() {

@@ -4,8 +4,7 @@ use crate::syntax::{
     Reference, Variable,
 };
 use std::convert::TryInto;
-use sunny_common::Named;
-use sunny_parser::Sourced;
+use sunny_common::{Named, Sourced};
 
 pub struct Flatten {
     current_function: Option<FlatClosure>,

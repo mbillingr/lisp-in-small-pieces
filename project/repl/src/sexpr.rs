@@ -3,9 +3,8 @@ use crate::scm::Scm;
 use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
 use std::rc::Rc;
-use sunny_common::Symbol;
+use sunny_common::{Source, SourceLocation, Symbol};
 use sunny_parser::{parse, Sexpr as PS, SpannedSexpr};
-use sunny_parser::{Source, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct TrackedSexpr {
@@ -93,44 +92,29 @@ impl TrackedSexpr {
 
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
         match se.expr {
-            PS::Nil => TrackedSexpr::new(Sexpr::Nil, SourceLocation::from_spanned(se.span, source)),
-            PS::True => {
-                TrackedSexpr::new(Sexpr::True, SourceLocation::from_spanned(se.span, source))
+            PS::Nil => TrackedSexpr::new(Sexpr::Nil, se.span.into_location(source)),
+            PS::True => TrackedSexpr::new(Sexpr::True, se.span.into_location(source)),
+            PS::False => TrackedSexpr::new(Sexpr::False, se.span.into_location(source)),
+            PS::Char(ch) => TrackedSexpr::new(Sexpr::Char(ch), se.span.into_location(source)),
+            PS::Symbol(s) => {
+                TrackedSexpr::new(Sexpr::Symbol(s.into()), se.span.into_location(source))
             }
-            PS::False => {
-                TrackedSexpr::new(Sexpr::False, SourceLocation::from_spanned(se.span, source))
+            PS::String(s) => {
+                TrackedSexpr::escaped_string(s).with_src(se.span.into_location(source))
             }
-            PS::Char(ch) => TrackedSexpr::new(
-                Sexpr::Char(ch),
-                SourceLocation::from_spanned(se.span, source),
-            ),
-            PS::Symbol(s) => TrackedSexpr::new(
-                Sexpr::Symbol(s.into()),
-                SourceLocation::from_spanned(se.span, source),
-            ),
-            PS::String(s) => TrackedSexpr::escaped_string(s)
-                .with_src(SourceLocation::from_spanned(se.span, source)),
-            PS::Integer(i) => {
-                TrackedSexpr::new(Sexpr::Int(i), SourceLocation::from_spanned(se.span, source))
-            }
-            PS::Float(f) => TrackedSexpr::new(
-                Sexpr::Float(f),
-                SourceLocation::from_spanned(se.span, source),
-            ),
+            PS::Integer(i) => TrackedSexpr::new(Sexpr::Int(i), se.span.into_location(source)),
+            PS::Float(f) => TrackedSexpr::new(Sexpr::Float(f), se.span.into_location(source)),
             PS::List(l) if l.is_empty() => {
-                TrackedSexpr::new(Sexpr::Nil, SourceLocation::from_spanned(se.span, source))
+                TrackedSexpr::new(Sexpr::Nil, se.span.into_location(source))
             }
             PS::List(l) => {
-                let mut out_list = TrackedSexpr::nil(
-                    SourceLocation::from_spanned(se.span, source.clone()).last_char(),
-                );
+                let mut out_list =
+                    TrackedSexpr::nil(se.span.into_location(source.clone()).last_char());
                 for x in l.into_iter().rev() {
                     if let PS::Dot = x.expr {
                         out_list = out_list.decons().unwrap().0;
                     } else {
-                        let src = out_list
-                            .src
-                            .start_at(&SourceLocation::from_spanned(x.span, source.clone()));
+                        let src = out_list.src.start_at(&x.span.into_location(source.clone()));
                         out_list = TrackedSexpr::cons(
                             Self::from_spanned(x, source.clone()),
                             out_list,
@@ -145,10 +129,7 @@ impl TrackedSexpr {
                     .into_iter()
                     .map(|i| Self::from_spanned(i, source.clone()))
                     .collect();
-                TrackedSexpr::new(
-                    Sexpr::Vector(items.into()),
-                    SourceLocation::from_spanned(se.span, source),
-                )
+                TrackedSexpr::new(Sexpr::Vector(items.into()), se.span.into_location(source))
             }
             x => unimplemented!("SpannedSexpr::{:?} --> TrackesSexpr", x),
         }

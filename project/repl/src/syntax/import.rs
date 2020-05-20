@@ -3,10 +3,7 @@ use crate::scm::Scm;
 use crate::syntax::{Reify, Variable};
 use std::iter::FromIterator;
 use std::path::PathBuf;
-use sunny_common::Named;
-use sunny_common::Symbol;
-use sunny_parser::SourceLocation::NoSource;
-use sunny_parser::{impl_sourced, SourceLocation};
+use sunny_common::{impl_sourced, Named, SourceLocation, SourceLocation::NoSource, Symbol};
 
 #[derive(Debug, Clone)]
 pub struct Import {

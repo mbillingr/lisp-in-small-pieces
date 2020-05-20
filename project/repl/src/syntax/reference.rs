@@ -3,9 +3,7 @@ use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::{Reify, Variable};
-use sunny_common::Named;
-use sunny_common::Symbol;
-use sunny_parser::{impl_sourced, SourceLocation, Sourced};
+use sunny_common::{impl_sourced, Named, SourceLocation, Sourced, Symbol};
 
 use sunny_common::sum_type;
 

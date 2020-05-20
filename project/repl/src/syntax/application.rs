@@ -2,7 +2,7 @@ use super::expression::Expression;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::Reify;
-use sunny_parser::{impl_sourced, SourceLocation};
+use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct Application {

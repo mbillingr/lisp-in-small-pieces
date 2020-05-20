@@ -4,8 +4,7 @@ use super::variable::GlobalVariable;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::Reify;
-use sunny_common::{sum_type, Named};
-use sunny_parser::{impl_sourced, SourceLocation, Sourced};
+use sunny_common::{impl_sourced, sum_type, Named, SourceLocation, Sourced};
 
 sum_type! {
     #[derive(Debug, Clone)]

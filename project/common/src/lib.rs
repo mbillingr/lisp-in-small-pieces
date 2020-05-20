@@ -1,8 +1,13 @@
 extern crate lazy_static;
 
 mod named;
-pub mod sum_type;
-pub mod symbol;
+mod source;
+mod sum_type;
+mod symbol;
+#[macro_use]
+mod sourced;
 
 pub use named::Named;
+pub use source::{Source, SourceLocation, Span};
+pub use sourced::Sourced;
 pub use symbol::Symbol;

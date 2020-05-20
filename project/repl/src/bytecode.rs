@@ -9,8 +9,8 @@ use crate::syntax::Library;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::path::Path;
+use sunny_common::SourceLocation;
 use sunny_common::Symbol;
-use sunny_parser::SourceLocation;
 
 #[derive(Debug, Clone)]
 pub struct CodeObject {

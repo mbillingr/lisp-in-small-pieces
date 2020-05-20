@@ -16,11 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use sunny_common::Named;
-use sunny_common::Symbol;
-use sunny_parser::SourceLocation::NoSource;
-use sunny_parser::Sourced;
-use sunny_parser::{Source, SourceLocation};
+use sunny_common::{Named, Source, SourceLocation, SourceLocation::NoSource, Sourced, Symbol};
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectifyErrorKind {

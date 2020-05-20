@@ -24,8 +24,7 @@ pub mod scheme {
     use std::ops::Rem;
     use std::path::{Path, PathBuf};
     use std::time::Instant;
-    use sunny_common::Symbol;
-    use sunny_parser::{Source, SourceLocation::NoSource};
+    use sunny_common::{Source, SourceLocation::NoSource, Symbol};
 
     pub struct Context {
         pub vm: VirtualMachine,

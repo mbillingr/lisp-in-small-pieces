@@ -35,6 +35,10 @@ impl Source {
 }
 
 impl Span {
+    pub fn new(src: Source, start: usize, end: usize) -> Self {
+        Span { src, start, end }
+    }
+
     pub fn last_char(&self) -> Self {
         Span {
             src: self.src.clone(),
@@ -110,14 +114,6 @@ impl std::fmt::Display for Span {
 }
 
 impl SourceLocation {
-    pub fn from_spanned(span: crate::Span, src: Source) -> Self {
-        SourceLocation::Span(Span {
-            src,
-            start: span.start,
-            end: span.end,
-        })
-    }
-
     pub fn last_char(&self) -> Self {
         match self {
             SourceLocation::NoSource => SourceLocation::NoSource,

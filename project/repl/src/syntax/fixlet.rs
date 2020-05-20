@@ -3,8 +3,7 @@ use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::scm::Scm;
 use crate::syntax::Reify;
-use sunny_common::Named;
-use sunny_parser::{impl_sourced, SourceLocation};
+use sunny_common::{impl_sourced, Named, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct FixLet {

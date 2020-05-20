@@ -6,7 +6,7 @@ use crate::scm::Scm;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::path::Path;
-use sunny_parser::{Source, SourceLocation};
+use sunny_common::{Source, SourceLocation};
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 

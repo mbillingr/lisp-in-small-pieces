@@ -16,11 +16,7 @@ use super::sequence::Sequence;
 use crate::ast_transform::{Transformer, Visited};
 use crate::scm::Scm;
 use crate::syntax::Reify;
-use sunny_parser::SourceLocation;
-use sunny_parser::SourceLocation::NoSource;
-use sunny_parser::Sourced;
-
-use sunny_common::{sum_type, sum_types};
+use sunny_common::{sum_type, sum_types, SourceLocation, SourceLocation::NoSource, Sourced};
 
 sum_types! {
     #[derive(Debug, Clone)]
