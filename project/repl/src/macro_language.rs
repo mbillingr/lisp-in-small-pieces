@@ -1,6 +1,6 @@
 use crate::env::Env;
 use crate::error::{Error, Result};
-use crate::objectify::{ObjectifyErrorKind, Translate};
+use crate::objectify::{ObjectifyErrorKind, Result as ObjectifyResult, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::syntactic_closure::SyntacticClosure;
 use crate::syntax::{Expression, MagicKeywordHandler};
@@ -49,7 +49,7 @@ pub fn eval_syntax_rules(
 ) -> Result<MagicKeywordHandler> {
     let rules = prepare_rules(&ellipsis, &literals, &rules, &definition_env)?;
     Ok(MagicKeywordHandler::new(
-        move |trans: &mut Translate, expr: &TrackedSexpr| -> Result<Expression> {
+        move |trans: &mut Translate, expr: &TrackedSexpr| -> ObjectifyResult<Expression> {
             let sexpr = apply_syntax_rules(
                 name,
                 expr,

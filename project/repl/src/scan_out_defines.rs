@@ -1,15 +1,14 @@
-use crate::error::{Error, Result};
-use crate::objectify::ObjectifyErrorKind;
+use crate::objectify::{ObjectifyErrorKind, Result as ObjectifyResult};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use sunny_common::{SourceLocation, Symbol};
 use SourceLocation::NoSource;
 
-pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
+pub fn scan_out_defines(body: TrackedSexpr) -> ObjectifyResult<TrackedSexpr> {
     let uninit: TrackedSexpr = Sexpr::Uninitialized.into();
 
     let mut variables = TrackedSexpr::nil(NoSource);
     let mut values = TrackedSexpr::nil(NoSource);
-    body.scan(|expr| -> Result<()> {
+    body.scan(|expr| -> ObjectifyResult<()> {
         if is_definition(expr) {
             let vars = std::mem::replace(&mut variables, TrackedSexpr::nil(NoSource));
             variables = TrackedSexpr::cons(definition_variable(expr)?.clone(), vars, NoSource);
@@ -22,7 +21,7 @@ pub fn scan_out_defines(body: TrackedSexpr) -> Result<TrackedSexpr> {
         return Ok(body);
     }
 
-    fn transform(body: TrackedSexpr) -> Result<TrackedSexpr> {
+    fn transform(body: TrackedSexpr) -> ObjectifyResult<TrackedSexpr> {
         match body.decons() {
             Ok((mut expr, rest)) => {
                 let src = rest.src.start_at(&expr.src);
@@ -51,13 +50,13 @@ fn is_definition(expr: &TrackedSexpr) -> bool {
     expr.at(0).map(|sx| sx == "define").unwrap_or(false)
 }
 
-pub fn definition_variable(expr: &TrackedSexpr) -> Result<&TrackedSexpr> {
+pub fn definition_variable(expr: &TrackedSexpr) -> ObjectifyResult<&TrackedSexpr> {
     expr.at(1)
         .and_then(|var| if var.is_symbol() { Ok(var) } else { var.car() })
-        .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
+        .map_err(|_| ObjectifyErrorKind::ExpectedList.with_context(expr))
 }
 
-pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
+pub fn definition_value(expr: &TrackedSexpr) -> ObjectifyResult<TrackedSexpr> {
     expr.at(1)
         .and_then(|var| {
             if var.is_symbol() {
@@ -70,7 +69,7 @@ pub fn definition_value(expr: &TrackedSexpr) -> Result<TrackedSexpr> {
                 ))
             }
         })
-        .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
+        .map_err(|_| ObjectifyErrorKind::ExpectedList.with_context(expr))
 }
 
 fn make_assignment(variable: TrackedSexpr, value: TrackedSexpr) -> TrackedSexpr {

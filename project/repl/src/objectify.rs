@@ -1,5 +1,5 @@
 use crate::env::Env;
-use crate::error::{Error, Result};
+use crate::error::ErrorContext;
 use crate::library::{is_import, libname_to_path};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::syntax::definition::GlobalDefine;
@@ -18,7 +18,32 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use sunny_common::{Named, Source, SourceLocation, SourceLocation::NoSource, Sourced, Symbol};
 
-#[derive(Debug, PartialEq)]
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
+pub struct Error {
+    pub kind: ObjectifyErrorKind,
+    pub context: ErrorContext,
+}
+
+impl Error {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> Self {
+        Error {
+            context: context.into(),
+            ..self
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self.kind)
+    }
+}
+
+impl std::error::Error for Error {}
+
+#[derive(Debug)]
 pub enum ObjectifyErrorKind {
     SyntaxError(&'static str),
     NoPair,
@@ -30,6 +55,44 @@ pub enum ObjectifyErrorKind {
     InvalidLibraryDefinition,
     UndefinedVariable(Symbol),
     MismatchedEllipses,
+
+    IoError(std::io::Error),
+
+    /// The "global" error type will be removed
+    Deprecated(Box<crate::error::ErrorKind>),
+}
+
+impl ObjectifyErrorKind {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> Error {
+        Error {
+            kind: self,
+            context: context.into(),
+        }
+    }
+    pub fn without_context(self) -> Error {
+        Error {
+            kind: self,
+            context: ErrorContext::None,
+        }
+    }
+}
+
+impl From<crate::error::Error> for Error {
+    fn from(e: crate::error::Error) -> Self {
+        Error {
+            kind: ObjectifyErrorKind::Deprecated(Box::new(e.kind)),
+            context: e.context,
+        }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error {
+            kind: ObjectifyErrorKind::IoError(e),
+            context: ErrorContext::None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -148,7 +211,7 @@ impl Translate {
                 self.objectify(car)
             }
         } else {
-            Err(Error::at_expr(ObjectifyErrorKind::ExpectedList, exprs))
+            Err(ObjectifyErrorKind::ExpectedList.with_context(exprs))
         }
     }
 
@@ -195,7 +258,7 @@ impl Translate {
         while !args.is_null() {
             let car = args
                 .car()
-                .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, args))?;
+                .map_err(|_| ObjectifyErrorKind::ExpectedList.with_context(args))?;
             args_list.push(self.objectify(car)?);
             args = args.cdr().unwrap();
         }
@@ -223,7 +286,7 @@ impl Translate {
             if args.len() == func.variables.len() {
                 Ok(FixLet::new(func.variables, args, func.body, span).into())
             } else {
-                Err(Error::at_span(ObjectifyErrorKind::IncorrectArity, span))
+                Err(ObjectifyErrorKind::IncorrectArity.with_context(span))
             }
         }
     }
@@ -238,7 +301,7 @@ impl Translate {
         let body = func.body;
 
         if args.len() + 1 < variables.len() {
-            return Err(Error::at_span(ObjectifyErrorKind::IncorrectArity, span));
+            return Err(ObjectifyErrorKind::IncorrectArity.with_context(span));
         }
 
         let cons_var: GlobalVariable = self
@@ -358,10 +421,7 @@ impl Translate {
 
                 Ok(GlobalAssignment::new(gvar, of, span).into())
             }
-            _ => Err(Error::at_span(
-                ObjectifyErrorKind::ImmutableAssignment,
-                span,
-            )),
+            _ => Err(ObjectifyErrorKind::ImmutableAssignment.with_context(span)),
         }
     }
 
@@ -468,7 +528,7 @@ impl Translate {
         } else {
             Err(
                 ObjectifyErrorKind::UndefinedVariable(only_names.into_iter().next().unwrap())
-                    .into(),
+                    .without_context(),
             )
         }
     }
@@ -607,7 +667,7 @@ impl Translate {
                 Ok(vec![self.objectify_library_declaration(car)?])
             }
         } else {
-            Err(Error::at_expr(ObjectifyErrorKind::ExpectedList, body))
+            Err(ObjectifyErrorKind::ExpectedList.with_context(body))
         }
     }
 
@@ -621,10 +681,7 @@ impl Translate {
                 .objectify_library_export(decl.cdr().unwrap())
                 .map(Into::into),
             Ok(x) if x == "import" => self.objectify_library_import(decl).map(Into::into),
-            _ => Err(Error::at_expr(
-                ObjectifyErrorKind::InvalidLibraryDefinition,
-                decl,
-            )),
+            _ => Err(ObjectifyErrorKind::InvalidLibraryDefinition.with_context(decl)),
         }
     }
 
@@ -651,17 +708,11 @@ impl Translate {
                             .and_then(|(old, caddar)| caddar.as_symbol().map(|new| (*old, *new)))?;
                         export.adjoin_rename(old, new, car.source());
                     }
-                    _ => Err(Error::at_expr(
-                        ObjectifyErrorKind::InvalidLibraryDefinition,
-                        car,
-                    ))?,
+                    _ => Err(ObjectifyErrorKind::InvalidLibraryDefinition.with_context(car))?,
                 };
                 Ok(export)
             }
-            _ => Err(Error::at_expr(
-                ObjectifyErrorKind::InvalidLibraryDefinition,
-                specs,
-            )),
+            _ => Err(ObjectifyErrorKind::InvalidLibraryDefinition.with_context(specs)),
         }
     }
 
@@ -673,13 +724,14 @@ impl Translate {
             let file_path = if let Some(p) = find_library(&library_path) {
                 p
             } else {
-                return Err(Error::at_expr(
-                    ObjectifyErrorKind::UnknownLibrary(library_path),
-                    library_name,
-                ));
+                return Err(
+                    ObjectifyErrorKind::UnknownLibrary(library_path).with_context(library_name)
+                );
             };
 
-            let library_code = Source::from_file(&file_path)?;
+            let library_code = Source::from_file(&file_path)
+                .map_err(Error::from)
+                .map_err(|e| e.with_context(library_name))?;
 
             let lib = self.parse_library(library_code)?;
             let lib = Rc::new(lib);
@@ -694,23 +746,15 @@ impl Translate {
     pub fn parse_library(&mut self, code: Source) -> Result<Library> {
         let sexprs = TrackedSexpr::from_source(&code)?;
         if sexprs.len() == 0 {
-            return Err(Error::at_span(
-                ObjectifyErrorKind::InvalidLibraryDefinition,
-                code.into(),
-            ));
+            return Err(ObjectifyErrorKind::InvalidLibraryDefinition.with_context(code));
         }
         if ocar(&sexprs[0])? != "define-library" {
-            return Err(Error::at_span(
-                ObjectifyErrorKind::InvalidLibraryDefinition,
-                sexprs[0].source().clone(),
-            ));
+            return Err(ObjectifyErrorKind::InvalidLibraryDefinition
+                .with_context(sexprs[0].source().clone()));
         }
         if sexprs.len() > 1 {
             let span = sexprs.last().unwrap().source().start_at(sexprs[1].source());
-            return Err(Error::at_span(
-                ObjectifyErrorKind::InvalidLibraryDefinition,
-                span,
-            ));
+            return Err(ObjectifyErrorKind::InvalidLibraryDefinition.with_context(span));
         }
 
         let sexpr = &sexprs[0];
@@ -732,11 +776,11 @@ impl Translate {
 }
 
 pub fn ocar(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
-    e.car()
+    e.car().map_err(Error::from)
 }
 
 pub fn ocdr(e: &TrackedSexpr) -> Result<&TrackedSexpr> {
-    e.cdr()
+    e.cdr().map_err(Error::from)
 }
 
 pub fn decons(e: &TrackedSexpr) -> Result<(&TrackedSexpr, &TrackedSexpr)> {

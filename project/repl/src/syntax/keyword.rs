@@ -1,7 +1,6 @@
 use super::Expression;
 use crate::ast_transform::Transformer;
-use crate::error::Result;
-use crate::objectify::Translate;
+use crate::objectify::{Result as ObjectifyResult, Translate};
 use crate::sexpr::TrackedSexpr;
 use std::rc::Rc;
 use sunny_common::Named;
@@ -14,16 +13,22 @@ pub struct MagicKeyword {
 }
 
 #[derive(Clone)]
-pub struct MagicKeywordHandler(Rc<Rc<dyn Fn(&mut Translate, &TrackedSexpr) -> Result<Expression>>>);
+pub struct MagicKeywordHandler(
+    Rc<Rc<dyn Fn(&mut Translate, &TrackedSexpr) -> ObjectifyResult<Expression>>>,
+);
 
 impl MagicKeywordHandler {
     pub fn new(
-        handler: impl Fn(&mut Translate, &TrackedSexpr) -> Result<Expression> + 'static,
+        handler: impl Fn(&mut Translate, &TrackedSexpr) -> ObjectifyResult<Expression> + 'static,
     ) -> Self {
         MagicKeywordHandler(Rc::new(Rc::new(handler)))
     }
 
-    pub fn invoke(&self, trans: &mut Translate, sexpr: &TrackedSexpr) -> Result<Expression> {
+    pub fn invoke(
+        &self,
+        trans: &mut Translate,
+        sexpr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         (self.0)(trans, sexpr)
     }
 
@@ -42,7 +47,7 @@ impl std::fmt::Debug for MagicKeyword {
 impl MagicKeyword {
     pub fn new(
         name: impl Into<Symbol>,
-        handler: impl Fn(&mut Translate, &TrackedSexpr) -> Result<Expression> + 'static,
+        handler: impl Fn(&mut Translate, &TrackedSexpr) -> ObjectifyResult<Expression> + 'static,
     ) -> Self {
         MagicKeyword {
             name: name.into(),

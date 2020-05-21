@@ -1,4 +1,4 @@
-use crate::objectify::ObjectifyErrorKind;
+use crate::objectify::{Error as ObjectifyError, ObjectifyErrorKind};
 use crate::scm::Scm;
 use crate::sexpr::TrackedSexpr;
 use std::fmt::{Display, Formatter};
@@ -143,6 +143,15 @@ impl From<ObjectifyErrorKind> for ErrorKind {
     }
 }
 
+impl From<ObjectifyError> for Error {
+    fn from(err: ObjectifyError) -> Self {
+        Error {
+            kind: ErrorKind::Objectify(err.kind),
+            context: err.context,
+        }
+    }
+}
+
 impl From<std::io::Error> for ErrorKind {
     fn from(err: std::io::Error) -> Self {
         ErrorKind::IoError(err)
@@ -187,86 +196,14 @@ impl std::fmt::Display for ErrorKind {
     }
 }
 
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
+impl From<SourceLocation> for ErrorContext {
+    fn from(src: SourceLocation) -> Self {
+        ErrorContext::Source(src)
     }
 }
 
-impl PartialEq for ErrorKind {
-    fn eq(&self, other: &Self) -> bool {
-        use ErrorKind::*;
-        match (self, other) {
-            (Custom(a), Custom(b)) => a == b,
-            (Parse(a), Parse(b)) => a == b,
-            (Objectify(a), Objectify(b)) => a == b,
-            (Compile(a), Compile(b)) => a == b,
-            (Runtime(a), Runtime(b)) => a == b,
-            (TypeError(a), TypeError(b)) => a == b,
-            (IoError(_), IoError(_)) => false,
-            (Utf8Error(a), Utf8Error(b)) => a == b,
-            (Unhandled(a), Unhandled(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<ObjectifyErrorKind> for Error {
-    fn eq(&self, other: &ObjectifyErrorKind) -> bool {
-        match self.kind {
-            ErrorKind::Objectify(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for ObjectifyErrorKind {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<ParseErrorKind> for Error {
-    fn eq(&self, other: &ParseErrorKind) -> bool {
-        match self.kind {
-            ErrorKind::Parse(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for ParseErrorKind {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<RuntimeError> for Error {
-    fn eq(&self, other: &RuntimeError) -> bool {
-        match self.kind {
-            ErrorKind::Runtime(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for RuntimeError {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<TypeError> for Error {
-    fn eq(&self, other: &TypeError) -> bool {
-        match self.kind {
-            ErrorKind::TypeError(ref e) => e == other,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq<Error> for TypeError {
-    fn eq(&self, other: &Error) -> bool {
-        other.eq(self)
+impl From<Source> for ErrorContext {
+    fn from(src: Source) -> Self {
+        ErrorContext::Source(src.into())
     }
 }

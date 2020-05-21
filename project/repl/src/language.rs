@@ -7,7 +7,10 @@ pub mod scheme {
     use crate::error::{Error, Result, RuntimeError, TypeError};
     use crate::library::{LibraryBuilder, LibraryData};
     use crate::macro_language::eval_syntax;
-    use crate::objectify::{decons, ocar, ocdr, ObjectifyErrorKind, Translate};
+    use crate::objectify::{
+        decons, ocar, ocdr, ObjectifyErrorKind, Result as ObjectifyResult,
+        Translate,
+    };
     use crate::ports::SchemePort;
     use crate::primitive::{Arity, RuntimePrimitive};
     use crate::scan_out_defines::{
@@ -353,12 +356,15 @@ pub mod scheme {
         trans.objectify(&x)
     }*/
 
-    pub fn expand_lambda(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_lambda(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         let def = &ocdr(expr)?;
         let names = ocar(def)?;
 
         let mut rebound = vec![];
-        names.scan_improper(|name, _is_last_cdr| -> Result<()> {
+        names.scan_improper(|name, _is_last_cdr| -> ObjectifyResult<()> {
             if let Some(alias) = name.as_alias() {
                 rebound.push((alias.clone(), alias.alias_name().unwrap(), alias.is_bound()));
                 alias.set_bound(true);
@@ -380,7 +386,7 @@ pub mod scheme {
         Ok(result)
     }
 
-    pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_let(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         let def = ocdr(expr)?;
         let vars = ocar(def)?;
         let body = ocdr(def)?;
@@ -391,10 +397,8 @@ pub mod scheme {
             v.at(0)
                 .and_then(|name| v.at(1).map(|form| (name, form)))
                 .map_err(|_| {
-                    Error::at_expr(
-                        ObjectifyErrorKind::SyntaxError("invalid variable definition in let form"),
-                        body,
-                    )
+                    ObjectifyErrorKind::SyntaxError("invalid variable definition in let form")
+                        .with_context(body)
                 })
                 .map(|(name, form)| {
                     var_names.push(name.clone());
@@ -428,25 +432,31 @@ pub mod scheme {
         Ok(result)
     }
 
-    pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_begin(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         trans.objectify_sequence(ocdr(expr)?)
     }
 
-    pub fn expand_assign(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_assign(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         expr.at(1)
             .and_then(|variable| expr.at(2).map(|expr| (variable, expr)))
-            .map_err(|_| Error::at_expr(ObjectifyErrorKind::ExpectedList, expr))
+            .map_err(|_| ObjectifyErrorKind::ExpectedList.with_context(expr))
             .and_then(|(variable, form)| {
                 trans.objectify_assignment(variable, form, expr.source().clone())
             })
     }
 
-    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_quote(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         let body = &ocdr(expr)?;
         trans.objectify_quotation(ocar(body)?)
     }
 
-    pub fn expand_alternative(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_alternative(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         let rest = ocdr(expr)?;
         let (cond, rest) = decons(&rest)?;
         let (yes, rest) = decons(&rest)?;
@@ -454,17 +464,20 @@ pub mod scheme {
         trans.objectify_alternative(cond, yes, no, expr.source().clone())
     }
 
-    pub fn expand_define(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_define(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         let definee = definition_variable(expr)?;
         let form = definition_value(expr)?;
         trans.objectify_definition(definee, &form, expr.source().clone())
     }
 
-    pub fn expand_letcc(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_letcc(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         expand_letcont(trans, expr, LetContKind::IndefiniteContinuation)
     }
 
-    pub fn expand_letep(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_letep(trans: &mut Translate, expr: &TrackedSexpr) -> ObjectifyResult<Expression> {
         expand_letcont(trans, expr, LetContKind::ExitProcedure)
     }
 
@@ -472,7 +485,7 @@ pub mod scheme {
         trans: &mut Translate,
         expr: &TrackedSexpr,
         kind: LetContKind,
-    ) -> Result<Expression> {
+    ) -> ObjectifyResult<Expression> {
         let def = ocdr(expr)?;
         let var_name = ocar(def)?;
         let body = ocdr(def)?;
@@ -484,7 +497,13 @@ pub mod scheme {
             alias.rename();
         }
 
-        let var = LocalVariable::new(var_name.as_symbol()?, false, false);
+        let var = LocalVariable::new(
+            var_name
+                .as_symbol()
+                .map_err(|e| ObjectifyErrorKind::ExpectedSymbol.with_context(e.context))?,
+            false,
+            false,
+        );
 
         trans.env.push_local(var.clone());
         let body = trans.objectify_sequence(body)?;
@@ -500,7 +519,10 @@ pub mod scheme {
         Ok(ast.into())
     }
 
-    pub fn expand_define_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_define_syntax(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         let name = *expr.at(1)?.as_symbol()?;
         let handler = eval_syntax(expr.cdr()?, &trans.env)?;
         let macro_binding = MagicKeyword { name, handler };
@@ -508,7 +530,10 @@ pub mod scheme {
         Ok(Expression::NoOp(NoOp))
     }
 
-    pub fn expand_let_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_let_syntax(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         let def = ocdr(expr)?;
         let bindings = ocar(def)?;
         let body = ocdr(def)?;
@@ -545,7 +570,10 @@ pub mod scheme {
         result
     }
 
-    pub fn expand_letrec_syntax(trans: &mut Translate, expr: &TrackedSexpr) -> Result<Expression> {
+    pub fn expand_letrec_syntax(
+        trans: &mut Translate,
+        expr: &TrackedSexpr,
+    ) -> ObjectifyResult<Expression> {
         let def = ocdr(expr)?;
         let bindings = ocar(def)?;
         let body = ocdr(def)?;
@@ -1151,7 +1179,7 @@ pub mod scheme {
             assert_error!(nested_ellipses_mismatch:
                 r#"(define-syntax nest (syntax-rules () ((_ (x ...) ...) '((x ...) ))))
                    (nest (1 2) (3 4 5))"#,
-                 "Syntax Error: MismatchedEllipses");
+                 "Syntax Error: Deprecated(Objectify(MismatchedEllipses))");
 
             compare!(macro_generating_macro:
                 r#"(define-syntax be-like-begin
@@ -1278,7 +1306,7 @@ pub mod scheme {
                 let mut ctx = create_testing_context();
                 ctx.eval_str("(define a 42)").unwrap();
                 ctx.eval_str("(import (testing 1))").unwrap();
-                assert_eq!(ctx.eval_str("a"), Ok(Scm::Int(1)));
+                assert_eq!(ctx.eval_str("a").unwrap(), Scm::Int(1));
             }
         }
 

@@ -1,4 +1,4 @@
-use crate::error::{Error, Result, TypeError};
+use crate::error::{Error, ErrorContext, Result, TypeError};
 use crate::scm::Scm;
 use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
@@ -410,5 +410,17 @@ impl PartialEq<str> for TrackedSexpr {
 impl PartialEq for TrackedSexpr {
     fn eq(&self, other: &Self) -> bool {
         self.sexpr == other.sexpr
+    }
+}
+
+impl From<TrackedSexpr> for ErrorContext {
+    fn from(sexpr: TrackedSexpr) -> Self {
+        ErrorContext::Source(sexpr.src)
+    }
+}
+
+impl From<&TrackedSexpr> for ErrorContext {
+    fn from(sexpr: &TrackedSexpr) -> Self {
+        ErrorContext::Source(sexpr.src.clone())
     }
 }

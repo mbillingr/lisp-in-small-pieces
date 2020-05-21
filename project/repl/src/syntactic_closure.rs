@@ -1,6 +1,5 @@
 use crate::env::Env;
-use crate::error::Result;
-use crate::objectify::Translate;
+use crate::objectify::{Result as ObjectifyResult, Translate};
 use crate::sexpr::{Sexpr, TrackedSexpr};
 use crate::syntax::Expression;
 use std::cell::Cell;
@@ -40,7 +39,7 @@ impl SyntacticClosure {
         &self.sexpr
     }
 
-    pub fn expand(&self, trans: &mut Translate) -> Result<Expression> {
+    pub fn expand(&self, trans: &mut Translate) -> ObjectifyResult<Expression> {
         if self.is_bound() {
             return trans.objectify(&self.sexpr);
         }
