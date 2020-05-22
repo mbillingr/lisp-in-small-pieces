@@ -1,6 +1,6 @@
 use crate::ast_transform::generate_bytecode::{compile_library, GlobalAllocator};
 use crate::continuation::{Continuation, ExitProcedure};
-use crate::error::{ErrorKind, Result, RuntimeError, TypeError};
+use crate::error::{ErrorKind, Result, RuntimeError, TypeErrorKind};
 use crate::objectify::Translate;
 use crate::primitive::{Arity, RuntimePrimitive};
 use crate::scm::Scm;
@@ -238,7 +238,7 @@ impl VirtualMachine {
             Scm::Closure(cls) => self.eval(cls, args),
             Scm::Primitive(pri) => (pri.func())(args, self),
             Scm::Continuation(_) => unimplemented!(),
-            f => Err(TypeError::NotCallable(f).into()),
+            f => Err(TypeErrorKind::NotCallable(f).into()),
         }
     }
 

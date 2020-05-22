@@ -4,12 +4,11 @@ pub mod scheme {
     use crate::ast_transform::generate_bytecode::compile_program;
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
-    use crate::error::{Error, Result, RuntimeError, TypeError};
+    use crate::error::{Error, Result, RuntimeError, TypeErrorKind};
     use crate::library::{LibraryBuilder, LibraryData};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{
-        decons, ocar, ocdr, ObjectifyErrorKind, Result as ObjectifyResult,
-        Translate,
+        decons, ocar, ocdr, ObjectifyErrorKind, Result as ObjectifyResult, Translate,
     };
     use crate::ports::SchemePort;
     use crate::primitive::{Arity, RuntimePrimitive};
@@ -312,7 +311,7 @@ pub mod scheme {
                 if x >= 0 && x <= 255 {
                     port.as_port()?.write_u8(x as u8)
                 } else {
-                    Err(TypeError::NoU8.into())
+                    Err(TypeErrorKind::NoU8.into())
                 }
              };
             native "write-bytevector", >=2, |s: Scm, port: Scm, args: &[Scm]| -> Result<()> {

@@ -1,7 +1,7 @@
 use crate::env::Env;
 use crate::error::ErrorContext;
 use crate::library::{is_import, libname_to_path};
-use crate::sexpr::{Sexpr, TrackedSexpr};
+use crate::sexpr::{Error as SexprError, ErrorKind as SexprErrorKind, Sexpr, TrackedSexpr};
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
 use crate::syntax::{
@@ -57,6 +57,7 @@ pub enum ObjectifyErrorKind {
     MismatchedEllipses,
 
     IoError(std::io::Error),
+    SexprError(SexprErrorKind),
 
     /// The "global" error type will be removed
     Deprecated(Box<crate::error::ErrorKind>),
@@ -91,6 +92,15 @@ impl From<std::io::Error> for Error {
         Error {
             kind: ObjectifyErrorKind::IoError(e),
             context: ErrorContext::None,
+        }
+    }
+}
+
+impl From<SexprError> for Error {
+    fn from(e: SexprError) -> Self {
+        Error {
+            kind: ObjectifyErrorKind::SexprError(e.kind),
+            context: e.context,
         }
     }
 }

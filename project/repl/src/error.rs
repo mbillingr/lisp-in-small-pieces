@@ -1,9 +1,9 @@
 use crate::objectify::{Error as ObjectifyError, ObjectifyErrorKind};
 use crate::scm::Scm;
-use crate::sexpr::TrackedSexpr;
+use crate::sexpr::{Error as SexprError, ErrorKind as SexprErrorKind, TrackedSexpr};
 use std::fmt::{Display, Formatter};
 use sunny_common::{Source, SourceLocation, Symbol};
-use sunny_parser::{ParseError, ParseErrorKind};
+use sunny_parser::ParseErrorKind;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -28,11 +28,26 @@ pub enum ErrorKind {
     Objectify(ObjectifyErrorKind),
     Compile(CompileError),
     Runtime(RuntimeError),
-    TypeError(TypeError),
+    TypeError(TypeErrorKind),
     IoError(std::io::Error),
     Utf8Error(std::str::Utf8Error),
 
     Unhandled(Scm),
+}
+
+impl ErrorKind {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> Error {
+        Error {
+            kind: self,
+            context: context.into(),
+        }
+    }
+    pub fn without_context(self) -> Error {
+        Error {
+            kind: self,
+            context: ErrorContext::None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -67,8 +82,14 @@ impl std::fmt::Debug for RuntimeError {
     }
 }
 
+#[derive(Debug)]
+pub struct TypeError {
+    pub kind: TypeErrorKind,
+    pub context: ErrorContext,
+}
+
 #[derive(Debug, PartialEq)]
-pub enum TypeError {
+pub enum TypeErrorKind {
     WrongType,
     NotCallable(Scm),
     NoNumber(Scm),
@@ -86,6 +107,21 @@ pub enum TypeError {
     NoRustObject(Scm),
     OutOfBounds,
     ValueOutOfRange(Scm),
+}
+
+impl TypeErrorKind {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> TypeError {
+        TypeError {
+            kind: self,
+            context: context.into(),
+        }
+    }
+    pub fn without_context(self) -> TypeError {
+        TypeError {
+            kind: self,
+            context: ErrorContext::None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -131,8 +167,8 @@ impl From<RuntimeError> for ErrorKind {
     }
 }
 
-impl From<TypeError> for ErrorKind {
-    fn from(err: TypeError) -> Self {
+impl From<TypeErrorKind> for ErrorKind {
+    fn from(err: TypeErrorKind) -> Self {
         ErrorKind::TypeError(err)
     }
 }
@@ -170,6 +206,27 @@ impl From<std::string::FromUtf8Error> for ErrorKind {
     }
 }
 
+impl From<TypeError> for Error {
+    fn from(err: TypeError) -> Self {
+        Error {
+            kind: ErrorKind::TypeError(err.kind),
+            context: err.context,
+        }
+    }
+}
+
+impl From<SexprError> for Error {
+    fn from(err: SexprError) -> Self {
+        Error {
+            kind: match err.kind {
+                SexprErrorKind::ParseError(pek) => ErrorKind::Parse(pek),
+                SexprErrorKind::TypeError(tek) => ErrorKind::TypeError(tek),
+            },
+            context: err.context,
+        }
+    }
+}
+/*
 impl Error {
     pub fn from_parse_error_and_source(err: ParseError, src: Source) -> Error {
         assert_eq!(err.location.text, &*src.content);
@@ -178,7 +235,7 @@ impl Error {
             context: ErrorContext::Source(src.loc(err.location.start, err.location.end)),
         }
     }
-}
+}*/
 
 impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

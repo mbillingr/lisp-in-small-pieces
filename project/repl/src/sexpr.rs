@@ -1,10 +1,48 @@
-use crate::error::{Error, ErrorContext, Result, TypeError};
+use crate::error::{ErrorContext, TypeError, TypeErrorKind};
 use crate::scm::Scm;
 use crate::syntactic_closure::SyntacticClosure;
 use std::fmt::Debug;
 use std::rc::Rc;
 use sunny_common::{Source, SourceLocation, Symbol};
-use sunny_parser::{parse, Sexpr as PS, SpannedSexpr};
+use sunny_parser::{parse, ParseErrorKind, Sexpr as PS, SpannedSexpr};
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
+pub struct Error {
+    pub kind: ErrorKind,
+    pub context: ErrorContext,
+}
+
+#[derive(Debug)]
+pub enum ErrorKind {
+    ParseError(ParseErrorKind),
+    TypeError(TypeErrorKind),
+}
+
+impl ErrorKind {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> Error {
+        Error {
+            kind: self,
+            context: context.into(),
+        }
+    }
+    pub fn without_context(self) -> Error {
+        Error {
+            kind: self,
+            context: ErrorContext::None,
+        }
+    }
+}
+
+impl From<TypeError> for Error {
+    fn from(e: TypeError) -> Self {
+        Error {
+            kind: ErrorKind::TypeError(e.kind),
+            context: e.context,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TrackedSexpr {
@@ -87,7 +125,10 @@ impl TrackedSexpr {
                     .map(|sexpr| Self::from_spanned(sexpr, source.clone()))
                     .collect()
             })
-            .map_err(|e| Error::from_parse_error_and_source(e, source.clone()))
+            .map_err(|e| {
+                let src = source.clone().loc(e.location.start, e.location.end);
+                ErrorKind::ParseError(e.kind).with_context(src)
+            })
     }
 
     pub fn from_spanned(se: SpannedSexpr, source: Source) -> Self {
@@ -226,20 +267,14 @@ impl TrackedSexpr {
     pub fn car(&self) -> Result<&Self> {
         match &self.sexpr {
             Sexpr::Pair(p) => Ok(&p.0),
-            _ => Err(Error::at_expr(
-                TypeError::NoPair(Scm::string(format!("{}", self))),
-                self,
-            )),
+            _ => Err(TypeErrorKind::NoPair(Scm::string(format!("{}", self))).with_context(self))?,
         }
     }
 
     pub fn cdr(&self) -> Result<&Self> {
         match &self.sexpr {
             Sexpr::Pair(p) => Ok(&p.1),
-            _ => Err(Error::at_expr(
-                TypeError::NoPair(Scm::string(format!("{}", self))),
-                self,
-            )),
+            _ => Err(TypeErrorKind::NoPair(Scm::string(format!("{}", self))).with_context(self))?,
         }
     }
 
@@ -303,7 +338,7 @@ impl TrackedSexpr {
         match &self.sexpr {
             Sexpr::Symbol(s) => Ok(s),
             Sexpr::SyntacticClosure(sc) => sc.sexpr().as_symbol(),
-            _ => Err(Error::at_expr(TypeError::NoSymbol, self)),
+            _ => Err(TypeErrorKind::NoSymbol.with_context(self))?,
         }
     }
 

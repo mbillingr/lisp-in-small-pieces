@@ -1,9 +1,10 @@
-use crate::error::{Error, Result, RuntimeError};
+use crate::error::{Error, ErrorKind, Result, RuntimeError};
 use crate::scm::Scm;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::{stderr, stdin, stdout, BufRead, BufReader, BufWriter, Write};
 use std::mem::size_of;
+use sunny_common::Source;
 use sunny_parser::{parse_sexpr, ParseErrorKind, Span};
 
 pub struct SchemePort {
@@ -392,7 +393,12 @@ pub fn read_sexpr(port: &mut dyn InputPort) -> Result<Scm> {
         match parse_sexpr(span) {
             Ok((x, _)) => return Ok((&x).into()),
             Err(e) if e.kind == ParseErrorKind::UnclosedSequence => {}
-            Err(e) => return Err(Error::from_parse_error_and_source(e, (&buf).into())),
+            //Err(e) => return Err(Error::from_parse_error_and_source(e, (&buf).into())),
+            Err(e) => {
+                let src: Source = (&buf).into();
+                return Err(ErrorKind::Parse(e.kind)
+                    .with_context(src.loc(e.location.start, e.location.end)));
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::bytecode::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::{Continuation, ExitProcedure};
-use crate::error::{Error, Result, TypeError};
+use crate::error::{Error, Result, TypeErrorKind};
 use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::scm_write::{ScmDisplay, ScmWriteShared, ScmWriteSimple};
@@ -187,28 +187,28 @@ impl Scm {
     pub fn as_int(&self) -> Result<i64> {
         match self {
             Scm::Int(i) => Ok(*i),
-            _ => Err(TypeError::NoInt.into()),
+            _ => Err(TypeErrorKind::NoInt.into()),
         }
     }
 
     pub fn as_char(&self) -> Result<char> {
         match self {
             Scm::Char(ch) => Ok(*ch),
-            _ => Err(TypeError::NoChar(*self).into()),
+            _ => Err(TypeErrorKind::NoChar(*self).into()),
         }
     }
 
     pub fn as_symbol(&self) -> Result<Symbol> {
         match self {
             Scm::Symbol(s) => Ok(*s),
-            _ => Err(TypeError::NoSymbol.into()),
+            _ => Err(TypeErrorKind::NoSymbol.into()),
         }
     }
 
     pub fn as_string(&self) -> Result<&'static str> {
         match self {
             Scm::String(s) => Ok(s.get()),
-            _ => Err(TypeError::NoString(*self).into()),
+            _ => Err(TypeErrorKind::NoString(*self).into()),
         }
     }
 
@@ -220,7 +220,7 @@ impl Scm {
     pub fn replace_str(&self, s: &'static str) -> Result<()> {
         match self {
             Scm::String(sc) => Ok(sc.set(s)),
-            _ => Err(TypeError::NoString(*self).into()),
+            _ => Err(TypeErrorKind::NoString(*self).into()),
         }
     }
 
@@ -231,7 +231,7 @@ impl Scm {
     pub fn as_rust_object(&self) -> Result<&'static dyn Any> {
         match self {
             Scm::Rust(o) => Ok(&***o),
-            _ => Err(TypeError::NoRustObject(*self).into()),
+            _ => Err(TypeErrorKind::NoRustObject(*self).into()),
         }
     }
 
@@ -245,14 +245,14 @@ impl Scm {
     pub fn car(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.0.get()),
-            _ => Err(TypeError::NoPair(*self).into()),
+            _ => Err(TypeErrorKind::NoPair(*self).into()),
         }
     }
 
     pub fn cdr(&self) -> Result<Scm> {
         match self {
             Scm::Pair(p) => Ok(p.1.get()),
-            _ => Err(TypeError::NoPair(*self).into()),
+            _ => Err(TypeErrorKind::NoPair(*self).into()),
         }
     }
 
@@ -262,7 +262,7 @@ impl Scm {
                 p.0.set(x);
                 Ok(Scm::Undefined)
             }
-            _ => Err(TypeError::NoPair(*self).into()),
+            _ => Err(TypeErrorKind::NoPair(*self).into()),
         }
     }
 
@@ -272,7 +272,7 @@ impl Scm {
                 p.1.set(x);
                 Ok(Scm::Undefined)
             }
-            _ => Err(TypeError::NoPair(*self).into()),
+            _ => Err(TypeErrorKind::NoPair(*self).into()),
         }
     }
 
@@ -283,7 +283,7 @@ impl Scm {
     pub fn as_vector(&self) -> Result<&'static [Cell<Scm>]> {
         match self {
             Scm::Vector(v) => Ok(*v),
-            _ => Err(TypeError::NoVector.into()),
+            _ => Err(TypeErrorKind::NoVector.into()),
         }
     }
 
@@ -292,8 +292,8 @@ impl Scm {
             Scm::Vector(v) => v
                 .get(idx)
                 .map(Cell::get)
-                .ok_or(TypeError::OutOfBounds.into()),
-            _ => Err(TypeError::NoVector.into()),
+                .ok_or(TypeErrorKind::OutOfBounds.into()),
+            _ => Err(TypeErrorKind::NoVector.into()),
         }
     }
 
@@ -304,30 +304,30 @@ impl Scm {
                     c.set(val);
                     Ok(())
                 }
-                None => Err(TypeError::OutOfBounds.into()),
+                None => Err(TypeErrorKind::OutOfBounds.into()),
             },
-            _ => Err(TypeError::NoVector.into()),
+            _ => Err(TypeErrorKind::NoVector.into()),
         }
     }
 
     pub fn as_closure(&self) -> Result<&'static Closure> {
         match self {
             Scm::Closure(cls) => Ok(*cls),
-            _ => Err(TypeError::NoClosure.into()),
+            _ => Err(TypeErrorKind::NoClosure.into()),
         }
     }
 
     pub fn as_port(&self) -> Result<&'static SchemePort> {
         match self {
             Scm::Port(p) => Ok(*p),
-            _ => Err(TypeError::NoPort(*self).into()),
+            _ => Err(TypeErrorKind::NoPort(*self).into()),
         }
     }
 
     pub fn as_bytevec(&self) -> Result<&'static [u8]> {
         match self {
             Scm::Bytevector(v) => Ok(*v),
-            _ => Err(TypeError::NoBytevector(*self).into()),
+            _ => Err(TypeErrorKind::NoBytevector(*self).into()),
         }
     }
 
@@ -338,7 +338,7 @@ impl Scm {
                 let mut_ptr = ptr as *mut _;
                 Ok(&mut *mut_ptr)
             },
-            _ => Err(TypeError::NoBytevector(*self).into()),
+            _ => Err(TypeErrorKind::NoBytevector(*self).into()),
         }
     }
 
@@ -408,21 +408,21 @@ impl Scm {
             (Int(a), Float(b)) => Ok((a as f64) < b),
             (Float(a), Int(b)) => Ok(a < (b as f64)),
             (Float(a), Float(b)) => Ok(a < b),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 
     pub fn set(&self, value: Scm) -> Result<()> {
         match self {
             Scm::Cell(x) => Ok(x.set(value)),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 
     pub fn get(&self) -> Result<Scm> {
         match self {
             Scm::Cell(x) => Ok(x.get()),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 
@@ -432,7 +432,7 @@ impl Scm {
             Scm::Primitive(func) => func.invoke(nargs, vm)?,
             Scm::Continuation(cnt) => cnt.invoke(nargs, vm)?,
             Scm::ExitProc(cnt) => cnt.invoke(nargs, vm)?,
-            _ => return Err(TypeError::NotCallable(*self).into()),
+            _ => return Err(TypeErrorKind::NotCallable(*self).into()),
         }
         Ok(())
     }
@@ -443,7 +443,7 @@ impl Scm {
             Scm::Primitive(func) => func.invoke_tail(nargs, vm)?,
             Scm::Continuation(cnt) => cnt.invoke_tail(nargs, vm)?,
             Scm::ExitProc(cnt) => cnt.invoke_tail(nargs, vm)?,
-            _ => return Err(TypeError::NotCallable(*self).into()),
+            _ => return Err(TypeErrorKind::NotCallable(*self).into()),
         }
         Ok(())
     }
@@ -484,7 +484,7 @@ impl Scm {
         match self {
             Scm::Int(_) => Ok(*self),
             Scm::Float(x) => Ok(Scm::Int(*x as i64)),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -495,7 +495,7 @@ impl Scm {
             (Int(a), Float(b)) => Ok(Float(b.min(a as f64))),
             (Float(a), Int(b)) => Ok(Float(a.min(b as f64))),
             (Float(a), Float(b)) => Ok(Float(a.min(b))),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 
@@ -506,7 +506,7 @@ impl Scm {
             (Int(a), Float(b)) => Ok(Float(b.max(a as f64))),
             (Float(a), Int(b)) => Ok(Float(a.max(b as f64))),
             (Float(a), Float(b)) => Ok(Float(a.max(b))),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 
@@ -514,7 +514,7 @@ impl Scm {
         match self {
             Scm::Int(_) => Ok(*self),
             Scm::Float(x) => Ok(Scm::Float(x.round())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -522,7 +522,7 @@ impl Scm {
         match self {
             Scm::Int(x) => Ok(Scm::Int(x.abs())),
             Scm::Float(x) => Ok(Scm::Float(x.abs())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -530,7 +530,7 @@ impl Scm {
         match self {
             Scm::Int(_) => Ok(*self),
             Scm::Float(x) => Ok(Scm::Float(x.floor())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -538,7 +538,7 @@ impl Scm {
         match self {
             Scm::Int(x) => Ok(Scm::Float(f64::sqrt(*x as _))),
             Scm::Float(x) => Ok(Scm::Float(x.sqrt())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -546,7 +546,7 @@ impl Scm {
         match self {
             Scm::Int(x) => Ok(Scm::Float(f64::sin(*x as _))),
             Scm::Float(x) => Ok(Scm::Float(x.sin())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -554,7 +554,7 @@ impl Scm {
         match self {
             Scm::Int(x) => Ok(Scm::Float(f64::cos(*x as _))),
             Scm::Float(x) => Ok(Scm::Float(x.cos())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -562,7 +562,7 @@ impl Scm {
         match self {
             Scm::Int(x) => Ok(Scm::Float(f64::tan(*x as _))),
             Scm::Float(x) => Ok(Scm::Float(x.tan())),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 
@@ -574,20 +574,20 @@ impl Scm {
                 if e <= u32::max_value() as i64 {
                     Ok(Int(b.pow(e as u32)))
                 } else {
-                    Err(TypeError::ValueOutOfRange(z).into())
+                    Err(TypeErrorKind::ValueOutOfRange(z).into())
                 }
             }
             (Float(b), Int(e)) => {
                 if e >= i32::min_value() as i64 && e <= i32::max_value() as i64 {
                     Ok(Float(b.powi(e as i32)))
                 } else {
-                    Err(TypeError::ValueOutOfRange(z).into())
+                    Err(TypeErrorKind::ValueOutOfRange(z).into())
                 }
             }
             (Float(b), Float(e)) => Ok(Float(b.powf(e))),
             (Int(b), Float(e)) => Ok(Float(f64::powf(b as f64, e))),
-            (Int(_), _) | (Float(_), _) => Err(TypeError::NoNumber(z).into()),
-            _ => Err(TypeError::NoNumber(*self).into()),
+            (Int(_), _) | (Float(_), _) => Err(TypeErrorKind::NoNumber(z).into()),
+            _ => Err(TypeErrorKind::NoNumber(*self).into()),
         }
     }
 }
@@ -740,7 +740,7 @@ impl std::ops::Mul for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 * b)),
             (Float(a), Int(b)) => Ok(Float(a * b as f64)),
             (Float(a), Float(b)) => Ok(Float(a * b)),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 }
@@ -754,7 +754,7 @@ impl std::ops::Div for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 / b)),
             (Float(a), Int(b)) => Ok(Float(a / b as f64)),
             (Float(a), Float(b)) => Ok(Float(a / b)),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 }
@@ -768,7 +768,7 @@ impl std::ops::Rem for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 % b)),
             (Float(a), Int(b)) => Ok(Float(a % b as f64)),
             (Float(a), Float(b)) => Ok(Float(a % b)),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 }
@@ -782,7 +782,7 @@ impl std::ops::Add for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 + b)),
             (Float(a), Int(b)) => Ok(Float(a + b as f64)),
             (Float(a), Float(b)) => Ok(Float(a + b)),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 }
@@ -796,7 +796,7 @@ impl std::ops::Sub for Scm {
             (Int(a), Float(b)) => Ok(Float(a as f64 - b)),
             (Float(a), Int(b)) => Ok(Float(a - b as f64)),
             (Float(a), Float(b)) => Ok(Float(a - b)),
-            _ => Err(TypeError::WrongType.into()),
+            _ => Err(TypeErrorKind::WrongType.into()),
         }
     }
 }
@@ -846,7 +846,7 @@ impl TryFrom<Scm> for char {
     fn try_from(scm: Scm) -> Result<Self> {
         match scm {
             Scm::Char(ch) => Ok(ch),
-            _ => Err(TypeError::NoChar(scm).into()),
+            _ => Err(TypeErrorKind::NoChar(scm).into()),
         }
     }
 }
@@ -863,7 +863,7 @@ impl TryFrom<Scm> for usize {
     fn try_from(scm: Scm) -> Result<Self> {
         match scm {
             Scm::Int(i) if i >= 0 => Ok(i as usize),
-            _ => Err(TypeError::NoPositiveInt(scm).into()),
+            _ => Err(TypeErrorKind::NoPositiveInt(scm).into()),
         }
     }
 }
@@ -880,7 +880,7 @@ impl TryFrom<Scm> for &str {
     fn try_from(scm: Scm) -> Result<Self> {
         match scm {
             Scm::String(s) => Ok(s.get()),
-            _ => Err(TypeError::NoString(scm).into()),
+            _ => Err(TypeErrorKind::NoString(scm).into()),
         }
     }
 }
