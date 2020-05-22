@@ -1,5 +1,5 @@
 use crate::objectify::{Error as ObjectifyError, ObjectifyErrorKind};
-use crate::scm::Scm;
+use crate::scm::{Error as ScmError, ErrorKind as ScmErrorKind, Scm};
 use crate::sexpr::{Error as SexprError, ErrorKind as SexprErrorKind, TrackedSexpr};
 use std::fmt::{Display, Formatter};
 use sunny_common::{Source, SourceLocation, Symbol};
@@ -67,6 +67,8 @@ pub enum RuntimeError {
     IndexOutOfRange(isize),
 }
 
+impl std::error::Error for RuntimeError {}
+
 impl std::fmt::Debug for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -79,6 +81,12 @@ impl std::fmt::Debug for RuntimeError {
             RuntimeError::WriteError => write!(f, "write error"),
             RuntimeError::IndexOutOfRange(i) => write!(f, "index out of range: {}", i),
         }
+    }
+}
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -249,6 +257,17 @@ impl From<SexprError> for Error {
             kind: match err.kind {
                 SexprErrorKind::ParseError(pek) => ErrorKind::Parse(pek),
                 SexprErrorKind::TypeError(tek) => ErrorKind::TypeError((&tek).into()),
+            },
+            context: err.context,
+        }
+    }
+}
+
+impl From<ScmError> for Error {
+    fn from(err: ScmError) -> Self {
+        Error {
+            kind: match err.kind {
+                ScmErrorKind::TypeError(tek) => ErrorKind::TypeError((&tek).into()),
             },
             context: err.context,
         }

@@ -1,5 +1,5 @@
-use crate::error::Result;
-use crate::scm::Scm;
+use crate::error::{Error, Result};
+use crate::scm::{Result as ScmResult, Scm};
 use crate::sexpr::TrackedSexpr;
 use crate::syntax::variable::VarDef;
 use crate::syntax::MagicKeyword;
@@ -238,4 +238,53 @@ macro_rules! wrap_native {
     (@inner $args:ident >=3 $func:expr) => {
         $func($args[0].try_into()?, $args[1].try_into()?, $args[2].try_into()?, &$args[3..]).wrap()
     };
+}
+
+pub trait ResultWrap {
+    fn wrap(self) -> Result<Scm>;
+}
+
+impl<T> ResultWrap for T
+where
+    T: Into<Scm>,
+{
+    fn wrap(self) -> Result<Scm> {
+        Ok(self.into())
+    }
+}
+
+impl<T> ResultWrap for Result<T>
+where
+    T: Into<Scm>,
+{
+    fn wrap(self) -> Result<Scm> {
+        self.map(T::into)
+    }
+}
+
+impl<T> ResultWrap for ScmResult<T>
+where
+    T: Into<Scm>,
+{
+    fn wrap(self) -> Result<Scm> {
+        self.map(T::into).map_err(Error::from)
+    }
+}
+
+impl ResultWrap for () {
+    fn wrap(self) -> Result<Scm> {
+        Ok(Scm::Undefined)
+    }
+}
+
+impl ResultWrap for Result<()> {
+    fn wrap(self) -> Result<Scm> {
+        self.map(|_| Scm::Undefined)
+    }
+}
+
+impl ResultWrap for ScmResult<()> {
+    fn wrap(self) -> Result<Scm> {
+        self.map(|_| Scm::Undefined).map_err(Error::from)
+    }
 }

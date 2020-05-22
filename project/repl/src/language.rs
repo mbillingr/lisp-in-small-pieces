@@ -5,7 +5,7 @@ pub mod scheme {
     use crate::bytecode::{Closure, VirtualMachine};
     use crate::env::Env;
     use crate::error::{Error, Result, RuntimeError, TypeErrorKind};
-    use crate::library::{LibraryBuilder, LibraryData};
+    use crate::library::{LibraryBuilder, LibraryData, ResultWrap};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{
         decons, ocar, ocdr, ObjectifyErrorKind, Result as ObjectifyResult, Translate,
@@ -15,7 +15,7 @@ pub mod scheme {
     use crate::scan_out_defines::{
         definition_value, definition_variable, make_function, scan_out_defines,
     };
-    use crate::scm::{ResultWrap, Scm};
+    use crate::scm::{Result as ScmResult, Scm};
     use crate::sexpr::TrackedSexpr;
     use crate::syntax::{
         Expression, LetContKind, LetContinuation, Library, LocalVariable, MagicKeyword, NoOp,
@@ -196,7 +196,7 @@ pub mod scheme {
 
             native "string->symbol", =1, |s: Scm| s.as_string().map(|s| Scm::Symbol(Symbol::new(s)));
 
-            native "string-append", >=0, |args: &[Scm]| args.iter().map(Scm::as_string).collect::<Result<String>>().map(Scm::string);
+            native "string-append", >=0, |args: &[Scm]| args.iter().map(Scm::as_string).collect::<ScmResult<String>>().map(Scm::string);
             native "string-length", =1, |s: &str| s.len();
             native "string-ref", =2, |s: &str, i: usize| -> Result<char> { s.chars().nth(i).ok_or(RuntimeError::IndexOutOfRange(i as isize).into()) };
             native "string-set!", =3, |string: Scm, i: usize, ch: char| -> Result<()> {
@@ -251,11 +251,11 @@ pub mod scheme {
         build_library! {
             native "eof-object?", =1, Scm::is_eof;
             native "eof-object", =0, || Scm::Eof;
-            native "input-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_input_port) };
-            native "output-port?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_output_port) };
+            native "input-port?", =1, |port: Scm| -> Result<bool> { Ok(port.as_port().map(SchemePort::is_input_port)?) };
+            native "output-port?", =1, |port: Scm| -> Result<bool> { Ok(port.as_port().map(SchemePort::is_output_port)?) };
             native "port?", =1, |port: Scm| { port.as_port().is_ok() };
 
-            native "port-open?", =1, |port: Scm| -> Result<bool> { port.as_port().map(SchemePort::is_open) };
+            native "port-open?", =1, |port: Scm| -> Result<bool> { Ok(port.as_port().map(SchemePort::is_open)?) };
             native "close-port", =1, |port: Scm| -> Result<()> { port.as_port()?.close() };
 
             native "open-standard-input", =0, || -> Scm { SchemePort::std_input().into() };
@@ -637,7 +637,7 @@ pub mod scheme {
     pub fn sub(args: &[Scm]) -> Result<Scm> {
         match args {
             [] => Ok(Scm::Int(0)),
-            [x] => (Scm::Int(0) - *x),
+            [x] => (Scm::Int(0) - *x).map_err(Error::from),
             [a, b @ ..] => {
                 let mut result = *a;
                 for &x in b {
@@ -650,7 +650,7 @@ pub mod scheme {
 
     pub fn div(first: Scm, args: &[Scm]) -> Result<Scm> {
         match args {
-            [] => Scm::Int(1) / first,
+            [] => (Scm::Int(1) / first).map_err(Error::from),
             [..] => {
                 let mut result = first;
                 for &x in args {
@@ -953,7 +953,7 @@ pub mod scheme {
 
             check!(reify_intrinsic: "cons", Scm::is_procedure);
 
-            assert_error!(undefined_global_get: "flummox", "Unhandled Exception: <Runtime Error: undefined global (/ . flummox)>");
+            assert_error!(undefined_global_get: "flummox", "Unhandled Exception: <undefined global (/ . flummox)>");
             assert_error!(undefined_global_set: "(set! foo 42)", "Runtime Error: undefined global (/ . foo)");
             check!(new_global: "(define the-answer 42)", Scm::is_undefined);
             compare!(get_global: "(begin (define the-answer 42) the-answer)", equals, Scm::Int(42));
@@ -1037,7 +1037,7 @@ pub mod scheme {
                 r#"(begin
                         (define-syntax foo (syntax-rules () ((foo body) (let ((x 42)) body))))
                         (foo x))"#,
-                "Unhandled Exception: <Runtime Error: undefined global (/ . x)>");
+                "Unhandled Exception: <undefined global (/ . x)>");
 
             compare!(hygiene_new_binding_defined_with_let:
                 r#"(begin
@@ -1253,11 +1253,11 @@ pub mod scheme {
 
             assert_error!(import_only:
                 r#"(import (only (testing 1) a)) a b"#,
-                "Unhandled Exception: <Runtime Error: undefined global (/ . b)>");
+                "Unhandled Exception: <undefined global (/ . b)>");
 
             assert_error!(import_except:
                 r#"(import (except (testing 1) a)) a"#,
-                "Unhandled Exception: <Runtime Error: undefined global (/ . a)>");
+                "Unhandled Exception: <undefined global (/ . a)>");
 
             compare!(import_prefixed_values:
                 r#"(import (prefix (testing 1) foo-)) (cons foo-a foo-b)"#,

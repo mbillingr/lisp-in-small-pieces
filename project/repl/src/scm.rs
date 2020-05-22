@@ -1,6 +1,6 @@
 use crate::bytecode::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::{Continuation, ExitProcedure};
-use crate::error::{Error, Result, TypeErrorKind};
+use crate::error::{ErrorContext, TypeErrorKind};
 use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::scm_write::{ScmDisplay, ScmWriteShared, ScmWriteSimple};
@@ -9,6 +9,43 @@ use std::any::Any;
 use std::cell::Cell;
 use std::convert::TryFrom;
 use sunny_common::Symbol;
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
+pub struct Error {
+    pub kind: ErrorKind,
+    pub context: ErrorContext,
+}
+
+#[derive(Debug)]
+pub enum ErrorKind {
+    TypeError(TypeErrorKind<Scm>),
+}
+
+impl ErrorKind {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> Error {
+        Error {
+            kind: self,
+            context: context.into(),
+        }
+    }
+    pub fn without_context(self) -> Error {
+        Error {
+            kind: self,
+            context: ErrorContext::None,
+        }
+    }
+}
+
+impl From<TypeErrorKind<Scm>> for Error {
+    fn from(kind: TypeErrorKind<Scm>) -> Self {
+        Error {
+            kind: ErrorKind::TypeError(kind),
+            context: ErrorContext::None,
+        }
+    }
+}
 
 #[derive(Copy, Clone)]
 pub enum Scm {
@@ -81,8 +118,8 @@ impl Scm {
         Scm::String(Box::leak(Box::new(Cell::new(s))))
     }
 
-    pub fn error(e: impl Into<Error>) -> Self {
-        Scm::Error(Box::leak(Box::new(e.into())))
+    pub fn error(e: impl std::error::Error + 'static) -> Self {
+        Scm::Error(Box::leak(Box::new(e)))
     }
 
     pub fn list<T, I>(items: T) -> Self
@@ -426,7 +463,7 @@ impl Scm {
         }
     }
 
-    pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
+    pub fn invoke(&self, nargs: usize, vm: &mut VirtualMachine) -> crate::error::Result<()> {
         match self {
             Scm::Closure(cls) => cls.invoke(nargs, vm),
             Scm::Primitive(func) => func.invoke(nargs, vm)?,
@@ -437,7 +474,7 @@ impl Scm {
         Ok(())
     }
 
-    pub fn invoke_tail(&self, nargs: usize, vm: &mut VirtualMachine) -> Result<()> {
+    pub fn invoke_tail(&self, nargs: usize, vm: &mut VirtualMachine) -> crate::error::Result<()> {
         match self {
             Scm::Closure(cls) => cls.invoke_tail(nargs, vm),
             Scm::Primitive(func) => func.invoke_tail(nargs, vm)?,
@@ -806,40 +843,6 @@ impl std::ops::Sub for Scm {
     }
 }
 
-pub trait ResultWrap {
-    fn wrap(self) -> Result<Scm>;
-}
-
-impl<T> ResultWrap for T
-where
-    T: Into<Scm>,
-{
-    fn wrap(self) -> Result<Scm> {
-        Ok(self.into())
-    }
-}
-
-impl<T> ResultWrap for Result<T>
-where
-    T: Into<Scm>,
-{
-    fn wrap(self) -> Result<Scm> {
-        self.map(T::into)
-    }
-}
-
-impl ResultWrap for () {
-    fn wrap(self) -> Result<Scm> {
-        Ok(Scm::Undefined)
-    }
-}
-
-impl ResultWrap for Result<()> {
-    fn wrap(self) -> Result<Scm> {
-        self.map(|_| Scm::Undefined)
-    }
-}
-
 impl PartialEq for Scm {
     fn eq(&self, other: &Self) -> bool {
         self.equals(other)
@@ -847,7 +850,7 @@ impl PartialEq for Scm {
 }
 
 impl TryFrom<Scm> for char {
-    type Error = crate::error::Error;
+    type Error = Error;
     fn try_from(scm: Scm) -> Result<Self> {
         match scm {
             Scm::Char(ch) => Ok(ch),
@@ -857,14 +860,14 @@ impl TryFrom<Scm> for char {
 }
 
 impl TryFrom<&Scm> for char {
-    type Error = crate::error::Error;
+    type Error = Error;
     fn try_from(scm: &Scm) -> Result<Self> {
         Self::try_from(*scm)
     }
 }
 
 impl TryFrom<Scm> for usize {
-    type Error = crate::error::Error;
+    type Error = Error;
     fn try_from(scm: Scm) -> Result<Self> {
         match scm {
             Scm::Int(i) if i >= 0 => Ok(i as usize),
@@ -874,14 +877,14 @@ impl TryFrom<Scm> for usize {
 }
 
 impl TryFrom<&Scm> for usize {
-    type Error = crate::error::Error;
+    type Error = Error;
     fn try_from(scm: &Scm) -> Result<Self> {
         Self::try_from(*scm)
     }
 }
 
 impl TryFrom<Scm> for &str {
-    type Error = crate::error::Error;
+    type Error = Error;
     fn try_from(scm: Scm) -> Result<Self> {
         match scm {
             Scm::String(s) => Ok(s.get()),
@@ -891,7 +894,7 @@ impl TryFrom<Scm> for &str {
 }
 
 impl TryFrom<&Scm> for &str {
-    type Error = crate::error::Error;
+    type Error = Error;
     fn try_from(scm: &Scm) -> Result<Self> {
         Self::try_from(*scm)
     }
