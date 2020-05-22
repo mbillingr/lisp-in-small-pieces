@@ -28,7 +28,7 @@ pub enum ErrorKind {
     Objectify(ObjectifyErrorKind),
     Compile(CompileError),
     Runtime(RuntimeError),
-    TypeError(TypeErrorKind),
+    TypeError(TypeErrorKind<Scm>),
     IoError(std::io::Error),
     Utf8Error(std::str::Utf8Error),
 
@@ -83,43 +83,71 @@ impl std::fmt::Debug for RuntimeError {
 }
 
 #[derive(Debug)]
-pub struct TypeError {
-    pub kind: TypeErrorKind,
+pub struct TypeError<T> {
+    pub kind: TypeErrorKind<T>,
     pub context: ErrorContext,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum TypeErrorKind {
-    WrongType,
-    NotCallable(Scm),
-    NoNumber(Scm),
-    NoInt,
-    NoU8,
-    NoPositiveInt(Scm),
-    NoPair(Scm),
-    NoVector,
-    NoBytevector(Scm),
-    NoChar(Scm),
-    NoSymbol,
-    NoString(Scm),
-    NoClosure,
-    NoPort(Scm),
-    NoRustObject(Scm),
-    OutOfBounds,
-    ValueOutOfRange(Scm),
+pub enum TypeErrorKind<T> {
+    NotCallable(T),
+    NoNumber(T),
+    NoInt(T),
+    NoU8(T),
+    NoPositiveInt(T),
+    NoCell(T),
+    NoPair(T),
+    NoVector(T),
+    NoBytevector(T),
+    NoChar(T),
+    NoSymbol(T),
+    NoString(T),
+    NoClosure(T),
+    NoPort(T),
+    NoRustObject(T),
+    OutOfBounds(T, usize),
+    ValueOutOfRange(T),
 }
 
-impl TypeErrorKind {
-    pub fn with_context(self, context: impl Into<ErrorContext>) -> TypeError {
+impl<T> TypeErrorKind<T> {
+    pub fn with_context(self, context: impl Into<ErrorContext>) -> TypeError<T> {
         TypeError {
             kind: self,
             context: context.into(),
         }
     }
-    pub fn without_context(self) -> TypeError {
+    pub fn without_context(self) -> TypeError<T> {
         TypeError {
             kind: self,
             context: ErrorContext::None,
+        }
+    }
+}
+
+impl<T> TypeErrorKind<T> {
+    fn into<'a, S>(&'a self) -> TypeErrorKind<S>
+    where
+        S: From<&'a T>,
+    {
+        use TypeErrorKind::*;
+        match self {
+            NotCallable(x) => NotCallable(x.into()),
+            NoNumber(x) => NoNumber(x.into()),
+            NoInt(x) => NoInt(x.into()),
+            NoU8(x) => NoU8(x.into()),
+            NoPositiveInt(x) => NoPositiveInt(x.into()),
+            NoCell(x) => NoCell(x.into()),
+            NoPair(x) => NoPair(x.into()),
+            NoVector(x) => NoVector(x.into()),
+            NoBytevector(x) => NoBytevector(x.into()),
+            NoChar(x) => NoChar(x.into()),
+            NoSymbol(x) => NoSymbol(x.into()),
+            NoString(x) => NoString(x.into()),
+            NoClosure(x) => NoClosure(x.into()),
+            NoPort(x) => NoPort(x.into()),
+            NoRustObject(x) => NoRustObject(x.into()),
+            OutOfBounds(x, idx) => OutOfBounds(x.into(), *idx),
+            ValueOutOfRange(x) => ValueOutOfRange(x.into()),
         }
     }
 }
@@ -167,8 +195,8 @@ impl From<RuntimeError> for ErrorKind {
     }
 }
 
-impl From<TypeErrorKind> for ErrorKind {
-    fn from(err: TypeErrorKind) -> Self {
+impl From<TypeErrorKind<Scm>> for ErrorKind {
+    fn from(err: TypeErrorKind<Scm>) -> Self {
         ErrorKind::TypeError(err)
     }
 }
@@ -206,8 +234,8 @@ impl From<std::string::FromUtf8Error> for ErrorKind {
     }
 }
 
-impl From<TypeError> for Error {
-    fn from(err: TypeError) -> Self {
+impl From<TypeError<Scm>> for Error {
+    fn from(err: TypeError<Scm>) -> Self {
         Error {
             kind: ErrorKind::TypeError(err.kind),
             context: err.context,
@@ -220,7 +248,7 @@ impl From<SexprError> for Error {
         Error {
             kind: match err.kind {
                 SexprErrorKind::ParseError(pek) => ErrorKind::Parse(pek),
-                SexprErrorKind::TypeError(tek) => ErrorKind::TypeError(tek),
+                SexprErrorKind::TypeError(tek) => ErrorKind::TypeError((&tek).into()),
             },
             context: err.context,
         }

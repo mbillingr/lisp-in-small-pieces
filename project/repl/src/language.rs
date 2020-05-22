@@ -307,11 +307,11 @@ pub mod scheme {
                 port.as_port()?.write_string(buf, start, end)
             };
             native "write-u8", =2, |x: Scm, port: Scm| -> Result<()> {
-                let x = x.as_int()?;
-                if x >= 0 && x <= 255 {
-                    port.as_port()?.write_u8(x as u8)
+                let val = x.as_int()?;
+                if val >= 0 && val <= 255 {
+                    port.as_port()?.write_u8(val as u8)
                 } else {
-                    Err(TypeErrorKind::NoU8.into())
+                    Err(TypeErrorKind::NoU8(x).into())
                 }
              };
             native "write-bytevector", >=2, |s: Scm, port: Scm, args: &[Scm]| -> Result<()> {
