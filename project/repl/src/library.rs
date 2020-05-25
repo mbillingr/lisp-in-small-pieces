@@ -1,8 +1,7 @@
 use crate::error::{Error, Result};
 use crate::scm::{Result as ScmResult, Scm};
 use crate::sexpr::TrackedSexpr;
-use crate::syntax::variable::VarDef;
-use crate::syntax::MagicKeyword;
+use crate::syntax::{variable::VarDef, MagicKeyword};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use sunny_common::Symbol;

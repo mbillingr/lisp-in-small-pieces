@@ -2,13 +2,11 @@ use crate::env::Env;
 use crate::error::ErrorContext;
 use crate::library::{is_import, libname_to_path};
 use crate::sexpr::{Error as SexprError, ErrorKind as SexprErrorKind, Sexpr, TrackedSexpr};
-use crate::syntax::definition::GlobalDefine;
-use crate::syntax::variable::VarDef;
 use crate::syntax::{
-    Alternative, Application, Constant, Expression, FixLet, Function, GlobalAssignment,
-    GlobalReference, GlobalVariable, Import, ImportItem, ImportSet, Library, LibraryDeclaration,
-    LibraryExport, LocalAssignment, LocalReference, LocalVariable, MagicKeyword, NoOp, Program,
-    Reference, Sequence, Variable,
+    definition::GlobalDefine, variable::VarDef, Alternative, Application, Constant, Expression,
+    FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable, Import, ImportItem,
+    ImportSet, Library, LibraryDeclaration, LibraryExport, LocalAssignment, LocalReference,
+    LocalVariable, MagicKeyword, NoOp, Program, Reference, Sequence, Variable,
 };
 use crate::utils::find_library;
 use std::cell::RefCell;
