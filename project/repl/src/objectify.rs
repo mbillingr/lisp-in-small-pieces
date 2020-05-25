@@ -487,7 +487,6 @@ impl Translate {
         let lib = libtrans.load_library(form)?;
 
         Ok(ImportSet::new(
-            form.into(),
             library_path,
             lib.exports
                 .iter()

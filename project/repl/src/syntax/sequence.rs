@@ -1,7 +1,6 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::{NoOp, Reify};
+use crate::syntax::NoOp;
 use sunny_common::{impl_sourced, SourceLocation, SourceLocation::NoSource};
 
 #[derive(Debug, Clone)]
@@ -47,18 +46,5 @@ impl Sequence {
                 );
             }
         }
-    }
-}
-
-impl Reify for Sequence {
-    fn reify(&self) -> Scm {
-        let mut items = vec![Scm::symbol("begin"), self.first.reify()];
-        let mut current = &*self.next;
-        while let Expression::Sequence(s) = current {
-            items.push(s.first.reify());
-            current = &*s.next;
-        }
-        items.push(current.reify());
-        Scm::list(items)
     }
 }

@@ -1,8 +1,7 @@
 use super::expression::Expression;
 use super::variable::{FreeVariable, GlobalVariable, LocalVariable};
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::{Reify, Variable};
+use crate::syntax::Variable;
 use sunny_common::{impl_sourced, Named, SourceLocation, Sourced, Symbol};
 
 use sunny_common::sum_type;
@@ -123,15 +122,5 @@ impl FreeReference {
 
     pub fn default_transform(self, _visitor: &mut impl Transformer) -> Self {
         self
-    }
-}
-
-impl Reify for Reference {
-    fn reify(&self) -> Scm {
-        match self {
-            Reference::LocalReference(r) => Scm::Symbol(r.var.name()),
-            Reference::GlobalReference(r) => Scm::Symbol(r.var.name()),
-            Reference::FreeReference(r) => Scm::Symbol(r.var.name()),
-        }
     }
 }

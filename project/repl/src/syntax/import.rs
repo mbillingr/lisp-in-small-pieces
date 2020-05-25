@@ -1,9 +1,8 @@
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::{Reify, Variable};
+use crate::syntax::Variable;
 use std::iter::FromIterator;
 use std::path::PathBuf;
-use sunny_common::{impl_sourced, Named, SourceLocation, SourceLocation::NoSource, Symbol};
+use sunny_common::{impl_sourced, SourceLocation, SourceLocation::NoSource, Symbol};
 
 #[derive(Debug, Clone)]
 pub struct Import {
@@ -52,7 +51,6 @@ impl FromIterator<Import> for Import {
 
 #[derive(Debug, Clone)]
 pub struct ImportSet {
-    pub library_name: Scm,
     pub library_path: PathBuf,
     pub library_symb: Symbol,
     pub items: Vec<ImportItem>,
@@ -61,16 +59,10 @@ pub struct ImportSet {
 impl_sourced!(ImportSet);
 
 impl ImportSet {
-    pub fn new(
-        library_name: Scm,
-        library_path: PathBuf,
-        items: Vec<ImportItem>,
-        span: SourceLocation,
-    ) -> Self {
+    pub fn new(library_path: PathBuf, items: Vec<ImportItem>, span: SourceLocation) -> Self {
         ImportSet {
             library_symb: library_path.to_str().unwrap().into(),
             library_path,
-            library_name,
             items: items.into(),
             span,
         }
@@ -99,37 +91,3 @@ impl PartialEq for ImportItem {
 }
 
 impl Eq for ImportItem {}
-
-/*impl Hash for ImportItem {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.export_var.hash(state);
-        self.import_var.hash(state);
-    }
-}*/
-
-impl Reify for Import {
-    fn reify(&self) -> Scm {
-        let imports = self.import_sets.iter().map(Reify::reify);
-        Scm::vector(imports)
-    }
-}
-
-impl Reify for ImportSet {
-    fn reify(&self) -> Scm {
-        let items = self.items.iter().map(|item| {
-            if item.export_var == item.import_var {
-                Scm::Symbol(item.export_var.name())
-            } else {
-                Scm::list(vec![
-                    Scm::Symbol(item.export_var.name()),
-                    Scm::Symbol(item.import_var.name()),
-                ])
-            }
-        });
-        Scm::list(vec![
-            Scm::symbol("import"),
-            self.library_name,
-            Scm::list(items),
-        ])
-    }
-}

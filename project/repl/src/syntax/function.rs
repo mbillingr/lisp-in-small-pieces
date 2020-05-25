@@ -2,10 +2,8 @@ use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
 use crate::primitive::Arity;
-use crate::scm::Scm;
-use crate::syntax::Reify;
 use std::convert::TryInto;
-use sunny_common::{impl_sourced, Named, SourceLocation};
+use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -46,21 +44,5 @@ impl Function {
         } else {
             Arity::Exact(self.variables.len() as u16)
         }
-    }
-}
-
-impl Reify for Function {
-    fn reify(&self) -> Scm {
-        let mut vars = Scm::nil();
-        for v in self.variables.iter().rev() {
-            let name = Scm::Symbol(v.name());
-            if v.is_dotted() {
-                vars = name;
-            } else {
-                vars = Scm::cons(name, vars);
-            }
-        }
-        let body = self.body.reify();
-        Scm::list(vec![Scm::symbol("lambda"), vars, body])
     }
 }

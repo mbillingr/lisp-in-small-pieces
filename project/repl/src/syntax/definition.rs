@@ -1,8 +1,6 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::{GlobalVariable, Reify};
-use sunny_common::Named;
+use crate::syntax::GlobalVariable;
 use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
@@ -44,15 +42,5 @@ impl GlobalDefine {
     pub fn default_transform(mut self, visitor: &mut impl Transformer) -> Self {
         *self.form = self.form.transform(visitor);
         self
-    }
-}
-
-impl Reify for GlobalDefine {
-    fn reify(&self) -> Scm {
-        Scm::list(vec![
-            Scm::symbol("define$"),
-            Scm::Symbol(self.variable.name()),
-            self.form.reify(),
-        ])
     }
 }

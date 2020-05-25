@@ -1,7 +1,5 @@
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
 use crate::sexpr::{Sexpr, TrackedSexpr};
-use crate::syntax::Reify;
 use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Clone)]
@@ -45,16 +43,6 @@ impl From<Sexpr> for Constant {
         Constant {
             value: sexpr,
             span: SourceLocation::NoSource,
-        }
-    }
-}
-
-impl Reify for Constant {
-    fn reify(&self) -> Scm {
-        let x: Scm = (&self.value).into();
-        match x {
-            Scm::Symbol(_) => Scm::list(vec![Scm::symbol("quote"), x]),
-            _ => x,
         }
     }
 }

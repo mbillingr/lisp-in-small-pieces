@@ -1,7 +1,5 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::Reify;
 use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
@@ -34,16 +32,5 @@ impl Alternative {
         *self.consequence = self.consequence.transform(visitor);
         *self.alternative = self.alternative.transform(visitor);
         self
-    }
-}
-
-impl Reify for Alternative {
-    fn reify(&self) -> Scm {
-        Scm::list(vec![
-            Scm::symbol("if"),
-            self.condition.reify(),
-            self.consequence.reify(),
-            self.alternative.reify(),
-        ])
     }
 }

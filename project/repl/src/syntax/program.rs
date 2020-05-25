@@ -1,8 +1,6 @@
 use super::expression::Expression;
 use super::import::Import;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::Reify;
 use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
@@ -27,13 +25,5 @@ impl Program {
         //self.imports = self.imports.into_iter().map(|import| import.transform(visitor)).collect();
         self.body = self.body.transform(visitor);
         self
-    }
-}
-
-impl Reify for Program {
-    fn reify(&self) -> Scm {
-        let imports = self.imports.reify();
-        let body = self.body.reify();
-        Scm::vector(vec![imports, body])
     }
 }

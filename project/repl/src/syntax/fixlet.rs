@@ -1,9 +1,7 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::Reify;
-use sunny_common::{impl_sourced, Named, SourceLocation};
+use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct FixLet {
@@ -38,18 +36,5 @@ impl FixLet {
             .collect();
         *self.body = self.body.transform(visitor);
         self
-    }
-}
-
-impl Reify for FixLet {
-    fn reify(&self) -> Scm {
-        let init = self
-            .variables
-            .iter()
-            .zip(&self.arguments)
-            .rev()
-            .map(|(v, a)| Scm::list(vec![Scm::Symbol(v.name()), a.reify()]));
-        let body = self.body.reify();
-        Scm::list(vec![Scm::symbol("let"), Scm::list(init), body])
     }
 }

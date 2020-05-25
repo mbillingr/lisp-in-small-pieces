@@ -1,7 +1,5 @@
 use super::expression::Expression;
 use crate::ast_transform::Transformer;
-use crate::scm::Scm;
-use crate::syntax::Reify;
 use sunny_common::{impl_sourced, SourceLocation};
 
 #[derive(Debug, Clone)]
@@ -34,12 +32,5 @@ impl Application {
             .map(|a| a.transform(visitor))
             .collect();
         self
-    }
-}
-
-impl Reify for Application {
-    fn reify(&self) -> Scm {
-        let args = Scm::list(self.arguments.iter().map(Reify::reify));
-        Scm::cons(self.function.reify(), args)
     }
 }
