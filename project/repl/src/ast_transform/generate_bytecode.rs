@@ -1,6 +1,6 @@
-use crate::interpreter::{CodeObject, LibraryObject};
 use crate::bytecode::Op;
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
+use crate::interpreter::{encode_arity, CodeObject, LibraryObject};
 use crate::objectify::Translate;
 use crate::primitive::RuntimePrimitive;
 use crate::scm::Scm;
@@ -243,10 +243,15 @@ impl<'a> BytecodeGenerator<'a> {
     }
 
     fn compile_constant(&mut self, node: &Constant, _tail: bool) -> Result<Vec<Op>> {
-        Ok(vec![self.build_constant((&node.value).into())])
+        Ok(vec![self.build_constant(&node.value)])
     }
 
-    fn build_constant(&mut self, value: Scm) -> Op {
+    fn push_constant(&mut self, value: impl Into<Scm>) -> Vec<Op> {
+        vec![self.build_constant(value), Op::PushVal]
+    }
+
+    fn build_constant(&mut self, value: impl Into<Scm>) -> Op {
+        let value = value.into();
         let idx = self.constants.iter().position(|x| x.equals(&value));
         let idx = match idx {
             None => {
@@ -345,7 +350,6 @@ impl<'a> BytecodeGenerator<'a> {
         let free_vars = node.free_vars.iter().map(|s| s.var_name()).collect();
 
         let function = compile_function(&node.func, free_vars, self.trans, self.glob_alloc)?;
-        let function = Box::leak(Box::new(function));
 
         let mut meaning = vec![];
 
@@ -356,7 +360,21 @@ impl<'a> BytecodeGenerator<'a> {
         }
 
         let n_free = node.free_vars.len();
-        meaning.push(Op::MakeClosure(n_free, function));
+
+        let offset = self.push_constant(1);
+        let arity = self.push_constant(encode_arity(function.arity));
+        meaning.extend(offset);
+        meaning.extend(arity);
+
+        let n_constants = function.constants.len();
+        for c in function.constants.iter().rev() {
+            meaning.extend(self.push_constant(c));
+        }
+        meaning.extend(self.push_constant(n_constants));
+
+        meaning.push(Op::MakeClosure(n_free));
+        meaning.push(Op::Jump(function.ops.len() as isize));
+        meaning.extend(function.ops);
 
         Ok(meaning)
     }
@@ -511,8 +529,8 @@ impl<'a> BytecodeGenerator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interpreter::VirtualMachine;
     use crate::env::Env;
+    use crate::interpreter::VirtualMachine;
     use crate::syntax::GlobalVariable;
     use sunny_common::SourceLocation::NoSource;
 

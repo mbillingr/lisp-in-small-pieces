@@ -2,9 +2,9 @@ pub mod scheme {
     use crate::ast_transform::boxify::Boxify;
     use crate::ast_transform::flatten_closures::Flatten;
     use crate::ast_transform::generate_bytecode::compile_program;
-    use crate::interpreter::{Closure, VirtualMachine};
     use crate::env::Env;
     use crate::error::{Error, Result, RuntimeError, TypeErrorKind};
+    use crate::interpreter::{Closure, VirtualMachine};
     use crate::library::{LibraryBuilder, LibraryData, ResultWrap};
     use crate::macro_language::eval_syntax;
     use crate::objectify::{

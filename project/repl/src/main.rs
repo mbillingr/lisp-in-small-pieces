@@ -5,12 +5,12 @@ mod utils;
 mod library;
 
 mod ast_transform;
-pub mod interpreter;
 pub mod bytecode;
 mod continuation;
 mod env;
 mod error;
 mod eval;
+pub mod interpreter;
 mod language;
 mod macro_language;
 mod objectify;

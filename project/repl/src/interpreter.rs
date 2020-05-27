@@ -14,10 +14,10 @@ use sunny_common::{Arity, SourceLocation, Symbol};
 
 #[derive(Debug, Clone)]
 pub struct CodeObject {
-    source: SourceLocation,
-    arity: Arity,
-    constants: Box<[Scm]>,
-    ops: &'static [Op],
+    pub source: SourceLocation,
+    pub arity: Arity,
+    pub constants: Box<[Scm]>,
+    pub ops: &'static [Op],
 }
 
 #[derive(Debug)]
@@ -276,11 +276,25 @@ impl VirtualMachine {
                         self.ip += delta
                     }
                 }
-                Op::MakeClosure(n_free, func) => {
+                Op::MakeClosure(n_free) => {
+                    let n_constants = self.pop_value()?.try_into()?;
+                    let mut constants = Vec::with_capacity(n_constants);
+                    for _ in 0..n_constants {
+                        constants.push(self.pop_value()?);
+                    }
+
+                    let arity = self.pop_value().map(decode_arity)?;
+
+                    let offset: usize = self.pop_value()?.try_into()?;
+                    let code = &self.cls.code.ops[self.ip as usize + offset..];
+
                     let mut vars = Vec::with_capacity(n_free);
                     for _ in 0..n_free {
                         vars.push(self.pop_value()?);
                     }
+
+                    let func = CodeObject::new(arity, SourceLocation::NoSource, code, constants);
+                    let func = Box::leak(Box::new(func));
                     self.val = Scm::closure(func, vars);
                 }
                 Op::PushCC(offset) => {
@@ -506,48 +520,6 @@ impl VirtualMachine {
     }
 }
 
-impl std::fmt::Debug for Op {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Op::Constant(c) => write!(f, "(constant {})", c),
-            Op::LocalRef(r) => write!(f, "(local-ref {})", r),
-            Op::FreeRef(r) => write!(f, "(free-ref {})", r),
-            Op::GlobalRef(r) => write!(f, "(global-ref {})", r),
-            Op::GlobalSet(r) => write!(f, "(global-set {})", r),
-            Op::GlobalDef(r) => write!(f, "(global-def {})", r),
-            Op::Boxify(r) => write!(f, "(boxify {})", r),
-            Op::BoxSet => write!(f, "(box-set)"),
-            Op::BoxGet => write!(f, "(box-get)"),
-            Op::PushVal => write!(f, "(push-val)"),
-            Op::JumpFalse(loc) => write!(f, "(jump-false {})", loc),
-            Op::Jump(loc) => write!(f, "(jump {})", loc),
-            Op::MakeClosure(n_free, code) => {
-                if f.alternate() {
-                    write!(f, "(make-closure {} {:#?})", n_free, *code)
-                } else {
-                    write!(f, "(make-closure {} {:p})", n_free, *code)
-                }
-            }
-            Op::PushCC(o) => write!(f, "(push/cc {})", o),
-            Op::PushEP(o) => write!(f, "(push/ep {})", o),
-            Op::PopEP => write!(f, "(pop/ep)"),
-            Op::Call(n_args) => write!(f, "(call {})", n_args),
-            Op::TailCall(n_args) => write!(f, "(tail-call {})", n_args),
-            Op::CallN => write!(f, "(call-n)"),
-            Op::TailCallN => write!(f, "(tail-call-n)"),
-            Op::Return => write!(f, "(return)"),
-            Op::Halt => write!(f, "(halt)"),
-            Op::PreApply(n_args) => write!(f, "(prepare-apply {})", n_args),
-            Op::Drop(n) => write!(f, "(drop {})", n),
-            Op::InitLibrary => write!(f, "(init-library)"),
-            Op::Cons => write!(f, "(cons)"),
-            Op::Car => write!(f, "(car)"),
-            Op::Cdr => write!(f, "(cdr)"),
-            Op::Nip => write!(f, "(nip)"),
-        }
-    }
-}
-
 #[derive(Debug, Copy, Clone)]
 pub enum CallstackItem {
     Frame(CallstackFrame),
@@ -569,5 +541,24 @@ impl CallstackFrame {
             ip: self.ip + offset,
             ..self
         }
+    }
+}
+
+pub fn decode_arity(scm: Scm) -> Arity {
+    let n = scm.cdr().unwrap().as_int().unwrap() as u16;
+    match scm.car().unwrap().as_symbol().unwrap().as_str() {
+        "exact" => Arity::Exact(n),
+        "at-least" => Arity::AtLeast(n),
+        _ => panic!("Invalid arity {:?}", scm),
+    }
+}
+
+pub fn encode_arity(a: Arity) -> Scm {
+    match a {
+        Arity::Exact(n) => Scm::cons(Scm::Symbol(Symbol::uninterned("exact")), Scm::Int(n as i64)),
+        Arity::AtLeast(n) => Scm::cons(
+            Scm::Symbol(Symbol::uninterned("at-least")),
+            Scm::Int(n as i64),
+        ),
     }
 }

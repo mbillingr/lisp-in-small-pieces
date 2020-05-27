@@ -1,5 +1,5 @@
-use crate::interpreter::VirtualMachine;
 use crate::error::{Result, RuntimeError};
+use crate::interpreter::VirtualMachine;
 use crate::scm::Scm;
 use sunny_common::Arity;
 

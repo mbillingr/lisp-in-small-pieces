@@ -1,6 +1,6 @@
-use crate::interpreter::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{ErrorContext, TypeErrorKind};
+use crate::interpreter::{Closure, CodeObject, VirtualMachine};
 use crate::ports::SchemePort;
 use crate::primitive::RuntimePrimitive;
 use crate::scm_write::{ScmDisplay, ScmWriteShared, ScmWriteSimple};

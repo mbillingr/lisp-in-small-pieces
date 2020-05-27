@@ -1,5 +1,5 @@
-use crate::interpreter::{CallstackFrame, CallstackItem, VirtualMachine};
 use crate::error::{Result, RuntimeError};
+use crate::interpreter::{CallstackFrame, CallstackItem, VirtualMachine};
 use crate::scm::Scm;
 
 #[derive(Debug)]
