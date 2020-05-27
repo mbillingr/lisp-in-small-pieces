@@ -1,4 +1,4 @@
-use crate::bytecode::VirtualMachine;
+use crate::interpreter::VirtualMachine;
 use crate::error::{Result, RuntimeError};
 use crate::scm::Scm;
 use sunny_common::Arity;

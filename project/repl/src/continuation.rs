@@ -1,4 +1,4 @@
-use crate::bytecode::{CallstackFrame, CallstackItem, VirtualMachine};
+use crate::interpreter::{CallstackFrame, CallstackItem, VirtualMachine};
 use crate::error::{Result, RuntimeError};
 use crate::scm::Scm;
 

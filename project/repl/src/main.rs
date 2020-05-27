@@ -5,7 +5,7 @@ mod utils;
 mod library;
 
 mod ast_transform;
-pub mod bytecode;
+pub mod interpreter;
 mod continuation;
 mod env;
 mod error;

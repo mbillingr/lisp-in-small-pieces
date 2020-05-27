@@ -1,4 +1,4 @@
-use crate::bytecode::{CodeObject, LibraryObject, Op};
+use crate::interpreter::{CodeObject, LibraryObject, Op};
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::objectify::Translate;
 use crate::primitive::RuntimePrimitive;
@@ -510,7 +510,7 @@ impl<'a> BytecodeGenerator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bytecode::VirtualMachine;
+    use crate::interpreter::VirtualMachine;
     use crate::env::Env;
     use crate::syntax::GlobalVariable;
     use sunny_common::SourceLocation::NoSource;

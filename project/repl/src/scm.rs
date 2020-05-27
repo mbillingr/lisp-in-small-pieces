@@ -1,4 +1,4 @@
-use crate::bytecode::{Closure, CodeObject, VirtualMachine};
+use crate::interpreter::{Closure, CodeObject, VirtualMachine};
 use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{ErrorContext, TypeErrorKind};
 use crate::ports::SchemePort;
