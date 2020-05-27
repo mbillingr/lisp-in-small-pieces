@@ -6,6 +6,7 @@ mod library;
 
 mod ast_transform;
 pub mod interpreter;
+pub mod bytecode;
 mod continuation;
 mod env;
 mod error;

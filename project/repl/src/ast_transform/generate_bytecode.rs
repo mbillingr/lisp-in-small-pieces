@@ -1,4 +1,5 @@
-use crate::interpreter::{CodeObject, LibraryObject, Op};
+use crate::interpreter::{CodeObject, LibraryObject};
+use crate::bytecode::Op;
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::objectify::Translate;
 use crate::primitive::RuntimePrimitive;
