@@ -17,7 +17,7 @@ pub struct CodeObject {
     source: SourceLocation,
     arity: Arity,
     constants: Box<[Scm]>,
-    ops: Box<[Op]>,
+    ops: &'static [Op],
 }
 
 #[derive(Debug)]
@@ -83,7 +83,7 @@ impl CodeObject {
             source,
             arity,
             constants: constants.into(),
-            ops: code.into(),
+            ops: Box::leak(code.into()),
         }
     }
 }
@@ -101,7 +101,7 @@ impl LibraryObject {
                 source,
                 arity: Arity::Exact(0),
                 constants: constants.into(),
-                ops: code.into(),
+                ops: Box::leak(code.into()),
             },
             global_symbols: global_symbols.into(),
             exports,
@@ -129,7 +129,7 @@ thread_local! {
             arity: Arity::Exact(0),
             source: SourceLocation::NoSource,
             constants: Box::new([]),
-            ops: Box::new([Op::Halt]),
+            ops: &[Op::Halt],
         })),
         free_vars: Box::new([]),
         }));
