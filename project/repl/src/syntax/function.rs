@@ -1,9 +1,8 @@
 use super::expression::Expression;
 use super::variable::LocalVariable;
 use crate::ast_transform::Transformer;
-use crate::primitive::Arity;
 use std::convert::TryInto;
-use sunny_common::{impl_sourced, SourceLocation};
+use sunny_common::{impl_sourced, Arity, SourceLocation};
 
 #[derive(Debug, Clone)]
 pub struct Function {

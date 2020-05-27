@@ -1,7 +1,7 @@
 use crate::bytecode::{CodeObject, LibraryObject, Op};
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::objectify::Translate;
-use crate::primitive::{Arity, RuntimePrimitive};
+use crate::primitive::RuntimePrimitive;
 use crate::scm::Scm;
 use crate::syntax::definition::GlobalDefine;
 use crate::syntax::variable::VarDef;
@@ -13,7 +13,7 @@ use crate::syntax::{
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
-use sunny_common::{Named, Sourced, Symbol};
+use sunny_common::{Arity, Named, Sourced, Symbol};
 
 pub fn compile_program(
     prog: &Program,

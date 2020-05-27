@@ -11,7 +11,7 @@ pub mod scheme {
         decons, ocar, ocdr, ObjectifyErrorKind, Result as ObjectifyResult, Translate,
     };
     use crate::ports::SchemePort;
-    use crate::primitive::{Arity, RuntimePrimitive};
+    use crate::primitive::RuntimePrimitive;
     use crate::scan_out_defines::{
         definition_value, definition_variable, make_function, scan_out_defines,
     };
@@ -26,7 +26,7 @@ pub mod scheme {
     use std::ops::Rem;
     use std::path::{Path, PathBuf};
     use std::time::Instant;
-    use sunny_common::{Source, SourceLocation::NoSource, Symbol};
+    use sunny_common::{Arity, Source, SourceLocation::NoSource, Symbol};
 
     pub struct Context {
         pub vm: VirtualMachine,

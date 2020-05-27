@@ -1,6 +1,7 @@
 use crate::bytecode::VirtualMachine;
 use crate::error::{Result, RuntimeError};
 use crate::scm::Scm;
+use sunny_common::Arity;
 
 pub type PrimitiveSignature = fn(args: &[Scm], context: &mut VirtualMachine) -> Result<Scm>;
 
@@ -70,20 +71,5 @@ impl std::fmt::Display for RuntimePrimitive {
 impl PartialEq for RuntimePrimitive {
     fn eq(&self, other: &Self) -> bool {
         self.func as *const PrimitiveSignature == other.func as *const PrimitiveSignature
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum Arity {
-    Exact(u16),
-    AtLeast(u16),
-}
-
-impl Arity {
-    pub fn check(&self, n_args: usize) -> bool {
-        match *self {
-            Arity::Exact(n) => n_args == n as usize,
-            Arity::AtLeast(n) => n_args >= n as usize,
-        }
     }
 }

@@ -2,15 +2,14 @@ use crate::ast_transform::generate_bytecode::{compile_library, GlobalAllocator};
 use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{ErrorKind, Result, RuntimeError, TypeErrorKind};
 use crate::objectify::Translate;
-use crate::primitive::{Arity, RuntimePrimitive};
+use crate::primitive::RuntimePrimitive;
 use crate::scm::Scm;
 use crate::syntax::library::LibraryExportSpec;
 use crate::syntax::Library;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::path::Path;
-use sunny_common::SourceLocation;
-use sunny_common::Symbol;
+use sunny_common::{Arity, SourceLocation, Symbol};
 
 #[derive(Debug, Clone)]
 pub struct CodeObject {
