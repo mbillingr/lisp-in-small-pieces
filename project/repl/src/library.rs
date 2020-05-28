@@ -7,12 +7,10 @@ use std::path::PathBuf;
 use sunny_common::Symbol;
 
 pub type StaticLibrary = HashMap<Symbol, ExportItem>;
-pub type DynamicLibrary = HashMap<Symbol, Scm>;
 
 #[derive(Debug, Clone)]
 pub struct LibraryData {
     pub exports: StaticLibrary,
-    pub values: DynamicLibrary,
 }
 
 #[derive(Debug, Clone)]
@@ -25,7 +23,6 @@ impl LibraryData {
     pub fn new() -> Self {
         LibraryData {
             exports: HashMap::new(),
-            values: HashMap::new(),
         }
     }
 
@@ -66,7 +63,6 @@ impl LibraryBuilder {
         self.lib
             .exports
             .insert(name, ExportItem::Value(VarDef::Value(value)));
-        self.lib.values.insert(name, value);
         self
     }
 
