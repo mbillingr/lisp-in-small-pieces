@@ -2,6 +2,7 @@ use crate::ast_transform::generate_bytecode::{compile_library, GlobalAllocator};
 use crate::bytecode::Op;
 use crate::continuation::{Continuation, ExitProcedure};
 use crate::error::{ErrorKind, Result, RuntimeError, TypeErrorKind};
+use crate::library::RuntimeLibrary;
 use crate::objectify::Translate;
 use crate::primitive::RuntimePrimitive;
 use crate::scm::Scm;
@@ -10,6 +11,7 @@ use crate::syntax::Library;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::path::Path;
+use sunny_common::Named;
 use sunny_common::{Arity, SourceLocation, Symbol};
 
 #[derive(Debug, Clone)]
@@ -164,10 +166,10 @@ impl VirtualMachine {
         self.globals.resize(self.ga.n_vars(), Scm::Uninitialized);
     }
 
-    pub fn add_library(&mut self, name: &'static str, library: &Library) {
+    pub fn add_library(&mut self, name: &'static str, library: &Library, values: &RuntimeLibrary) {
         for var in library.env.globals() {
             let idx = self.ga.get_idx(&var);
-            self.set_global(idx, var.value().as_scm());
+            self.set_global(idx, values[&var.name()]);
         }
 
         self.libraries.insert(name);

@@ -2,11 +2,12 @@ use crate::env::Env;
 use crate::error::ErrorContext;
 use crate::library::{is_import, libname_to_path};
 use crate::sexpr::{Error as SexprError, ErrorKind as SexprErrorKind, Sexpr, TrackedSexpr};
+use crate::syntax::variable::GlobalObject;
 use crate::syntax::{
-    definition::GlobalDefine, variable::VarDef, Alternative, Application, Constant, Expression,
-    FixLet, Function, GlobalAssignment, GlobalReference, GlobalVariable, Import, ImportItem,
-    ImportSet, Library, LibraryDeclaration, LibraryExport, LocalAssignment, LocalReference,
-    LocalVariable, MagicKeyword, NoOp, Program, Reference, Sequence, Variable,
+    definition::GlobalDefine, Alternative, Application, Constant, Expression, FixLet, Function,
+    GlobalAssignment, GlobalReference, GlobalVariable, Import, ImportItem, ImportSet, Library,
+    LibraryDeclaration, LibraryExport, LocalAssignment, LocalReference, LocalVariable,
+    MagicKeyword, NoOp, Program, Reference, Sequence, Variable,
 };
 use crate::utils::find_library;
 use std::cell::RefCell;
@@ -230,9 +231,9 @@ impl Translate {
             Some(Variable::LocalVariable(v)) => {
                 Ok(LocalReference::new(v, expr.source().clone()).into())
             }
-            Some(Variable::GlobalVariable(v)) => match v.value() {
-                _ => Ok(GlobalReference::new(v, expr.source().clone()).into()),
-            },
+            Some(Variable::GlobalVariable(v)) => {
+                Ok(GlobalReference::new(v, expr.source().clone()).into())
+            }
             Some(Variable::MagicKeyword(mkw)) => Ok((mkw).into()),
             Some(Variable::FreeVariable(_)) => {
                 panic!("There should be no free variables in the compile-time environment")
@@ -246,12 +247,25 @@ impl Translate {
         name: Symbol,
         span: SourceLocation,
     ) -> Result<Expression> {
-        let v = self.adjoin_global_variable(name, VarDef::Undefined);
+        let v = self.adjoin_undefined_global_variable(name);
         Ok(GlobalReference::new(v, span).into())
     }
 
-    fn adjoin_global_variable(&mut self, name: Symbol, def: VarDef) -> GlobalVariable {
-        let v = GlobalVariable::new(self.current_lib, name, def);
+    fn adjoin_defined_global_variable(
+        &mut self,
+        name: Symbol,
+        obj: GlobalObject,
+    ) -> GlobalVariable {
+        let v = GlobalVariable::defined(self.current_lib, name, obj);
+        self.adjoin_global_variable(v)
+    }
+
+    fn adjoin_undefined_global_variable(&mut self, name: Symbol) -> GlobalVariable {
+        let v = GlobalVariable::undefined(self.current_lib, name);
+        self.adjoin_global_variable(v)
+    }
+
+    fn adjoin_global_variable(&mut self, v: GlobalVariable) -> GlobalVariable {
         self.env.push_global(v.clone());
         v
     }
@@ -386,22 +400,20 @@ impl Translate {
         match self.env.find_variable(var_name) {
             Some(Variable::LocalVariable(_)) => panic!("untransformed local define"),
             Some(Variable::GlobalVariable(v)) if !v.is_defined() => {
-                v.set_value(VarDef::Unknown);
+                v.set_defined(GlobalObject::new(
+                    self.current_lib.as_str(),
+                    var_name.as_str(),
+                ));
                 Ok(GlobalDefine::new(v, form, span).into())
             }
             Some(Variable::GlobalVariable(v)) if v.is_mutable() => {
-                v.set_value(VarDef::Unknown);
                 Ok(GlobalAssignment::new(v, form, span).into())
             }
             _ => {
-                let v = self.adjoin_global_variable(*var_name, VarDef::Unknown);
-                match &form {
-                    Expression::Constant(c) => v.set_value(VarDef::Value((&c.value).into())),
-                    Expression::Reference(Reference::GlobalReference(gr)) => {
-                        v.set_value(gr.var.value())
-                    }
-                    _ => v.set_value(VarDef::Unknown),
-                }
+                let v = self.adjoin_defined_global_variable(
+                    *var_name,
+                    GlobalObject::new(self.current_lib.as_str(), var_name.as_str()),
+                );
                 Ok(GlobalDefine::redefine(v, form, span).into())
             }
         }
@@ -425,7 +437,6 @@ impl Translate {
                 let gvar = var;
 
                 gvar.set_mutable(true);
-                gvar.set_value(VarDef::Unknown);
 
                 Ok(GlobalAssignment::new(gvar, of, span).into())
             }
@@ -452,8 +463,7 @@ impl Translate {
             }
 
             for var in import_vars {
-                let gv = self.env.ensure_global(var.clone());
-                gv.ensure_value(var.value());
+                self.env.ensure_global(var.clone());
             }
 
             self.env.extend_global(import_macros);
@@ -494,7 +504,7 @@ impl Translate {
                         Variable::GlobalVariable(ex) => GlobalVariable::constant(
                             self.current_lib,
                             spec.exported_name(),
-                            ex.value(),
+                            ex.object().unwrap().clone(),
                         )
                         .into(),
                         Variable::MagicKeyword(mkw) => MagicKeyword {

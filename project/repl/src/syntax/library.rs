@@ -70,8 +70,8 @@ impl Library {
 
         for (name, item) in items {
             match item {
-                ExportItem::Value(def) => {
-                    env.push_global(GlobalVariable::constant(lib_name, name, def))
+                ExportItem::Value(obj) => {
+                    env.push_global(GlobalVariable::constant(lib_name, name, obj))
                 }
                 ExportItem::Macro(mkw) => env.push_global(mkw),
             }

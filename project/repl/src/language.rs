@@ -88,7 +88,7 @@ pub mod scheme {
 
             let library = Library::construct(Symbol::from(name_str), lib.exports);
 
-            self.vm.add_library(name_str, &library);
+            self.vm.add_library(name_str, &library, &lib.values);
 
             self.trans().add_library(name.clone(), library);
         }
@@ -122,6 +122,7 @@ pub mod scheme {
 
     pub fn create_scheme_extra_library() -> LibraryData {
         build_library! {
+            "sunny/extra";
             native "primitive?", =1, Scm::is_primitive;
             native "uninitialized?", =1, Scm::is_uninitialized;
             native "undefined?", =1, Scm::is_undefined;
@@ -134,6 +135,7 @@ pub mod scheme {
 
     pub fn create_scheme_base_library() -> LibraryData {
         build_library! {
+            "sunny/core";
             // example of a variable-argument native
             //native "foo", >=1, |a: Scm, b: &[Scm]| {println!("{:?} and {:?}", a, b)};
 
@@ -249,6 +251,7 @@ pub mod scheme {
 
     pub fn create_scheme_ports_library() -> LibraryData {
         build_library! {
+            "sunny/ports";
             native "eof-object?", =1, Scm::is_eof;
             native "eof-object", =0, || Scm::Eof;
             native "input-port?", =1, |port: Scm| -> Result<bool> { Ok(port.as_port().map(SchemePort::is_input_port)?) };
@@ -758,7 +761,7 @@ pub mod scheme {
         fn create_testing_libraries(mut ctx: Context) -> Context {
             ctx.add_library(
                 "testing/1",
-                LibraryBuilder::new()
+                LibraryBuilder::new("testing/1")
                     .add_value("a", 1)
                     .add_value("b", 2)
                     .add_value(
@@ -787,7 +790,7 @@ pub mod scheme {
             );
             ctx.add_library(
                 "testing/2",
-                LibraryBuilder::new()
+                LibraryBuilder::new("testing/2")
                     .add_macro(
                         "invoke",
                         MagicKeyword::new("invoke", |trans, expr| {

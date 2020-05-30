@@ -1,21 +1,24 @@
 use crate::error::{Error, Result};
 use crate::scm::{Result as ScmResult, Scm};
 use crate::sexpr::TrackedSexpr;
-use crate::syntax::{variable::VarDef, MagicKeyword};
+use crate::syntax::variable::GlobalObject;
+use crate::syntax::MagicKeyword;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use sunny_common::Symbol;
 
-pub type StaticLibrary = HashMap<Symbol, ExportItem>;
+pub type CompileLibrary = HashMap<Symbol, ExportItem>;
+pub type RuntimeLibrary = HashMap<Symbol, Scm>;
 
 #[derive(Debug, Clone)]
 pub struct LibraryData {
-    pub exports: StaticLibrary,
+    pub exports: CompileLibrary,
+    pub values: RuntimeLibrary,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExportItem {
-    Value(VarDef),
+    Value(GlobalObject),
     Macro(MagicKeyword),
 }
 
@@ -23,6 +26,7 @@ impl LibraryData {
     pub fn new() -> Self {
         LibraryData {
             exports: HashMap::new(),
+            values: HashMap::new(),
         }
     }
 
@@ -37,12 +41,21 @@ impl LibraryData {
 
 pub struct LibraryBuilder {
     lib: LibraryData,
+    name: Symbol,
 }
 
 impl LibraryBuilder {
-    pub fn new() -> Self {
+    pub fn new(name: impl Into<Symbol>) -> Self {
         LibraryBuilder {
             lib: LibraryData::new(),
+            name: name.into(),
+        }
+    }
+
+    pub fn set_name(self, name: impl Into<Symbol>) -> Self {
+        LibraryBuilder {
+            name: name.into(),
+            ..self
         }
     }
 
@@ -60,9 +73,11 @@ impl LibraryBuilder {
     pub fn add_value(mut self, identifier: impl Into<Symbol>, value: impl Into<Scm>) -> Self {
         let name = identifier.into();
         let value = value.into();
-        self.lib
-            .exports
-            .insert(name, ExportItem::Value(VarDef::Value(value)));
+        self.lib.exports.insert(
+            name,
+            ExportItem::Value(GlobalObject::new(self.name.as_str(), name.as_str())),
+        );
+        self.lib.values.insert(name, value);
         self
     }
 
@@ -110,6 +125,10 @@ macro_rules! build_library {
         build_library!(@|builder| builder; native $($rest)*)
     };
 
+    ($name:expr; $($rest:tt)*) => {
+        build_library!(@|builder| builder; name $name; $($rest)*)
+    };
+
     (@$build:expr; macro $name:expr, $func:expr; $($rest:tt)*) => {
         build_library!(
             @|builder: LibraryBuilder| $build(builder).add_macro($name, MagicKeyword::new($name, $func));
@@ -132,8 +151,14 @@ macro_rules! build_library {
             $($rest)*)
     };
 
+    (@$build:expr; name $name:expr; $($rest:tt)*) => {
+        build_library!(
+            @|builder: LibraryBuilder| $build(builder).set_name($name);
+            $($rest)*)
+    };
+
     (@$build:expr;) => {
-        $build(LibraryBuilder::new()).build()
+        $build(LibraryBuilder::new("")).build()
     };
 }
 

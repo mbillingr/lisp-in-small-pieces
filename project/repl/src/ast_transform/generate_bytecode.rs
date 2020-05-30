@@ -2,10 +2,8 @@ use crate::bytecode::Op;
 use crate::error::{CompileError, Error, ErrorContext, ErrorKind, Result};
 use crate::interpreter::{encode_arity, CodeObject, LibraryObject};
 use crate::objectify::Translate;
-use crate::primitive::RuntimePrimitive;
 use crate::scm::Scm;
 use crate::syntax::definition::GlobalDefine;
-use crate::syntax::variable::VarDef;
 use crate::syntax::{
     Alternative, Application, Assignment, BoxCreate, BoxRead, BoxWrite, Constant, Expression,
     FixLet, FlatClosure, FreeReference, Function, GlobalAssignment, GlobalReference,
@@ -424,21 +422,24 @@ impl<'a> BytecodeGenerator<'a> {
     ) -> Result<Option<Vec<Op>>> {
         match func {
             Expression::Reference(Reference::GlobalReference(GlobalReference { var, .. })) => {
-                match var.value() {
-                    VarDef::Value(Scm::Primitive(RuntimePrimitive { name, .. })) => match name {
-                        "cons" => Ok(Some(vec![Op::Cons])),
-                        "car" => Ok(Some(vec![Op::Car])),
-                        "cdr" => Ok(Some(vec![Op::Cdr])),
-                        "call/cc" => Ok(Some(vec![Op::PushCC(1), Op::Call(1)])),
-                        "call/ep" => Ok(Some(vec![Op::PushEP(2), Op::Call(1), Op::PopEP])),
-                        "apply" => Ok(Some(if tail {
+                if let Some(obj) = var.object() {
+                    match obj.id() {
+                        "sunny/core/cons" => Ok(Some(vec![Op::Cons])),
+                        "sunny/core/car" => Ok(Some(vec![Op::Car])),
+                        "sunny/core/cdr" => Ok(Some(vec![Op::Cdr])),
+                        "sunny/core/call/cc" => Ok(Some(vec![Op::PushCC(1), Op::Call(1)])),
+                        "sunny/core/call/ep" => {
+                            Ok(Some(vec![Op::PushEP(2), Op::Call(1), Op::PopEP]))
+                        }
+                        "sunny/core/apply" => Ok(Some(if tail {
                             vec![Op::PreApply(n_args), Op::TailCallN]
                         } else {
                             vec![Op::PreApply(n_args), Op::CallN, Op::Drop(1)]
                         })),
                         _ => Ok(None),
-                    },
-                    _ => Ok(None),
+                    }
+                } else {
+                    Ok(None)
                 }
             }
             _ => Ok(None),
@@ -530,21 +531,22 @@ impl<'a> BytecodeGenerator<'a> {
 mod tests {
     use super::*;
     use crate::env::Env;
-    use crate::interpreter::VirtualMachine;
+    use crate::syntax::variable::GlobalObject;
     use crate::syntax::GlobalVariable;
     use sunny_common::SourceLocation::NoSource;
 
     #[test]
     fn compile_intrinsics() {
         let expr = Expression::Reference(Reference::GlobalReference(GlobalReference::new(
-            GlobalVariable::defined(
+            GlobalVariable::constant(
                 Symbol::new(""),
                 "no-matter",
-                Scm::Primitive(RuntimePrimitive::new(
+                GlobalObject::new("sunny/core", "cons"),
+                /*Scm::Primitive(RuntimePrimitive::new(
                     "cons",
                     Arity::Exact(2),
                     |_: &[Scm], _: &mut VirtualMachine| unimplemented!(),
-                )),
+                )),*/
             ),
             NoSource,
         )));

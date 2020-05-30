@@ -1,12 +1,9 @@
 use super::keyword::MagicKeyword;
 use crate::scm::Scm;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use sunny_common::Named;
-use sunny_common::Symbol;
-
-use sunny_common::{sum_type, sum_types};
+use sunny_common::{sum_type, sum_types, Named, Symbol};
 
 sum_types! {
     #[derive(Debug, Clone, PartialEq)]
@@ -100,50 +97,55 @@ impl std::fmt::Debug for LocalVariable {
 }
 
 #[derive(Clone)]
-pub struct GlobalVariable(Rc<(Symbol, Symbol, Cell<VarDef>, Cell<bool>)>);
+pub struct GlobalObject(Rc<String>);
 
-impl GlobalVariable {
-    pub fn new(module: Symbol, name: impl Into<Symbol>, def: VarDef) -> Self {
-        let name = name.into();
-        GlobalVariable(Rc::new((module, name, Cell::new(def), Cell::new(true))))
+impl GlobalObject {
+    pub fn new(module: &str, name: &str) -> Self {
+        GlobalObject(Rc::new(format!("{}/{}", module, name)))
     }
 
-    pub fn defined(module: Symbol, name: impl Into<Symbol>, value: Scm) -> Self {
+    pub fn id(&self) -> &str {
+        &*self.0
+    }
+}
+
+impl std::fmt::Debug for GlobalObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Clone)]
+pub struct GlobalVariable(Rc<(Symbol, Symbol, RefCell<Option<GlobalObject>>, Cell<bool>)>);
+
+impl GlobalVariable {
+    pub fn defined(module: Symbol, name: impl Into<Symbol>, obj: GlobalObject) -> Self {
         let name = name.into();
         GlobalVariable(Rc::new((
             module,
             name,
-            Cell::new(VarDef::Value(value)),
+            RefCell::new(Some(obj)),
             Cell::new(true),
         )))
     }
 
-    pub fn constant(module: Symbol, name: impl Into<Symbol>, def: VarDef) -> Self {
+    pub fn undefined(module: Symbol, name: impl Into<Symbol>) -> Self {
         let name = name.into();
-        GlobalVariable(Rc::new((module, name, Cell::new(def), Cell::new(false))))
+        GlobalVariable(Rc::new((module, name, RefCell::new(None), Cell::new(true))))
+    }
+
+    pub fn constant(module: Symbol, name: impl Into<Symbol>, obj: GlobalObject) -> Self {
+        let name = name.into();
+        GlobalVariable(Rc::new((
+            module,
+            name,
+            RefCell::new(Some(obj)),
+            Cell::new(false),
+        )))
     }
 
     pub fn module(&self) -> Symbol {
         (&self.0).0
-    }
-
-    pub fn value(&self) -> VarDef {
-        (&self.0).2.get()
-    }
-
-    pub fn set_value(&self, value: VarDef) {
-        if !self.is_mutable()
-        /*&& self.value() != VarDef::Undefined*/
-        {
-            eprintln!("WARNING: setting immutable {:?} := {}", self, value)
-        }
-        (&self.0).2.set(value);
-    }
-
-    pub fn ensure_value(&self, value: VarDef) {
-        if self.value() != value {
-            self.set_value(value)
-        }
     }
 
     pub fn is_mutable(&self) -> bool {
@@ -154,12 +156,23 @@ impl GlobalVariable {
         (&self.0).3.set(d)
     }
 
+    pub fn object(&self) -> Option<GlobalObject> {
+        (&self.0).2.borrow().clone()
+    }
+
     pub fn is_defined(&self) -> bool {
-        self.value() != VarDef::Undefined
+        self.object().is_some()
+    }
+
+    pub fn set_defined(&self, obj: GlobalObject) {
+        *(&self.0).2.borrow_mut() = Some(obj)
     }
 
     fn renamed(&self, newname: Symbol) -> GlobalVariable {
-        let gv = GlobalVariable::new(self.module(), newname, self.value());
+        let gv = GlobalVariable::undefined(self.module(), newname);
+        if let Some(obj) = self.object() {
+            *(&gv.0).2.borrow_mut() = Some(obj.clone());
+        }
         gv.set_mutable(self.is_mutable());
         gv
     }
@@ -195,11 +208,10 @@ impl std::fmt::Debug for GlobalVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{}global {} {}: {}",
+            "{}global {} {}",
             if self.is_mutable() { "" } else { "immutable " },
             self.module(),
-            self.name(),
-            self.value()
+            self.name()
         )
     }
 }
@@ -233,44 +245,5 @@ impl PartialEq for FreeVariable {
 impl std::fmt::Debug for FreeVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "free {}", self.name())
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum VarDef {
-    Unknown,
-    Undefined,
-    Value(Scm),
-}
-
-impl std::fmt::Display for VarDef {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            VarDef::Unknown => write!(f, "?"),
-            VarDef::Undefined => write!(f, "-"),
-            VarDef::Value(x) => write!(f, "{}", x.display()),
-        }
-    }
-}
-
-impl PartialEq for VarDef {
-    fn eq(&self, other: &Self) -> bool {
-        use VarDef::*;
-        match (self, other) {
-            (Unknown, Unknown) => true,
-            (Undefined, Undefined) => true,
-            (Value(a), Value(b)) => a.equals(b),
-            _ => false,
-        }
-    }
-}
-
-impl VarDef {
-    pub fn as_scm(&self) -> Scm {
-        match self {
-            VarDef::Unknown => Scm::Undefined,
-            VarDef::Undefined => Scm::Uninitialized,
-            VarDef::Value(x) => *x,
-        }
     }
 }

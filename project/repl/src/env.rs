@@ -1,5 +1,5 @@
 use crate::scm::Scm;
-use crate::syntax::{variable::VarDef, GlobalVariable, LocalVariable, Variable};
+use crate::syntax::{GlobalVariable, LocalVariable, Variable};
 use std::cell::RefCell;
 use std::rc::Rc;
 use sunny_common::Named;
@@ -169,15 +169,5 @@ impl Env {
     pub fn drop_frame(&mut self, n: usize) {
         let n = self.locals.len() - n;
         self.locals.truncate(n);
-    }
-
-    pub fn update_global_values(&self, values: impl Iterator<Item = (Scm, Symbol)>) {
-        for (gv, (value, name)) in self.globals().zip(values) {
-            assert_eq!(gv.name(), name);
-            match value {
-                Scm::Undefined | Scm::Uninitialized => gv.ensure_value(VarDef::Unknown),
-                val => gv.ensure_value(VarDef::Value(val)),
-            }
-        }
     }
 }
