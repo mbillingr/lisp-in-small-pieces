@@ -1,9 +1,7 @@
-use crate::scm::Scm;
 use crate::syntax::{GlobalVariable, LocalVariable, Variable};
 use std::cell::RefCell;
 use std::rc::Rc;
-use sunny_common::Named;
-use sunny_common::Symbol;
+use sunny_common::{Named, Symbol};
 
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -118,22 +116,6 @@ impl Env {
                 None
             }
         })
-    }
-
-    pub fn enumerate_global_names(&self) -> impl Iterator<Item = (usize, Scm)> {
-        self.globals
-            .borrow()
-            .clone()
-            .into_iter()
-            .filter(|var| match var {
-                Variable::GlobalVariable(_) => true,
-                _ => false,
-            })
-            .enumerate()
-            .filter_map(|(idx, var)| match var {
-                Variable::GlobalVariable(gv) => Some((idx, Scm::Symbol(gv.name()))),
-                _ => None,
-            })
     }
 
     pub fn ensure_global(&mut self, var: GlobalVariable) -> GlobalVariable {
